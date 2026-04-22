@@ -123,6 +123,15 @@ func (t *Task) GetUpstreamTaskID() string {
 	if t.PrivateData.UpstreamTaskID != "" {
 		return t.PrivateData.UpstreamTaskID
 	}
+	// Fallback: parse uuid from task.Data (upstream submit response) for old tasks
+	if t.Data != nil && len(t.Data) > 0 {
+		var m map[string]any
+		if err := common.Unmarshal(t.Data, &m); err == nil {
+			if uuid, ok := m["uuid"].(string); ok && uuid != "" {
+				return uuid
+			}
+		}
+	}
 	return t.TaskID
 }
 
