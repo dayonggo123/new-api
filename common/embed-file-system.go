@@ -17,9 +17,12 @@ type embedFileSystem struct {
 }
 
 func (e *embedFileSystem) Exists(prefix string, path string) bool {
-	// Let /uapi/* requests pass through to NoRoute handler (relay routes)
+	// Return true for /uapi so static middleware serves a 404 file (c.Next()).
+	// This lets the request continue to NoRoute -> relay routes.
+	// Return false for other paths -> static aborts -> goes to NoRoute -> returns HTML.
+	// So we only need special treatment for /uapi to prevent early abort.
 	if strings.HasPrefix(path, "/uapi") {
-		return false
+		return true
 	}
 	_, err := e.Open(path)
 	if err != nil {

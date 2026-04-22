@@ -160,6 +160,13 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			return types.NewError(err, types.ErrorCodeJsonMarshalFailed, types.ErrOptionWithSkipRetry())
 		}
 
+		// For video/image adaptors that return multipart body as *bytes.Buffer, use it directly
+		if buf, ok := convertedRequest.(*bytes.Buffer); ok {
+			requestBody = buf
+		} else {
+			requestBody = bytes.NewBuffer(jsonData)
+		}
+
 		// remove disabled fields for OpenAI API
 		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
 		if err != nil {
@@ -176,7 +183,6 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 		logger.LogDebug(c, fmt.Sprintf("text request body: %s", string(jsonData)))
 
-		requestBody = bytes.NewBuffer(jsonData)
 	}
 
 	var httpResp *http.Response

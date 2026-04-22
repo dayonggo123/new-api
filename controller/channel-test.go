@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -52,6 +53,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
+	}
+	if channel != nil && channel.Type == constant.ChannelTypeVeo {
+		return string(constant.EndpointTypeOpenAIVideo)
 	}
 	return normalized
 }
@@ -189,6 +193,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			relayFormat = types.RelayFormatOpenAIImage
 		case constant.EndpointTypeEmbeddings:
 			relayFormat = types.RelayFormatEmbedding
+		case constant.EndpointTypeOpenAIVideo:
+			relayFormat = types.RelayFormatOpenAIImage
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
@@ -295,8 +301,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				newAPIError: types.NewError(errors.New("invalid embedding request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
-	case relayconstant.RelayModeImagesGenerations:
-		// 图像生成请求 - request 已经是正确的类型
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeVideoSubmit:
+		// 图像/视频生成请求 - request 已经是正确的类型
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
 			convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
 		} else {
@@ -405,7 +411,25 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
-	resp, err := adaptor.DoRequest(c, info, requestBody)
+	// For OpenAIVideo veo channel test, extract real boundary from multipart body and call DoFormRequestWithContentType
+	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && info.ChannelType == constant.ChannelTypeVeo
+	var resp any
+	if isOpenAIVideoTest {
+		if multipartBuf, ok := convertedRequest.(*bytes.Buffer); ok {
+			contentType := extractMultipartContentType(multipartBuf)
+			// Log what we're about to send
+			fullURL, _ := adaptor.GetRequestURL(info)
+			common.SysLog(fmt.Sprintf("veo test: URL=%s CT=%s Model=%s UpstreamModel=%s ApiKey=%s",
+				fullURL, contentType, info.OriginModelName, info.UpstreamModelName, info.ApiKey, multipartBuf.Len()))
+				common.SysLog(fmt.Sprintf("veo test body: %q", multipartBuf.String()))
+			resp, err = relaychannel.DoFormRequestWithContentType(adaptor, c, info, multipartBuf, contentType)
+		} else {
+			common.SysLog(fmt.Sprintf("veo test: convertedRequest type=%T, using DoRequest", convertedRequest))
+			resp, err = adaptor.DoRequest(c, info, requestBody)
+		}
+	} else {
+		resp, err = adaptor.DoRequest(c, info, requestBody)
+	}
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -611,11 +635,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Model: model,
 				Input: []any{"hello world"},
 			}
-		case constant.EndpointTypeImageGeneration:
+		case constant.EndpointTypeImageGeneration, constant.EndpointTypeOpenAIVideo:
 			// 返回 ImageRequest
 			return &dto.ImageRequest{
 				Model:  model,
-				Prompt: "a cute cat",
+				Prompt: "a beautiful sunset over ocean",
 				N:      lo.ToPtr(uint(1)),
 				Size:   "1024x1024",
 			}
@@ -901,4 +925,28 @@ func AutomaticallyTestChannels() {
 			}
 		}
 	})
+}
+
+// extractMultipartContentType scans the multipart body for the boundary value
+// (the string between "--" and the following "\r\n") and returns the full
+// Content-Type header, e.g. "multipart/form-data; boundary=abc123".
+func extractMultipartContentType(buf *bytes.Buffer) string {
+	data := buf.String()
+	// The body starts with: --{boundary}\r\n
+	// Find the first "\r\n" and the text before it should start with "--"
+	eol := strings.Index(data, "\r\n")
+	if eol == -1 {
+		return "multipart/form-data"
+	}
+	firstLine := data[:eol]
+	// Boundary is the part after the leading "--"
+	const prefix = "--"
+	if !strings.HasPrefix(firstLine, prefix) {
+		return "multipart/form-data"
+	}
+	boundary := firstLine[len(prefix):]
+	if boundary == "" {
+		return "multipart/form-data"
+	}
+	return "multipart/form-data; boundary=" + boundary
 }

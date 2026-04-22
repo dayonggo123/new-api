@@ -17,24 +17,25 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
 
-	// Custom static file server: skip relay API paths
 	efs, _ := fs.Sub(buildFS, "web/dist")
+	fileServer := http.FileServer(http.FS(efs))
 
+	// Custom static middleware: skip API paths so relay routes can handle them
 	router.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/uapi") || strings.HasPrefix(path, "/mj") || strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/assets") {
+		if strings.HasPrefix(path, "/uapi") || strings.HasPrefix(path, "/mj") {
 			c.Next()
 			return
 		}
-		// Try to serve static file
+		// Serve static file, continue on 404
 		f, err := efs.Open(strings.TrimPrefix(path, "/"))
 		if err == nil {
 			f.Close()
-			http.FileServer(http.FS(efs)).ServeHTTP(c.Writer, c.Request)
+			fileServer.ServeHTTP(c.Writer, c.Request)
 			c.Abort()
 			return
 		}
-		// Fallback to index.html (SPA)
+		// Fallback to index.html (SPA routing)
 		c.Header("Cache-Control", "no-cache")
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
 		c.Abort()

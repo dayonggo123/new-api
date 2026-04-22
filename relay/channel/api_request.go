@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -347,6 +348,62 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
+	}
+	return resp, nil
+}
+
+func DoFormRequestWithContentType(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader, contentType string) (*http.Response, error) {
+	fullRequestURL, err := a.GetRequestURL(info)
+	if err != nil {
+		return nil, fmt.Errorf("get request url failed: %w", err)
+	}
+	if common2.DebugEnabled {
+		println("fullRequestURL:", fullRequestURL)
+	}
+	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("new request failed: %w", err)
+	}
+	headers := req.Header
+	// Disable compression on the request body - upstream may not support compressed request bodies
+	headers.Set("Accept-Encoding", "")
+	err = a.SetupRequestHeader(c, &headers, info)
+	if err != nil {
+		return nil, fmt.Errorf("setup request header failed: %w", err)
+	}
+	// Override Content-Type to the one we built
+	req.Header.Set("Content-Type", contentType)
+	// Debug log ALL headers being sent (after SetupRequestHeader but before header override)
+	for k, vals := range req.Header {
+		for _, v := range vals {
+			println("SEND header:", k, "=", v)
+		}
+	}
+	headerOverride, err := processHeaderOverride(info, c)
+	if err != nil {
+		return nil, err
+	}
+	applyHeaderOverrideToRequest(req, headerOverride)
+	// Log headers AFTER override applied
+	for k, vals := range req.Header {
+		for _, v := range vals {
+			println("SEND_OVERRIDE header:", k, "=", v)
+		}
+	}
+	resp, err := doRequest(c, req, info)
+	if err != nil {
+		return nil, fmt.Errorf("do request failed: %w", err)
+	}
+	// Debug log response status and first 200 chars of body
+	if resp != nil {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		bodyStr := string(bodyBytes)
+		if len(bodyStr) > 200 {
+			bodyStr = bodyStr[:200]
+		}
+		println("upstream resp status:", resp.StatusCode, "body:", bodyStr)
+		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 	return resp, nil
 }
