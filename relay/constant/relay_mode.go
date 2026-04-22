@@ -88,6 +88,9 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRealtime
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
+	} else if strings.HasPrefix(path, "/uapi/") {
+		// uapi paths: let distributor middleware set correct relay_mode based on method
+		// POST -> RelayModeVideoSubmit, GET -> RelayModeVideoFetchByID
 	} else if strings.HasPrefix(path, "/mj") {
 		relayMode = Path2RelayModeMidjourney(path)
 	}

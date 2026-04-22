@@ -262,6 +262,22 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
 		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/uapi/") {
+		// uapi video-gen routes: /uapi/v1/video-gen/{model}, etc.
+		relayMode := relayconstant.RelayModeVideoSubmit
+		if c.Request.Method == http.MethodGet {
+			relayMode = relayconstant.RelayModeVideoFetchByID
+			shouldSelectChannel = false
+		} else {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			if req != nil {
+				modelRequest.Model = req.Model
+			}
+		}
+		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
