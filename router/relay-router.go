@@ -186,6 +186,19 @@ func SetRelayRouter(router *gin.Engine) {
 		relaySunoRouter.GET("/fetch/:id", controller.RelayTaskFetch)
 	}
 
+	relayUapiRouter := router.Group("/uapi")
+	relayUapiRouter.Use(middleware.RouteTag("relay"))
+	relayUapiRouter.Use(middleware.SystemPerformanceCheck())
+	relayUapiRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	relayUapiRouter.Use(middleware.ModelRequestRateLimit())
+	relayUapiRouter.Use(middleware.Distribute())
+	{
+		relayUapiRouter.POST("/v1/video-gen/*model", controller.RelayTask)
+		relayUapiRouter.GET("/v1/video-gen/*model", controller.RelayTaskFetch)
+		relayUapiRouter.POST("/v1/generate_image", controller.RelayTask)
+		relayUapiRouter.GET("/v1/generate_image", controller.RelayTaskFetch)
+	}
+
 	relayGeminiRouter := router.Group("/v1beta")
 	relayGeminiRouter.Use(middleware.RouteTag("relay"))
 	relayGeminiRouter.Use(middleware.SystemPerformanceCheck())
