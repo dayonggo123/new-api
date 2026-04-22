@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-contrib/static"
 )
@@ -16,6 +17,10 @@ type embedFileSystem struct {
 }
 
 func (e *embedFileSystem) Exists(prefix string, path string) bool {
+	// Let /uapi/* requests pass through to NoRoute handler (relay routes)
+	if strings.HasPrefix(path, "/uapi") {
+		return false
+	}
 	_, err := e.Open(path)
 	if err != nil {
 		return false
