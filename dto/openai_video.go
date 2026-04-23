@@ -15,6 +15,7 @@ const (
 
 type OpenAIVideo struct {
 	ID                 string            `json:"id"`
+	UUID               string            `json:"uuid,omitempty"` // upstream uuid
 	TaskID             string            `json:"task_id,omitempty"` //兼容旧接口 待废弃
 	Object             string            `json:"object"`
 	Model              string            `json:"model"`

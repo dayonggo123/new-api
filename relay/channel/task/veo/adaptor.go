@@ -2,6 +2,7 @@ package veo
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -94,6 +95,25 @@ type generatedImage struct {
 	Status     int    `json:"status"`
 	Model      string `json:"model"`
 	Resolution string `json:"resolution"`
+}
+
+const maxVeoImageSize = 20 * 1024 * 1024 // 20 MB per image
+
+func extFromMime(mime string) string {
+	switch strings.ToLower(mime) {
+	case "image/png":
+		return "png"
+	case "image/jpeg", "image/jpg":
+		return "jpg"
+	case "image/gif":
+		return "gif"
+	case "image/webp":
+		return "webp"
+	case "image/bmp":
+		return "bmp"
+	default:
+		return "bin"
+	}
 }
 
 type veoParameters struct {
@@ -293,6 +313,47 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				}
 				io.Copy(part, f)
 				f.Close()
+			}
+		}
+
+		// Handle ref_images as base64 text values (e.g., "data:image/png;base64,...")
+		// or plain base64 strings — decode and append as multipart file parts.
+		for fieldName, values := range formData.Value {
+			if fieldName != "ref_images" && fieldName != "files" {
+				continue
+			}
+			for i, val := range values {
+				if val == "" {
+					continue
+				}
+				b64 := val
+				mimeType := "application/octet-stream"
+				if strings.HasPrefix(val, "data:") {
+					rest := val[len("data:"):]
+					if idx := strings.Index(rest, ","); idx >= 0 {
+						mimeType = rest[:idx]
+						if sem := strings.Index(mimeType, ";"); sem >= 0 {
+							mimeType = mimeType[:sem]
+						}
+						b64 = rest[idx+1:]
+					}
+				}
+				data, err := base64.StdEncoding.DecodeString(b64)
+				if err != nil {
+					continue
+				}
+				if len(data) > maxVeoImageSize {
+					continue
+				}
+				h := make(textproto.MIMEHeader)
+				filename := fmt.Sprintf("ref_image_%d_%d.%s", time.Now().UnixNano(), i, extFromMime(mimeType))
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, filename))
+				h.Set("Content-Type", mimeType)
+				part, err := writer.CreatePart(h)
+				if err != nil {
+					continue
+				}
+				part.Write(data)
 			}
 		}
 
