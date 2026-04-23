@@ -116,6 +116,14 @@ func extFromMime(mime string) string {
 	}
 }
 
+func isImageURL(url string) bool {
+	lower := strings.ToLower(url)
+	return strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".jpg") ||
+		strings.HasSuffix(lower, ".jpeg") || strings.HasSuffix(lower, ".gif") ||
+		strings.HasSuffix(lower, ".webp") || strings.HasSuffix(lower, ".bmp") ||
+		strings.HasSuffix(lower, ".heic") || strings.HasSuffix(lower, ".heif")
+}
+
 type veoParameters struct {
 	Prompt       string   `json:"prompt,omitempty"`
 	Model        string   `json:"model,omitempty"`
@@ -317,7 +325,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 
 		// Handle ref_images as text values: base64 data URL, plain base64, or HTTP URL.
-		// Decode/base64-encode or download, then append as multipart file parts.
+		// - HTTP URL with image extension -> forward as file_urls text field (upstream fetches it)
+		// - base64 or data: URI -> decode and send as "files" multipart part
 		for fieldName, values := range formData.Value {
 			if fieldName != "ref_images" && fieldName != "files" {
 				continue
@@ -330,7 +339,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				mimeType := "application/octet-stream"
 
 				if strings.HasPrefix(val, "data:") {
-					// data:image/png;base64,...
+					// data:image/png;base64,... -> decode and send as files part
 					rest := val[len("data:"):]
 					if idx := strings.Index(rest, ","); idx >= 0 {
 						mimeType = rest[:idx]
@@ -341,7 +350,18 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 						data, _ = base64.StdEncoding.DecodeString(b64str)
 					}
 				} else if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
-					// HTTP URL — download the image
+					if isImageURL(val) {
+						// Image URL -> forward as file_urls text field (upstream fetches)
+						h := make(textproto.MIMEHeader)
+						h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file_urls"; filename="file_urls_%d.txt"`, i))
+						h.Set("Content-Type", "text/plain")
+						part, err := writer.CreatePart(h)
+						if err == nil {
+							part.Write([]byte(val))
+						}
+						continue
+					}
+					// Non-image URL -> download and send as files part
 					resp, err := http.Get(val)
 					if err == nil && resp.StatusCode == 200 {
 						data, _ = io.ReadAll(resp.Body)
@@ -351,7 +371,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 						}
 					}
 				} else {
-					// plain base64
+					// plain base64 -> decode and send as files part
 					data, _ = base64.StdEncoding.DecodeString(val)
 				}
 
