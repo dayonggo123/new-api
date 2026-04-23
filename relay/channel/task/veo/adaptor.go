@@ -304,7 +304,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 					}
 				}
 				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fh.Filename))
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="files"; filename="%s"`, fh.Filename))
 				h.Set("Content-Type", ct)
 				part, err := writer.CreatePart(h)
 				if err != nil {
@@ -360,7 +360,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				}
 				h := make(textproto.MIMEHeader)
 				filename := fmt.Sprintf("ref_image_%d_%d.%s", time.Now().UnixNano(), i, extFromMime(mimeType))
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, filename))
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="files"; filename="%s"`, filename))
 				h.Set("Content-Type", mimeType)
 				part, err := writer.CreatePart(h)
 				if err != nil {
