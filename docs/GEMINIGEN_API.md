@@ -1,8 +1,8 @@
 # GeminiGen 渠道 API 接口文档
 
-## 0. 重要更新（2026-04-22）
+## 0. 重要更新（2026-04-23）
 
-`/uapi/` 接口已修复完成，所有视频和图片生成接口验证通过。下游应用可正常接入。
+`ref_images` 参考图现已支持三种格式：multipart 文件、base64 data URL、HTTP 图片 URL。图片图生图功能（nano-banana-2 等）验证通过，上游成功接收参考图并返回 `reference_item`。
 
 ### 快速测试
 
@@ -13,11 +13,12 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/veo \
   -F "prompt=A cat playing piano" \
   -F "model=veo-3.1"
 
-# 图片生成
+# 图片生成（带 HTTP URL 参考图）
 curl -X POST https://heharse.cloud/uapi/v1/generate_image \
   -H "Authorization: Bearer {API_KEY}" \
-  -F "prompt=A beautiful landscape" \
-  -F "model=nano-banana-2"
+  -F "prompt=衣服变红" \
+  -F "model=nano-banana-2" \
+  -F "ref_images=https://example.com/ref.jpg"
 
 # 轮询（用 task_id）
 curl "https://heharse.cloud/uapi/v1/video-gen/veo?task_id={task_id}" \
@@ -98,7 +99,7 @@ Content-Type: multipart/form-data
 | `resolution` | string | ❌ | 分辨率：`480p`（默认）、`720p`、`1080p` |
 | `aspect_ratio` | string | ❌ | 宽高比：`16:9`（默认）、`9:16`、`1:1` |
 | `seconds` | int | ❌ | 时长（秒）。Veo 默认 8s；Grok 支持 6/10/15；Kling 支持 5/10/15/30 |
-| `ref_images` | file | ❌ | 参考图片（1-3 张），relay 自动转为上游 `files` 字段 |
+| `ref_images` | file / string | ❌ | 参考图片，支持三种格式（与图片生成相同，见上方说明） |
 | `mode_image` | string | ❌ | 图片参考模式：`frame`（默认，整图参考）、`ingredient`（局部元素） |
 
 **完整示例（curl）：**
@@ -284,7 +285,7 @@ Content-Type: multipart/form-data
 | `aspect_ratio` | string | ❌ | 宽高比：`1:1`（默认）、`16:9`、`9:16`、`4:3`、`3:4` |
 | `style` | string | ❌ | 艺术风格：`Photorealistic`、`Anime General`、`3D Render`、`Illustration` 等 |
 | `output_format` | string | ❌ | 输出格式：`jpeg`（默认）、`png` |
-| `ref_images` | file | ❌ | 参考图片，relay 自动转为上游 `files` 字段 |
+| `ref_images` | file / string | ❌ | 参考图片，支持三种格式：<br>1. **multipart 文件**：`ref_images=@file.png`（relay 转为 `files` 上传）<br>2. **base64 data URL**：`ref_images=data:image/png;base64,iVBOR...`（relay 解码后上传）<br>3. **HTTP 图片 URL**：`ref_images=https://example.com/img.png`（relay 转为 `file_urls` 字段，上游下载）<br>单张最大 20MB，最多 3 张 |
 
 **完整示例（curl）：**
 
@@ -522,12 +523,17 @@ class GeminiGenAPI:
         return resp.json()
 
     def submit_image(self, prompt: str, model: str = 'nano-banana-2',
-                    resolution: str = '1K', ref_image: str = None) -> dict:
-        """提交图片生成任务"""
+                    resolution: str = '1K', ref_image: str = None,
+                    ref_image_url: str = None) -> dict:
+        """提交图片生成任务，ref_image 支持本地文件、base64 data URL、HTTP URL"""
         data = {'prompt': prompt, 'model': model, 'resolution': resolution}
         files = {}
         if ref_image:
             files['ref_images'] = open(ref_image, 'rb')
+        elif ref_image_url:
+            # HTTP 图片 URL：relay 转为 file_urls 上游下载
+            data['ref_images'] = ref_image_url
+        # base64 data URL 也可直接放在 ref_images 文本字段，relay 自动解码上传
 
         resp = self.session.post(
             f'{self.base_url}/uapi/v1/generate_image',
@@ -781,5 +787,6 @@ console.log(`视频生成完成: ${videoUrl}`);
 
 | 日期 | 变更内容 |
 |------|---------|
+| 2026-04-23 | `ref_images` 支持三种格式（文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过；文档更新 |
 | 2026-04-22 | `/uapi/` 通道修复完成，所有视频/图片接口验证通过；文档完善 |
 | 2026-04-22 | 文档初始化，新增所有视频/图片模型接口 |

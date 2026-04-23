@@ -3,6 +3,7 @@
 ## 更新日志
 | 日期 | 变更内容 |
 |------|---------|
+| 2026-04-23 | `ref_images` 支持三种格式（multipart 文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过 |
 | 2026-04-22 | `/uapi/` 通道修复完成，视频和图片接口全部验证通过；新增 seedance-2-remix/omni 视频模型 |
 | 2026-04-21 | 初始文档 |
 
@@ -335,6 +336,10 @@ class NewAPI:
         data = {'model': model, 'prompt': prompt, 'resolution': resolution, **kwargs}
         files = {}
         if ref_images:
+            # ref_images 支持三种格式：
+            # 1. 本地文件路径：'ref.jpg' 或 ['ref.jpg']
+            # 2. base64 data URL：'data:image/png;base64,...'
+            # 3. HTTP 图片 URL：'https://example.com/img.png'
             path = ref_images if isinstance(ref_images, str) else ref_images[0]
             files['ref_images'] = open(path, 'rb')
         resp = requests.post(
