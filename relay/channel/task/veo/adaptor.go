@@ -316,8 +316,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			}
 		}
 
-		// Handle ref_images as base64 text values (e.g., "data:image/png;base64,...")
-		// or plain base64 strings — decode and append as multipart file parts.
+		// Handle ref_images as text values: base64 data URL, plain base64, or HTTP URL.
+		// Decode/base64-encode or download, then append as multipart file parts.
 		for fieldName, values := range formData.Value {
 			if fieldName != "ref_images" && fieldName != "files" {
 				continue
@@ -326,23 +326,36 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				if val == "" {
 					continue
 				}
-				b64 := val
+				var data []byte
 				mimeType := "application/octet-stream"
+
 				if strings.HasPrefix(val, "data:") {
+					// data:image/png;base64,...
 					rest := val[len("data:"):]
 					if idx := strings.Index(rest, ","); idx >= 0 {
 						mimeType = rest[:idx]
 						if sem := strings.Index(mimeType, ";"); sem >= 0 {
 							mimeType = mimeType[:sem]
 						}
-						b64 = rest[idx+1:]
+						b64str := rest[idx+1:]
+						data, _ = base64.StdEncoding.DecodeString(b64str)
 					}
+				} else if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
+					// HTTP URL — download the image
+					resp, err := http.Get(val)
+					if err == nil && resp.StatusCode == 200 {
+						data, _ = io.ReadAll(resp.Body)
+						resp.Body.Close()
+						if ct := resp.Header.Get("Content-Type"); ct != "" {
+							mimeType = ct
+						}
+					}
+				} else {
+					// plain base64
+					data, _ = base64.StdEncoding.DecodeString(val)
 				}
-				data, err := base64.StdEncoding.DecodeString(b64)
-				if err != nil {
-					continue
-				}
-				if len(data) > maxVeoImageSize {
+
+				if len(data) == 0 || len(data) > maxVeoImageSize {
 					continue
 				}
 				h := make(textproto.MIMEHeader)
