@@ -32,8 +32,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
-COPY --from=builder2 /build/new-api /
-RUN mkdir -p /new-api/uploads
+COPY --from=builder2 /build/new-api /usr/local/bin/new-api
+RUN mkdir -p /new-api/uploads && chmod 755 /usr/local/bin/new-api
 EXPOSE 3000
 WORKDIR /data
-ENTRYPOINT ["/new-api"]
+ENTRYPOINT ["/usr/local/bin/new-api"]
