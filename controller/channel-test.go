@@ -226,6 +226,12 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	request := buildTestRequest(testModel, endpointType, channel, isStream)
 
+	// For /uapi/ paths (Veo task channels), Path2RelayMode returns RelayModeUnknown.
+	// Set it explicitly so the switch below routes to RelayModeVideoSubmit.
+	if strings.HasPrefix(requestPath, "/uapi/") {
+		c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
+	}
+
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
 	if err != nil {
@@ -411,7 +417,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
-	// For OpenAIVideo veo channel test, extract real boundary from multipart body and call DoFormRequestWithContentType
+	// For OpenAIVideo GeminiGen channel test, extract real boundary from multipart body and call DoFormRequestWithContentType
 	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && info.ChannelType == constant.ChannelTypeVeo
 	var resp any
 	if isOpenAIVideoTest {

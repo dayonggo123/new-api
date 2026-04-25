@@ -352,13 +352,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				} else if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
 					if isImageURL(val) {
 						// Image URL -> forward as file_urls text field (upstream fetches)
-						h := make(textproto.MIMEHeader)
-						h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file_urls"; filename="file_urls_%d.txt"`, i))
-						h.Set("Content-Type", "text/plain")
-						part, err := writer.CreatePart(h)
-						if err == nil {
-							part.Write([]byte(val))
-						}
+						writer.WriteField("file_urls", val)
 						continue
 					}
 					// Non-image URL -> download and send as files part
