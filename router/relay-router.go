@@ -205,6 +205,7 @@ func SetRelayRouter(router *gin.Engine) {
 	relayUploadRouter.Use(middleware.TokenAuth())
 	{
 		relayUploadRouter.POST("/v1/upload_images", controller.UploadImages)
+		relayUploadRouter.POST("/v1/upload_images/json", controller.UploadImagesJSON)
 	}
 
 	relayGeminiRouter := router.Group("/v1beta")

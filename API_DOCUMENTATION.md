@@ -3,7 +3,7 @@
 ## 更新日志
 | 日期 | 变更内容 |
 |------|---------|
-| 2026-04-25 | 渠道测试修复：`/uapi/` 路径支持 RelayModeVideoSubmit，GeminiGen 渠道可在后台直接测试；渠道名称统一为 GeminiGen |
+| 2026-04-25 | 渠道测试修复：`/uapi/` 路径支持 RelayModeVideoSubmit，GeminiGen 渠道可在后台直接测试；渠道名称统一为 GeminiGen；新增 `/uapi/v1/upload_images` 图片上传接口；`file_urls` 文本字段转发修复 |
 | 2026-04-23 | `ref_images` 支持三种格式（multipart 文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过 |
 | 2026-04-22 | `/uapi/` 通道修复完成，视频和图片接口全部验证通过；新增 seedance-2-remix/omni 视频模型 |
 | 2026-04-21 | 初始文档 |
@@ -263,6 +263,37 @@ curl -X POST https://heharse.cloud/uapi/v1/upload_images \
 ```
 
 > **使用流程**：本地图片 → `POST /uapi/v1/upload_images` → 获得 URL 列表 → `POST /uapi/v1/generate_image` 的 `file_urls` 字段使用
+
+### 2.5 JSON 图片上传: `/uapi/v1/upload_images/json`
+
+不走 multipart，完全通过 JSON body 提交 base64 图片数据，避免部分 HTTP 客户端 multipart 兼容性问题。
+
+```bash
+curl -X POST https://heharse.cloud/uapi/v1/upload_images/json \
+  -H "Authorization: Bearer {API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "images": [
+      "data:image/png;base64,iVBORw0KGgo..."
+    ]
+  }'
+```
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| images | array | 是 | 图片数据 URL 字符串，支持 `data:image/png;base64,...` 格式 |
+
+**响应**:
+```json
+{
+  "urls": [
+    "https://heharse.cloud/uploads/uuid.png"
+  ]
+}
+```
+
+> 与 2.4 的 multipart 接口功能相同，推荐 Rust/Python 等需要绕开 multipart 的客户端使用。
 
 ---
 
