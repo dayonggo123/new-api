@@ -328,6 +328,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		// - HTTP URL with image extension -> forward as file_urls text field (upstream fetches it)
 		// - base64 or data: URI -> decode and send as "files" multipart part
 		for fieldName, values := range formData.Value {
+			// file_urls: forward directly to upstream as-is (upstream expects array)
+			if fieldName == "file_urls" {
+				for _, val := range values {
+					writer.WriteField("file_urls", val)
+				}
+				continue
+			}
 			if fieldName != "ref_images" && fieldName != "files" {
 				continue
 			}
