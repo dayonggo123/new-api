@@ -23,7 +23,7 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	// Custom static middleware: skip API paths so relay routes can handle them
 	router.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/uapi") || strings.HasPrefix(path, "/mj") {
+		if strings.HasPrefix(path, "/uapi") || strings.HasPrefix(path, "/mj") || strings.HasPrefix(path, "/uploads") {
 			c.Next()
 			return
 		}
@@ -50,4 +50,7 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 		c.Header("Cache-Control", "no-cache")
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
 	})
+
+	// Serve uploaded files at /uploads/*
+	router.Static("/uploads", "./uploads")
 }

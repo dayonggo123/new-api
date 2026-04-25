@@ -190,7 +190,9 @@ curl -X POST https://heharse.cloud/uapi/v1/generate_image \
 | aspect_ratio | string | 否 | 宽高比: `1:1`(默认), `16:9`, `9:16`, `4:3`, `3:4` |
 | style | string | 否 | 艺术风格: `Photorealistic`, `Anime General`, `3D Render`, `Illustration` 等 |
 | output_format | string | 否 | 输出格式: `jpeg`(默认), `png` |
-| ref_images | file | 否 | 参考图片（relay 自动转为上游 `files` 字段） |
+| ref_images | file | 否 | 参考图片（relay 转为上游 `files` 字段，支持 multipart file） |
+| files | file | 否 | 参考图片（直接发给上游，支持 multipart file） |
+| file_urls | string | 否 | 参考图片 URL（数组，上游自己下载） |
 
 **提交响应**:
 ```json
@@ -206,7 +208,7 @@ curl -X POST https://heharse.cloud/uapi/v1/generate_image \
 }
 ```
 
-> **注意**：提交时使用 `ref_images` 字段上传参考图，relay 会自动转换为上游 API 期望的 `files` 字段。
+> **注意**：参考图可用 `files`（multipart 文件）或 `file_urls`（URL 文本）传给上游，两者可同时使用。`ref_images` 是客户端友好的别名，relay 会自动转为 `files` 字段。
 
 #### 查询任务: `/uapi/v1/generate_image?task_id={task_id}`
 
@@ -233,7 +235,36 @@ curl -X POST https://heharse.cloud/uapi/v1/meta_ai/generate \
 
 ---
 
-## 3. 分镜助手接入方式
+### 2.4 图片上传: `/uapi/v1/upload_images`
+
+将本地图片上传到服务器，返回公开访问的 CDN URL 列表，供后续 `file_urls` 字段使用。
+
+```bash
+curl -X POST https://heharse.cloud/uapi/v1/upload_images \
+  -H "Authorization: Bearer {API_KEY}" \
+  -F "images=@/path/to/image1.jpg" \
+  -F "images=@/path/to/image2.jpg" \
+  -F "images=@/path/to/image3.png"
+```
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| images | file | 是 | 图片文件，支持多张（多个 `images` 字段） |
+
+**响应**:
+```json
+{
+  "urls": [
+    "https://heharse.cloud/uploads/uuid1.jpg",
+    "https://heharse.cloud/uploads/uuid2.png"
+  ]
+}
+```
+
+> **使用流程**：本地图片 → `POST /uapi/v1/upload_images` → 获得 URL 列表 → `POST /uapi/v1/generate_image` 的 `file_urls` 字段使用
+
+---
 
 ### 3.1 推荐接入方式
 
@@ -339,11 +370,13 @@ class NewAPI:
         files = {}
         if ref_images:
             # ref_images 支持三种格式：
-            # 1. 本地文件路径：'ref.jpg' 或 ['ref.jpg']
+            # 1. 本地文件路径：'ref.jpg' 或 ['ref.jpg'] -> 转为 files 字段
             # 2. base64 data URL：'data:image/png;base64,...'
-            # 3. HTTP 图片 URL：'https://example.com/img.png'
-            path = ref_images if isinstance(ref_images, str) else ref_images[0]
-            files['ref_images'] = open(path, 'rb')
+            # 3. HTTP 图片 URL：'https://example.com/img.png' -> 转为 file_urls 字段
+            if isinstance(ref_images, str):
+                ref_images = [ref_images]
+            for i, path in enumerate(ref_images):
+                files[f'ref_images'] = open(path, 'rb')
         resp = requests.post(
             f'{self.base_url}/uapi/v1/generate_image',
             headers=self.headers,
@@ -376,6 +409,18 @@ api = NewAPI('https://heharse.cloud', 'YOUR_API_KEY')
 result = api.generate_image('nano-banana-2', '衣服变蓝', ref_images='ref.jpg')
 url = api.poll_task(result['task_id'])
 print(f"图片URL: {url}")
+
+# 带参考图的完整流程（推荐）：
+# 1. 上传本地图片获取 URL
+upload_resp = requests.post(
+    f'{self.base_url}/uapi/v1/upload_images',
+    headers=self.headers,
+    files=[('images', open('ref.jpg', 'rb')), ('images', open('ref2.jpg', 'rb'))]
+)
+urls = upload_resp.json()['urls']
+# 2. 用 URL 调用图生图
+for url in urls:
+    result = api.generate_image('nano-banana-2', '衣服变蓝', file_urls=url)
 ```
 
 ---
@@ -401,6 +446,8 @@ print(f"图片URL: {url}")
 | `model_not_found` | 模型未配置渠道 |
 | `task_not_exist` | 任务不存在 |
 | `fail_to_fetch_task` | 上游请求失败（如参考图文件无效） |
+| `INVALID_FILE_CONTENT` | 参考图文件格式不正确（非图片） |
+| `FILE_DOWNLOAD_FAILED` | `file_urls` 中的图片 URL 无法下载 |
 | `INVALID_FILE_CONTENT` | 参考图文件格式不正确（非图片） |
 
 ### 4.3 通用响应格式

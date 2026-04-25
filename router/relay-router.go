@@ -197,6 +197,14 @@ func SetRelayRouter(router *gin.Engine) {
 		relayUapiRouter.GET("/v1/video-gen/*model", controller.RelayTaskFetch)
 		relayUapiRouter.POST("/v1/generate_image", controller.RelayTask)
 		relayUapiRouter.GET("/v1/generate_image", controller.RelayTaskFetch)
+		}
+
+	// Upload endpoint: only needs TokenAuth (no Distribute/ModelRequestRateLimit)
+	relayUploadRouter := router.Group("/uapi")
+	relayUploadRouter.Use(middleware.RouteTag("relay"))
+	relayUploadRouter.Use(middleware.TokenAuth())
+	{
+		relayUploadRouter.POST("/v1/upload_images", controller.UploadImages)
 	}
 
 	relayGeminiRouter := router.Group("/v1beta")
