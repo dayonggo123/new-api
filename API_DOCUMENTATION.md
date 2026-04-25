@@ -3,6 +3,7 @@
 ## 更新日志
 | 日期 | 变更内容 |
 |------|---------|
+| 2026-04-25 | 渠道测试修复：`/uapi/` 路径支持 RelayModeVideoSubmit，GeminiGen 渠道可在后台直接测试；渠道名称统一为 GeminiGen |
 | 2026-04-23 | `ref_images` 支持三种格式（multipart 文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过 |
 | 2026-04-22 | `/uapi/` 通道修复完成，视频和图片接口全部验证通过；新增 seedance-2-remix/omni 视频模型 |
 | 2026-04-21 | 初始文档 |
@@ -18,12 +19,12 @@
 ## 1. OpenAI 兼容接口
 
 ### 1.1 基础信息
-- **Base URL**: `http://heharse.cloud`
+- **Base URL**: `https://heharse.cloud`
 - **认证方式**: `Authorization: Bearer {API_KEY}`
 
 ### 1.2 聊天补全 `/v1/chat/completions`
 ```bash
-curl -X POST http://heharse.cloud/v1/chat/completions \
+curl -X POST https://heharse.cloud/v1/chat/completions \
   -H "Authorization: Bearer {API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -37,7 +38,7 @@ curl -X POST http://heharse.cloud/v1/chat/completions \
 
 ### 1.3 图片生成 `/v1/images/generations`
 ```bash
-curl -X POST http://heharse.cloud/v1/images/generations \
+curl -X POST https://heharse.cloud/v1/images/generations \
   -H "Authorization: Bearer {API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -50,7 +51,7 @@ curl -X POST http://heharse.cloud/v1/images/generations \
 
 ### 1.4 文本补全 `/v1/completions`
 ```bash
-curl -X POST http://heharse.cloud/v1/completions \
+curl -X POST https://heharse.cloud/v1/completions \
   -H "Authorization: Bearer {API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -61,7 +62,7 @@ curl -X POST http://heharse.cloud/v1/completions \
 
 ### 1.5 Embeddings `/v1/embeddings`
 ```bash
-curl -X POST http://heharse.cloud/v1/embeddings \
+curl -X POST https://heharse.cloud/v1/embeddings \
   -H "Authorization: Bearer {API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -72,7 +73,7 @@ curl -X POST http://heharse.cloud/v1/embeddings \
 
 ### 1.6 语音转文字 `/v1/audio/transcriptions`
 ```bash
-curl -X POST http://heharse.cloud/v1/audio/transcriptions \
+curl -X POST https://heharse.cloud/v1/audio/transcriptions \
   -H "Authorization: Bearer {API_KEY}" \
   -F "file=@audio.mp3" \
   -F "model=whisper-1"
@@ -83,8 +84,9 @@ curl -X POST http://heharse.cloud/v1/audio/transcriptions \
 ## 2. GeminiGen 渠道
 
 ### 2.1 基础信息
-- **Base URL**: `http://heharse.cloud`
+- **Base URL**: `https://heharse.cloud`
 - **认证方式**: `Authorization: Bearer {API_KEY}`（`sk-` 前缀可选，自动处理）
+- **渠道测试**: GeminiGen 渠道支持在后台管理界面直接点击"测试"按钮进行验证（测试请求走 `/uapi/` 端点）
 
 ### 2.2 视频生成
 
@@ -92,28 +94,28 @@ curl -X POST http://heharse.cloud/v1/audio/transcriptions \
 
 ```bash
 # Veo 模型
-curl -X POST http://heharse.cloud/uapi/v1/video-gen/veo \
+curl -X POST https://heharse.cloud/uapi/v1/video-gen/veo \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A serene sunset over mountains with clouds" \
   -F "model=veo-3.1" \
   -F "resolution=720p"
 
 # Grok 模型
-curl -X POST http://heharse.cloud/uapi/v1/video-gen/grok \
+curl -X POST https://heharse.cloud/uapi/v1/video-gen/grok \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A cat playing piano" \
   -F "model=grok-3" \
   -F "resolution=1080p"
 
 # Seedance 模型
-curl -X POST http://heharse.cloud/uapi/v1/video-gen/seedance \
+curl -X POST https://heharse.cloud/uapi/v1/video-gen/seedance \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=Dramatic ocean waves crashing on rocks" \
   -F "model=seedance-2" \
   -F "resolution=720p"
 
 # Kling 模型
-curl -X POST http://heharse.cloud/uapi/v1/video-gen/kling \
+curl -X POST https://heharse.cloud/uapi/v1/video-gen/kling \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=Time-lapse of a flower blooming" \
   -F "model=kling" \
@@ -159,7 +161,7 @@ curl -X POST http://heharse.cloud/uapi/v1/video-gen/kling \
 #### 查询任务: `/uapi/v1/video-gen/veo?task_id={task_id}`
 
 ```bash
-curl "http://heharse.cloud/uapi/v1/video-gen/veo?task_id={task_id}" \
+curl "https://heharse.cloud/uapi/v1/video-gen/veo?task_id={task_id}" \
   -H "Authorization: Bearer {API_KEY}"
 ```
 
@@ -170,7 +172,7 @@ curl "http://heharse.cloud/uapi/v1/video-gen/veo?task_id={task_id}" \
 #### 提交任务: `/uapi/v1/generate_image`
 
 ```bash
-curl -X POST http://heharse.cloud/uapi/v1/generate_image \
+curl -X POST https://heharse.cloud/uapi/v1/generate_image \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A beautiful landscape with mountains and a lake" \
   -F "model=nano-banana-2" \
@@ -209,7 +211,7 @@ curl -X POST http://heharse.cloud/uapi/v1/generate_image \
 #### 查询任务: `/uapi/v1/generate_image?task_id={task_id}`
 
 ```bash
-curl "http://heharse.cloud/uapi/v1/generate_image?task_id={task_id}" \
+curl "https://heharse.cloud/uapi/v1/generate_image?task_id={task_id}" \
   -H "Authorization: Bearer {API_KEY}"
 ```
 
@@ -217,13 +219,13 @@ curl "http://heharse.cloud/uapi/v1/generate_image?task_id={task_id}" \
 
 ```bash
 # Grok 图片
-curl -X POST http://heharse.cloud/uapi/v1/imagen/grok \
+curl -X POST https://heharse.cloud/uapi/v1/imagen/grok \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=An astronaut riding a horse" \
   -F "model=grok-image"
 
 # Meta AI 图片
-curl -X POST http://heharse.cloud/uapi/v1/meta_ai/generate \
+curl -X POST https://heharse.cloud/uapi/v1/meta_ai/generate \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A futuristic city at night" \
   -F "model=meta-ai-image"
@@ -239,7 +241,7 @@ curl -X POST http://heharse.cloud/uapi/v1/meta_ai/generate \
 
 ```javascript
 const config = {
-  baseURL: 'http://heharse.cloud',
+  baseURL: 'https://heharse.cloud',
   apiKey: 'YOUR_API_KEY',
   model: 'gpt-4o'
 }
@@ -370,7 +372,7 @@ class NewAPI:
         raise TimeoutError('轮询超时')
 
 # 使用示例
-api = NewAPI('http://heharse.cloud', 'YOUR_API_KEY')
+api = NewAPI('https://heharse.cloud', 'YOUR_API_KEY')
 result = api.generate_image('nano-banana-2', '衣服变蓝', ref_images='ref.jpg')
 url = api.poll_task(result['task_id'])
 print(f"图片URL: {url}")
