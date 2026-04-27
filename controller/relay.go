@@ -500,6 +500,30 @@ func RelayTask(c *gin.Context) {
 		}
 	}()
 
+	// 预先插入占位任务，使任务日志立即可见（不必等到上游响应后才出现）。
+	// 上游成功后会以 Update 方式补齐数据；失败则更新为 FAILURE。
+	if relayInfo.PublicTaskID == "" {
+		relayInfo.PublicTaskID = model.GenerateTaskID()
+	}
+	placeholderTask := &model.Task{
+		TaskID:     relayInfo.PublicTaskID,
+		UserId:     relayInfo.UserId,
+		Group:      relayInfo.UsingGroup,
+		ChannelId:  common.GetContextKeyInt(c, constant.ContextKeyChannelId),
+		Platform:   relay.GetTaskPlatform(c),
+		SubmitTime: time.Now().Unix(),
+		Status:     model.TaskStatusSubmitted,
+		Progress:   "0%",
+		Action:     constant.TaskActionGenerate,
+		Properties: model.Properties{
+			OriginModelName: relayInfo.OriginModelName,
+		},
+	}
+	if insertErr := placeholderTask.Insert(); insertErr != nil {
+		common.SysError("insert placeholder task error: " + insertErr.Error())
+		placeholderTask = nil
+	}
+
 	retryParam := &service.RetryParam{
 		Ctx:        c,
 		TokenGroup: relayInfo.TokenGroup,
@@ -563,19 +587,14 @@ func RelayTask(c *gin.Context) {
 		logger.LogInfo(c, retryLogStr)
 	}
 
-	// ── 成功：结算 + 日志 + 插入任务 ──
+	// ── 成功：结算 + 日志 + 更新/插入任务 ──
 	if taskErr == nil {
 		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
 			common.SysError("settle task billing error: " + settleErr.Error())
 		}
 		service.LogTaskConsumption(c, relayInfo)
 
-		task := model.InitTask(result.Platform, relayInfo)
-		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
-		task.PrivateData.BillingSource = relayInfo.BillingSource
-		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
-		task.PrivateData.TokenId = relayInfo.TokenId
-		task.PrivateData.BillingContext = &model.TaskBillingContext{
+		billingCtx := &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 			ModelRatio:      relayInfo.PriceData.ModelRatio,
@@ -583,15 +602,59 @@ func RelayTask(c *gin.Context) {
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		}
-		task.Quota = result.Quota
-		task.Data = result.TaskData
-		task.Action = relayInfo.Action
-		if insertErr := task.Insert(); insertErr != nil {
-			common.SysError("insert task error: " + insertErr.Error())
+
+		if placeholderTask != nil {
+			placeholderTask.ChannelId = common.GetContextKeyInt(c, constant.ContextKeyChannelId)
+			placeholderTask.Platform = result.Platform
+			placeholderTask.Quota = result.Quota
+			placeholderTask.Data = result.TaskData
+			placeholderTask.Action = relayInfo.Action
+			if relayInfo.UpstreamModelName != "" {
+				placeholderTask.Properties.UpstreamModelName = relayInfo.UpstreamModelName
+			}
+			placeholderTask.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+			placeholderTask.PrivateData.BillingSource = relayInfo.BillingSource
+			placeholderTask.PrivateData.SubscriptionId = relayInfo.SubscriptionId
+			placeholderTask.PrivateData.TokenId = relayInfo.TokenId
+			placeholderTask.PrivateData.BillingContext = billingCtx
+			if relayInfo.ChannelMeta != nil &&
+				(relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
+					relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi) {
+				placeholderTask.PrivateData.Key = relayInfo.ChannelMeta.ApiKey
+			}
+			if updateErr := placeholderTask.Update(); updateErr != nil {
+				common.SysError("update task on success error: " + updateErr.Error())
+			}
+		} else {
+			task := model.InitTask(result.Platform, relayInfo)
+			task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+			task.PrivateData.BillingSource = relayInfo.BillingSource
+			task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
+			task.PrivateData.TokenId = relayInfo.TokenId
+			task.PrivateData.BillingContext = billingCtx
+			task.Quota = result.Quota
+			task.Data = result.TaskData
+			task.Action = relayInfo.Action
+			if insertErr := task.Insert(); insertErr != nil {
+				common.SysError("insert task error: " + insertErr.Error())
+			}
 		}
 	}
 
 	if taskErr != nil {
+		if placeholderTask != nil {
+			placeholderTask.Status = model.TaskStatusFailure
+			placeholderTask.Progress = "100%"
+			placeholderTask.FinishTime = time.Now().Unix()
+			if taskErr.Message != "" {
+				placeholderTask.FailReason = taskErr.Message
+			} else {
+				placeholderTask.FailReason = taskErr.Code
+			}
+			if updateErr := placeholderTask.Update(); updateErr != nil {
+				common.SysError("update task on failure error: " + updateErr.Error())
+			}
+		}
 		respondTaskError(c, taskErr)
 	}
 }

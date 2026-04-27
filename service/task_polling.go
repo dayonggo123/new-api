@@ -97,6 +97,10 @@ func TaskPollingLoop() {
 		allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
 		platformTask := make(map[constant.TaskPlatform][]*model.Task)
 		for _, t := range allTasks {
+			// 跳过占位任务（上游 submit 尚未返回、无 upstream_task_id 也无 data）
+			if t.PrivateData.UpstreamTaskID == "" && len(t.Data) == 0 {
+				continue
+			}
 			platformTask[t.Platform] = append(platformTask[t.Platform], t)
 		}
 		for platform, tasks := range platformTask {

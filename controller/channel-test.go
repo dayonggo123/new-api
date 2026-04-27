@@ -425,7 +425,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			contentType := extractMultipartContentType(multipartBuf)
 			// Log what we're about to send
 			fullURL, _ := adaptor.GetRequestURL(info)
-			common.SysLog(fmt.Sprintf("veo test: URL=%s CT=%s Model=%s UpstreamModel=%s ApiKey=%s",
+			common.SysLog(fmt.Sprintf("veo test: URL=%s CT=%s Model=%s UpstreamModel=%s ApiKey=%s Len=%d",
 				fullURL, contentType, info.OriginModelName, info.UpstreamModelName, info.ApiKey, multipartBuf.Len()))
 				common.SysLog(fmt.Sprintf("veo test body: %q", multipartBuf.String()))
 			resp, err = relaychannel.DoFormRequestWithContentType(adaptor, c, info, multipartBuf, contentType)
