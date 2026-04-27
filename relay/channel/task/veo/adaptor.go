@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -151,7 +152,20 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	return relaycommon.ValidateMultipartDirect(c, info)
+	if taskErr = relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
+		return taskErr
+	}
+	// 按 URL 路径区分视频/图片类型，覆盖原有的 textGenerate/generate
+	path := c.Request.URL.Path
+	switch {
+	case strings.Contains(path, "/video-gen/"):
+		info.Action = constant.TaskActionVideoGenerate
+	case strings.Contains(path, "/generate_image"),
+		strings.Contains(path, "/imagen/"),
+		strings.Contains(path, "/meta_ai/"):
+		info.Action = constant.TaskActionImageGenerate
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {

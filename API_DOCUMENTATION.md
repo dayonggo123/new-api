@@ -3,6 +3,7 @@
 ## 更新日志
 | 日期 | 变更内容 |
 |------|---------|
+| 2026-04-27 | 任务日志延迟修复：提交任务后立即在后台可见（预插入占位机制，状态流转：`queued` → `in_progress` → `success`/`failure`） |
 | 2026-04-25 | 渠道测试修复：`/uapi/` 路径支持 RelayModeVideoSubmit，GeminiGen 渠道可在后台直接测试；渠道名称统一为 GeminiGen；新增 `/uapi/v1/upload_images` 图片上传接口；`file_urls` 文本字段转发修复 |
 | 2026-04-23 | `ref_images` 支持三种格式（multipart 文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过 |
 | 2026-04-22 | `/uapi/` 通道修复完成，视频和图片接口全部验证通过；新增 seedance-2-remix/omni 视频模型 |
@@ -364,13 +365,14 @@ async function waitForCompletion(taskId, interval = 5000) {
   while (true) {
     const result = await pollTask(taskId)
     const { status, progress, fail_reason, data } = result.data
+    // 状态流转：queued（已提交）→ in_progress（处理中）→ SUCCESS / FAILURE
     if (status === 'SUCCESS') {
       return data?.generated_image?.[0]?.image_url || result.data.result_url
     }
     if (status === 'FAILURE') {
       throw new Error(fail_reason || '任务失败')
     }
-    console.log(`进度: ${progress}`)
+    console.log(`状态: ${status}, 进度: ${progress}`)
     await new Promise(r => setTimeout(r, interval))
   }
 }
@@ -427,11 +429,12 @@ class NewAPI:
                 headers=self.headers
             )
             data = resp.json().get('data', {})
+            # 状态流转：queued -> in_progress -> SUCCESS / FAILURE
             if data['status'] == 'SUCCESS':
                 return data['data']['generated_image'][0]['image_url']
             if data['status'] == 'FAILURE':
                 raise Exception(data['fail_reason'])
-            print(f"进度: {data['progress']}")
+            print(f"状态: {data['status']}, 进度: {data['progress']}")
             time.sleep(interval)
         raise TimeoutError('轮询超时')
 
@@ -481,7 +484,20 @@ for url in urls:
 | `FILE_DOWNLOAD_FAILED` | `file_urls` 中的图片 URL 无法下载 |
 | `INVALID_FILE_CONTENT` | 参考图文件格式不正确（非图片） |
 
-### 4.3 通用响应格式
+### 4.3 任务状态流转
+
+提交任务后，New-API 会**立即写入占位记录**，任务日志立即可见，随后由轮询器同步更新上游状态：
+
+| 状态 | 说明 | 出现时机 |
+|------|------|---------|
+| `queued` | 已提交，等待上游处理 | 提交后立即出现 |
+| `in_progress` | 上游正在处理中 | 上游开始生成后 |
+| `success` | 生成完成 | 上游返回结果 |
+| `failure` | 生成失败 | 上游报错或超时 |
+
+> 带参考图（`ref_images`/`file_urls`）的上游 submit 调用本身耗时较长（5-15秒），但占位机制保证任务日志在**提交瞬间**即可见，不必等到上游响应。
+
+### 4.4 通用响应格式
 
 **提交成功**:
 ```json
