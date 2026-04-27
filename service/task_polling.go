@@ -438,6 +438,10 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		if task.StartTime == 0 {
 			task.StartTime = now
 		}
+		// Some upstreams return a ready URL while still in processing status — capture it early.
+		if taskResult.Url != "" {
+			task.PrivateData.ResultURL = taskResult.Url
+		}
 	case model.TaskStatusSuccess:
 		task.Progress = taskcommon.ProgressComplete
 		if task.FinishTime == 0 {

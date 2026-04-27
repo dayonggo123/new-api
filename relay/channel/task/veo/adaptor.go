@@ -445,7 +445,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 
 	// Step 1: Find the history uuid from the history list (filter by all to include image tasks)
-	listURL := fmt.Sprintf("%s/uapi/v1/histories?filter_by=all&items_per_page=50&page=1", baseUrl)
+	listURL := fmt.Sprintf("%s/uapi/v1/histories?filter_by=all&items_per_page=500&page=1", baseUrl)
 	req, _ := http.NewRequest(http.MethodGet, listURL, nil)
 	req.Header.Set("x-api-key", key)
 	resp, err := client.Do(req)
@@ -504,6 +504,14 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case 1: // processing
 		taskResult.Status = model.TaskStatusInProgress
 		taskResult.Progress = fmt.Sprintf("%d%%", h.StatusPercent)
+		// Even during processing, if upstream already provides a video/image URL, capture it.
+		// Some providers return status=1 with a ready URL before officially marking completed.
+		if len(h.GeneratedVideo) > 0 && h.GeneratedVideo[0].VideoURL != "" {
+			taskResult.Url = h.GeneratedVideo[0].VideoURL
+		}
+		if len(h.GeneratedImage) > 0 && h.GeneratedImage[0].ImageURL != "" {
+			taskResult.Url = h.GeneratedImage[0].ImageURL
+		}
 	case 2: // completed
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
