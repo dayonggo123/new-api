@@ -438,6 +438,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
 	}
+	modelName, _ := body["model"].(string)
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
@@ -454,10 +455,13 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 	listBody, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("history list returned status %d, body: %s", resp.StatusCode, string(listBody))
+	}
 
 	var listResp historyListResponse
 	if err := common.Unmarshal(listBody, &listResp); err != nil || !listResp.Success {
-		return nil, fmt.Errorf("history list failed")
+		return nil, fmt.Errorf("history list failed: %s", string(listBody))
 	}
 
 	// Find the matching history item by UUID first, then numeric id fallback
@@ -470,7 +474,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 
 	if historyUUID == "" {
-		return nil, fmt.Errorf("history not found for task_id: %s", taskID)
+		return nil, fmt.Errorf("history not found for task_id: %s (model: %s)", taskID, modelName)
 	}
 
 	// Step 2: Get detailed history with video URL
@@ -506,8 +510,12 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Progress = fmt.Sprintf("%d%%", h.StatusPercent)
 		// Even during processing, if upstream already provides a video/image URL, capture it.
 		// Some providers return status=1 with a ready URL before officially marking completed.
-		if len(h.GeneratedVideo) > 0 && h.GeneratedVideo[0].VideoURL != "" {
-			taskResult.Url = h.GeneratedVideo[0].VideoURL
+		if len(h.GeneratedVideo) > 0 {
+			if h.GeneratedVideo[0].VideoURL != "" {
+				taskResult.Url = h.GeneratedVideo[0].VideoURL
+			} else if h.GeneratedVideo[0].VideoURI != "" {
+				taskResult.Url = h.GeneratedVideo[0].VideoURI
+			}
 		}
 		if len(h.GeneratedImage) > 0 && h.GeneratedImage[0].ImageURL != "" {
 			taskResult.Url = h.GeneratedImage[0].ImageURL
@@ -515,9 +523,13 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case 2: // completed
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
-		// Extract video URL from generated_video array
-		if len(h.GeneratedVideo) > 0 && h.GeneratedVideo[0].VideoURL != "" {
-			taskResult.Url = h.GeneratedVideo[0].VideoURL
+		// Extract video URL from generated_video array (fallback to video_uri)
+		if len(h.GeneratedVideo) > 0 {
+			if h.GeneratedVideo[0].VideoURL != "" {
+				taskResult.Url = h.GeneratedVideo[0].VideoURL
+			} else if h.GeneratedVideo[0].VideoURI != "" {
+				taskResult.Url = h.GeneratedVideo[0].VideoURI
+			}
 		}
 		// Extract image URL from generated_image array
 		if len(h.GeneratedImage) > 0 && h.GeneratedImage[0].ImageURL != "" {
