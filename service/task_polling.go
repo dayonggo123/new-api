@@ -381,7 +381,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
 	}
 
-	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask response: %s", string(responseBody)))
+	common.SysLog(fmt.Sprintf("[updateVideoSingleTask] task=%s response=%s", task.TaskID, string(responseBody)))
 
 	snap := task.Snapshot()
 
@@ -400,6 +400,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
 	}
+	common.SysLog(fmt.Sprintf("[updateVideoSingleTask] task=%s parsed status=%s url=%s progress=%s", task.TaskID, taskResult.Status, taskResult.Url, taskResult.Progress))
 
 	task.Data = redactVideoResponseBody(responseBody)
 

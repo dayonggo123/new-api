@@ -445,43 +445,23 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 
-	// Step 1: Find the history uuid from the history list (filter by all to include image tasks)
-	listURL := fmt.Sprintf("%s/uapi/v1/histories?filter_by=all&items_per_page=500&page=1", baseUrl)
-	req, _ := http.NewRequest(http.MethodGet, listURL, nil)
-	req.Header.Set("x-api-key", key)
-	resp, err := client.Do(req)
-	if err != nil || resp == nil {
-		return resp, err
-	}
-	listBody, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("history list returned status %d, body: %s", resp.StatusCode, string(listBody))
-	}
-
-	var listResp historyListResponse
-	if err := common.Unmarshal(listBody, &listResp); err != nil || !listResp.Success {
-		return nil, fmt.Errorf("history list failed: %s", string(listBody))
-	}
-
-	// Find the matching history item by UUID first, then numeric id fallback
-	var historyUUID string
-	for _, item := range listResp.Result {
-		if item.UUID == taskID || strconv.Itoa(item.ID) == taskID {
-			historyUUID = item.UUID
-			break
-		}
-	}
-
-	if historyUUID == "" {
-		return nil, fmt.Errorf("history not found for task_id: %s (model: %s)", taskID, modelName)
-	}
-
-	// Step 2: Get detailed history with video URL
-	detailURL := fmt.Sprintf("%s/uapi/v1/history/%s", baseUrl, historyUUID)
+	// The taskID is already the upstream history UUID (DoResponse returns dResp.UUID).
+	// Query detail directly instead of going through the history list first,
+	// which avoids the "history not found" issue when the list does not yet include the task.
+	detailURL := fmt.Sprintf("%s/uapi/v1/history/%s", baseUrl, taskID)
+	common.SysLog(fmt.Sprintf("[veo.FetchTask] model=%s detailURL=%s", modelName, detailURL))
 	req2, _ := http.NewRequest(http.MethodGet, detailURL, nil)
 	req2.Header.Set("x-api-key", key)
-	return client.Do(req2)
+	resp, err := client.Do(req2)
+	if err != nil {
+		return nil, fmt.Errorf("fetch detail failed: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("detail returned status %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+	return resp, nil
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
