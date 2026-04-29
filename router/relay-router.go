@@ -165,6 +165,9 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
 	}
 
+	// Public image proxy: lazy-loads upstream images with persistent URLs
+	router.GET("/image-proxy/:id", controller.ImageProxy)
+
 	relayMjRouter := router.Group("/mj")
 	relayMjRouter.Use(middleware.RouteTag("relay"))
 	relayMjRouter.Use(middleware.SystemPerformanceCheck())

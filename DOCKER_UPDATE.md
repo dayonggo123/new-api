@@ -59,6 +59,11 @@ docker exec new-api ls -la /app/logs/
 
 ## 2026-04-29 修复记录
 
+### OpenAI 图片接口懒加载代理
+- **新增**: `/image-proxy/:id` 公共端点，解决 OpenAI/DALL-E 等上游返回的临时图片 URL 过期问题
+- **机制**: `/v1/images/generations` 返回的 `url` 自动替换为 `https://heharse.cloud/image-proxy/{uuid}.png`；客户端首次访问时后端才从上游拉取并本地缓存
+- **优点**: 下游聊天客户端永久可展示生成的图片
+
 ### nano-banana / imagen-4 参考图支持
 - **问题**: nano-banana-2 / nano-banana-pro / imagen-4 模型上传参考图后未生效
 - **原因**: 这些模型上游与 grok 一样，要求参考图使用 `files` 字段，但代码只给 grok 做了映射

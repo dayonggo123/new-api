@@ -3,7 +3,7 @@
 ## 更新日志
 | 日期 | 变更内容 |
 |------|---------|
-| 2026-04-29 | nano-banana / imagen-4 参考图字段映射修复（`ref_images` 文件→`files`，与 grok 一致）；Seedance 支持 `mode`、`duration` 字段；`ref_images`/`ref_videos`/`ref_audios` 字段名保持原样转发（不再强制改为 `files`）；所有 HTTP URL 图片自动下载后作为文件上传；修复轮询跳过 `progress=100%` 任务的问题；Grok 参考图字段映射修复（`ref_images` 文件→`files`，URL→`file_urls`）；GeminiGen 错误解析支持 `error_message` 字段；轮询在 processing 状态也提取 `video_url` 和 `reference_item` |
+| 2026-04-29 | OpenAI 图片接口增加 `/image-proxy/:id` 懒加载代理，解决上游临时图片 URL 过期问题；nano-banana / imagen-4 参考图字段映射修复；Seedance 支持 `mode`、`duration` 字段；`ref_images`/`ref_videos`/`ref_audios` 字段名保持原样转发；所有 HTTP URL 图片自动下载后作为文件上传；修复轮询跳过 `progress=100%` 任务的问题；Grok 参考图字段映射修复；GeminiGen 错误解析支持 `error_message` 字段；轮询在 processing 状态也提取 `video_url` 和 `reference_item` |
 | 2026-04-25 | 渠道测试修复：`/uapi/` 路径支持 RelayModeVideoSubmit，GeminiGen 渠道可在后台直接测试；渠道名称统一为 GeminiGen；新增 `/uapi/v1/upload_images` 图片上传接口；`file_urls` 文本字段转发修复 |
 | 2026-04-23 | `ref_images` 支持三种格式（multipart 文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过 |
 | 2026-04-22 | `/uapi/` 通道修复完成，视频和图片接口全部验证通过；新增 seedance-2-remix/omni 视频模型 |
