@@ -3,7 +3,7 @@
 ## 更新日志
 | 日期 | 变更内容 |
 |------|---------|
-| 2026-04-29 | Seedance 支持 `mode`、`duration` 字段；`ref_images`/`ref_videos`/`ref_audios` 字段名保持原样转发（不再强制改为 `files`）；所有 HTTP URL 图片自动下载后作为文件上传 |
+| 2026-04-29 | Seedance 支持 `mode`、`duration` 字段；`ref_images`/`ref_videos`/`ref_audios` 字段名保持原样转发（不再强制改为 `files`）；所有 HTTP URL 图片自动下载后作为文件上传；修复轮询跳过 `progress=100%` 任务的问题；Grok 参考图字段映射修复（`ref_images` 文件→`files`，URL→`file_urls`）；GeminiGen 错误解析支持 `error_message` 字段；轮询在 processing 状态也提取 `video_url` 和 `reference_item` |
 | 2026-04-25 | 渠道测试修复：`/uapi/` 路径支持 RelayModeVideoSubmit，GeminiGen 渠道可在后台直接测试；渠道名称统一为 GeminiGen；新增 `/uapi/v1/upload_images` 图片上传接口；`file_urls` 文本字段转发修复 |
 | 2026-04-23 | `ref_images` 支持三种格式（multipart 文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过 |
 | 2026-04-22 | `/uapi/` 通道修复完成，视频和图片接口全部验证通过；新增 seedance-2-remix/omni 视频模型 |
@@ -101,12 +101,28 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/veo \
   -F "model=veo-3.1" \
   -F "resolution=720p"
 
-# Grok 模型
+# Grok 模型（基础文生视频）
 curl -X POST https://heharse.cloud/uapi/v1/video-gen/grok \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A cat playing piano" \
   -F "model=grok-3" \
   -F "resolution=1080p"
+
+# Grok 模型（带参考图 / 本地图片）
+curl -X POST https://heharse.cloud/uapi/v1/video-gen/grok \
+  -H "Authorization: Bearer {API_KEY}" \
+  -F "prompt=A futuristic city with flying cars" \
+  -F "model=grok-3" \
+  -F "resolution=480p" \
+  -F "ref_images=@/path/to/image.jpg"
+
+# Grok 模型（带参考图 / URL）
+curl -X POST https://heharse.cloud/uapi/v1/video-gen/grok \
+  -H "Authorization: Bearer {API_KEY}" \
+  -F "prompt=A futuristic city with flying cars" \
+  -F "model=grok-3" \
+  -F "resolution=480p" \
+  -F "ref_images=https://example.com/image.jpg"
 
 # Seedance 模型（基础文生视频）
 curl -X POST https://heharse.cloud/uapi/v1/video-gen/seedance \
@@ -120,7 +136,7 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/seedance \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A cat dancing" \
   -F "model=seedance-2" \
-  -F "mode=image_to_video" \
+  -F "mode=fast" \
   -F "resolution=720p" \
   -F "ref_images=@/path/to/image.jpg"
 
@@ -129,7 +145,7 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/seedance \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=Make it cinematic" \
   -F "model=seedance-2-remix" \
-  -F "mode=remix" \
+  -F "mode=fast" \
   -F "ref_videos=@/path/to/video.mp4"
 
 # Kling 模型
@@ -159,11 +175,13 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/kling \
 | aspect_ratio | string | 否 | 宽高比: `16:9`(默认), `9:16`, `1:1` |
 | mode | string | 否 | Seedance 模式: `fast`(默认), `image_to_video`, `remix`, `omni` |
 | duration | string | 否 | 视频时长(秒): 默认 5 |
-| ref_images | file/array | 否 | 参考图片。支持 multipart 文件、`data:` URL(base64)、HTTP URL、纯 base64 字符串 |
+| ref_images | file/array | 否 | 参考图片。Seedance/Veo/Kling: 原样转发；Grok: 文件自动映射为上游 `files`，URL 自动映射为 `file_urls`，UUID 字符串保持为 `ref_images` |
 | ref_videos | file | 否 | 参考视频。仅支持 multipart 文件上传（seedance remix 模式使用） |
 | ref_audios | file | 否 | 参考音频。仅支持 multipart 文件上传 |
 | mode_image | string | 否 | 图片参考模式: `frame`(默认), `ingredient` |
 | file_urls | string | 否 | 参考文件 URL 列表（上游自行下载） |
+
+> **Grok 参考图注意事项**：grok 上游有三种互斥的参考图方式（优先级: `files` > `file_urls` > `ref_images`）。下游统一用 `ref_images` 字段传参即可，后端会自动映射到 grok 上游的正确字段。
 
 **提交响应**:
 ```json

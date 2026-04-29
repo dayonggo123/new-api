@@ -69,3 +69,19 @@ docker exec new-api ls -la /app/logs/
 
 ### reference_item 解析
 - **修复**: 在 `historyItem` 结构体中新增 `ReferenceItem` 字段，并传递到 `TaskInfo`
+
+### grok 参考图字段映射
+- **问题**: grok 上游只接受 `files`（multipart 文件）、`file_urls`（URL 字符串）、`ref_images`（UUID 字符串）三种互斥方式，下游统一传 `ref_images` 会报 400
+- **修复**: grok 模型下，`ref_images` 文件自动映射为上游 `files` 字段；`ref_images` URL 自动映射为 `file_urls`；UUID 字符串保持为 `ref_images`
+
+### GeminiGen 错误解析
+- **问题**: 上游错误格式为 `{"detail": {"error_code": "...", "error_message": "..."}}`，代码只支持 `message` 字段
+- **修复**: `dto/error.go` 中 `GeminiGenErrorDetail` 同时支持 `message` 和 `error_message` 字段；提交和轮询阶段均提取友好错误信息
+
+### 轮询提取 processing 状态的 URL
+- **问题**: 部分平台（grok）在 `status: 1`（processing）时就返回了 `video_url`，但代码只在 `status: 2`（completed）时提取
+- **修复**: `ParseTaskResult` 在 processing 状态也提取 `video_url`、`image_url` 和 `reference_item`；轮询循环只要有 URL 就立即保存到 `ResultURL`
+
+### 轮询跳过 progress=100% 的任务
+- **问题**: `GetAllUnFinishSyncTasks` 排除了 `progress="100%"` 的任务，导致 grok 任务在上游返回 `status_percentage=100` 但 `status=1` 时被轮询跳过，永远无法到达终态
+- **修复**: 移除 `progress != "100%"` 过滤条件，轮询只根据 `status` 判断（排除 SUCCESS/FAILURE）
