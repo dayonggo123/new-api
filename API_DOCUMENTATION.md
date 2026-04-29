@@ -38,6 +38,9 @@ curl -X POST https://heharse.cloud/v1/chat/completions \
 **支持的模型**: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `claude-3-5-sonnet`, `claude-3-haiku`, `gemini-2.0-flash`, `gemini-1.5-pro` 等
 
 ### 1.3 图片生成 `/v1/images/generations`
+
+标准 OpenAI 图片生成接口。支持所有 OpenAI 类渠道的图片模型。
+
 ```bash
 curl -X POST https://heharse.cloud/v1/images/generations \
   -H "Authorization: Bearer {API_KEY}" \
@@ -49,6 +52,23 @@ curl -X POST https://heharse.cloud/v1/images/generations \
     "n": 1
   }'
 ```
+
+**支持的图片模型**: `dall-e-3`, `gpt-image-2`, `gpt-4o-image` 等（取决于后台配置的 OpenAI 类渠道）
+
+**响应示例**:
+```json
+{
+  "created": 1777459068,
+  "data": [
+    {
+      "url": "https://heharse.cloud/image-proxy/1e98d303-5a24-4450-a57a-9cfb8d500a29.png",
+      "revised_prompt": "A cute robot with big eyes..."
+    }
+  ]
+}
+```
+
+> **图片 URL 说明**: 返回的 `url` 是本站持久化代理地址，不会因上游临时链接过期而失效。客户端直接用 `<img src="{url}">` 展示即可，无需额外处理。
 
 ### 1.4 文本补全 `/v1/completions`
 ```bash
