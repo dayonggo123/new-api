@@ -59,6 +59,11 @@ docker exec new-api ls -la /app/logs/
 
 ## 2026-04-29 修复记录
 
+### nano-banana / imagen-4 参考图支持
+- **问题**: nano-banana-2 / nano-banana-pro / imagen-4 模型上传参考图后未生效
+- **原因**: 这些模型上游与 grok 一样，要求参考图使用 `files` 字段，但代码只给 grok 做了映射
+- **修复**: 将 `needsFilesField` 扩展到 `nano-banana-*` 和 `imagen-4` 模型，`ref_images` 文件自动映射为上游 `files` 字段
+
 ### seedance 参考图支持
 - **问题**: seedance 系列模型上传参考图后 `reference_item` 为空
 - **原因**: `ref_images` 字段被错误地重命名为 `files`，upstream 无法识别

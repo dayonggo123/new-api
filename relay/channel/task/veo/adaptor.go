@@ -319,7 +319,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			writer.WriteField("duration", duration)
 		}
 
-		isGrok := strings.HasPrefix(modelName, "grok-")
+		// Models whose upstream expects reference images in "files" field (not "ref_images").
+		needsFilesField := strings.HasPrefix(modelName, "grok-") || strings.HasPrefix(modelName, "nano-banana-") || modelName == "imagen-4"
 
 		// Handle ref_images and files (for reference images)
 		for fieldName, fileHeaders := range formData.File {
@@ -343,9 +344,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 					}
 				}
 
-				// grok: local images must use "files" field, not "ref_images".
+				// grok / nano-banana / imagen-4: local images must use "files" field, not "ref_images".
 				upstreamField := fieldName
-				if isGrok && fieldName == "ref_images" {
+				if needsFilesField && fieldName == "ref_images" {
 					upstreamField = "files"
 				}
 
@@ -383,11 +384,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 					continue
 				}
 
-				// grok: text values have different field mappings.
+				// grok / nano-banana / imagen-4: text values have different field mappings.
 				// - HTTP URLs  -> file_urls
 				// - data: URI  -> decode and send as files multipart part
 				// - other text (UUID etc) -> keep as ref_images
-				if isGrok {
+				if needsFilesField {
 					if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
 						writer.WriteField("file_urls", val)
 						continue
