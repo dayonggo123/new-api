@@ -49,6 +49,33 @@ func (e GeneralErrorResponse) TryToOpenAIError() *types.OpenAIError {
 	return nil
 }
 
+// GeminiGenErrorDetail 匹配 GeminiGen 上游的错误格式:
+// {"detail": {"error_code": "...", "message": "..."}}
+type GeminiGenErrorDetail struct {
+	ErrorCode    string `json:"error_code"`
+	Message      string `json:"message"`
+	ErrorMessage string `json:"error_message"`
+}
+
+type GeminiGenErrorResponse struct {
+	Detail GeminiGenErrorDetail `json:"detail"`
+}
+
+// TryParseGeminiGenError 尝试解析 GeminiGen 格式的错误响应，返回 error_code 和 message。
+func TryParseGeminiGenError(body []byte) (code, message string) {
+	var resp GeminiGenErrorResponse
+	if err := common.Unmarshal(body, &resp); err == nil {
+		msg := resp.Detail.Message
+		if msg == "" {
+			msg = resp.Detail.ErrorMessage
+		}
+		if msg != "" {
+			return resp.Detail.ErrorCode, msg
+		}
+	}
+	return "", ""
+}
+
 func (e GeneralErrorResponse) ToMessage() string {
 	if len(e.Error) > 0 {
 		switch common.GetJsonType(e.Error) {

@@ -3,6 +3,7 @@
 ## 更新日志
 | 日期 | 变更内容 |
 |------|---------|
+| 2026-04-29 | Seedance 支持 `mode`、`duration` 字段；`ref_images`/`ref_videos`/`ref_audios` 字段名保持原样转发（不再强制改为 `files`）；所有 HTTP URL 图片自动下载后作为文件上传 |
 | 2026-04-25 | 渠道测试修复：`/uapi/` 路径支持 RelayModeVideoSubmit，GeminiGen 渠道可在后台直接测试；渠道名称统一为 GeminiGen；新增 `/uapi/v1/upload_images` 图片上传接口；`file_urls` 文本字段转发修复 |
 | 2026-04-23 | `ref_images` 支持三种格式（multipart 文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过 |
 | 2026-04-22 | `/uapi/` 通道修复完成，视频和图片接口全部验证通过；新增 seedance-2-remix/omni 视频模型 |
@@ -107,12 +108,29 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/grok \
   -F "model=grok-3" \
   -F "resolution=1080p"
 
-# Seedance 模型
+# Seedance 模型（基础文生视频）
 curl -X POST https://heharse.cloud/uapi/v1/video-gen/seedance \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=Dramatic ocean waves crashing on rocks" \
   -F "model=seedance-2" \
   -F "resolution=720p"
+
+# Seedance 模型（图生视频 / 带参考图）
+curl -X POST https://heharse.cloud/uapi/v1/video-gen/seedance \
+  -H "Authorization: Bearer {API_KEY}" \
+  -F "prompt=A cat dancing" \
+  -F "model=seedance-2" \
+  -F "mode=image_to_video" \
+  -F "resolution=720p" \
+  -F "ref_images=@/path/to/image.jpg"
+
+# Seedance 模型（视频 remix / 带参考视频）
+curl -X POST https://heharse.cloud/uapi/v1/video-gen/seedance \
+  -H "Authorization: Bearer {API_KEY}" \
+  -F "prompt=Make it cinematic" \
+  -F "model=seedance-2-remix" \
+  -F "mode=remix" \
+  -F "ref_videos=@/path/to/video.mp4"
 
 # Kling 模型
 curl -X POST https://heharse.cloud/uapi/v1/video-gen/kling \
@@ -139,8 +157,13 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/kling \
 | model | string | 是 | 模型名称 |
 | resolution | string | 否 | 分辨率: `480p`, `720p`, `1080p` |
 | aspect_ratio | string | 否 | 宽高比: `16:9`(默认), `9:16`, `1:1` |
-| ref_images | file | 否 | 参考图片（支持 1-3 张，frame 模式最多 2 张） |
+| mode | string | 否 | Seedance 模式: `fast`(默认), `image_to_video`, `remix`, `omni` |
+| duration | string | 否 | 视频时长(秒): 默认 5 |
+| ref_images | file/array | 否 | 参考图片。支持 multipart 文件、`data:` URL(base64)、HTTP URL、纯 base64 字符串 |
+| ref_videos | file | 否 | 参考视频。仅支持 multipart 文件上传（seedance remix 模式使用） |
+| ref_audios | file | 否 | 参考音频。仅支持 multipart 文件上传 |
 | mode_image | string | 否 | 图片参考模式: `frame`(默认), `ingredient` |
+| file_urls | string | 否 | 参考文件 URL 列表（上游自行下载） |
 
 **提交响应**:
 ```json
@@ -190,9 +213,9 @@ curl -X POST https://heharse.cloud/uapi/v1/generate_image \
 | aspect_ratio | string | 否 | 宽高比: `1:1`(默认), `16:9`, `9:16`, `4:3`, `3:4` |
 | style | string | 否 | 艺术风格: `Photorealistic`, `Anime General`, `3D Render`, `Illustration` 等 |
 | output_format | string | 否 | 输出格式: `jpeg`(默认), `png` |
-| ref_images | file | 否 | 参考图片（relay 转为上游 `files` 字段，支持 multipart file） |
-| files | file | 否 | 参考图片（直接发给上游，支持 multipart file） |
-| file_urls | string | 否 | 参考图片 URL（数组，上游自己下载） |
+| ref_images | file/array | 否 | 参考图片。支持 multipart 文件、`data:` URL(base64)、HTTP URL、纯 base64 字符串。字段名保持 `ref_images` 原样转发给上游 |
+| files | file | 否 | 参考图片（multipart 文件，字段名保持 `files` 原样转发） |
+| file_urls | string | 否 | 参考文件 URL 列表（上游自行下载） |
 
 **提交响应**:
 ```json
@@ -208,7 +231,7 @@ curl -X POST https://heharse.cloud/uapi/v1/generate_image \
 }
 ```
 
-> **注意**：参考图可用 `files`（multipart 文件）或 `file_urls`（URL 文本）传给上游，两者可同时使用。`ref_images` 是客户端友好的别名，relay 会自动转为 `files` 字段。
+> **注意**：参考图可用 `ref_images`、`files`（multipart 文件）或 `file_urls`（URL 文本）传给上游，三者可同时使用。`ref_images` 和 `files` 字段名保持原样转发给上游，不再自动重命名。
 
 #### 查询任务: `/uapi/v1/generate_image?task_id={task_id}`
 
@@ -401,9 +424,9 @@ class NewAPI:
         files = {}
         if ref_images:
             # ref_images 支持三种格式：
-            # 1. 本地文件路径：'ref.jpg' 或 ['ref.jpg'] -> 转为 files 字段
-            # 2. base64 data URL：'data:image/png;base64,...'
-            # 3. HTTP 图片 URL：'https://example.com/img.png' -> 转为 file_urls 字段
+            # 1. 本地文件路径：'ref.jpg' 或 ['ref.jpg'] -> 以 ref_images 字段上传
+            # 2. base64 data URL：'data:image/png;base64,...' -> 自动解码为文件上传
+            # 3. HTTP 图片 URL：'https://example.com/img.png' -> 自动下载为文件上传
             if isinstance(ref_images, str):
                 ref_images = [ref_images]
             for i, path in enumerate(ref_images):

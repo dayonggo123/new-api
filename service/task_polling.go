@@ -399,24 +399,41 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	now := time.Now().Unix()
 	if taskResult.Status == "" {
 		//taskResult = relaycommon.FailTaskInfo("upstream returned empty status")
-		errorResult := &dto.GeneralErrorResponse{}
-		if err = common.Unmarshal(responseBody, &errorResult); err == nil {
-			openaiError := errorResult.TryToOpenAIError()
-			if openaiError != nil {
-				// 返回规范的 OpenAI 错误格式，提取错误信息，判断错误是否为任务失败
-				if openaiError.Code == "429" {
-					// 429 错误通常表示请求过多或速率限制，暂时不认为是任务失败，保持原状态等待下一轮轮询
-					return nil
+		failReason := "upstream returned empty status"
+		// 优先解析 GeminiGen 格式: {"detail": {"error_code": "...", "message": "..."}}
+		if code, msg := dto.TryParseGeminiGenError(responseBody); msg != "" {
+			if code == "RATE_LIMIT_ERROR" || code == "GEMINI_RATE_LIMIT" || strings.Contains(code, "RATE_LIMIT") || strings.Contains(code, "429") {
+				// 速率限制类错误保持原状态等待下一轮轮询
+				return nil
+			}
+			failReason = msg
+			if code != "" {
+				failReason = fmt.Sprintf("[%s] %s", code, msg)
+			}
+		} else {
+			errorResult := &dto.GeneralErrorResponse{}
+			if err = common.Unmarshal(responseBody, &errorResult); err == nil {
+				openaiError := errorResult.TryToOpenAIError()
+				if openaiError != nil {
+					// 返回规范的 OpenAI 错误格式，提取错误信息，判断错误是否为任务失败
+					if openaiError.Code == "429" {
+						// 429 错误通常表示请求过多或速率限制，暂时不认为是任务失败，保持原状态等待下一轮轮询
+						return nil
+					}
+					failReason = openaiError.Message
+					if failReason == "" {
+						failReason = fmt.Sprintf("%v", openaiError.Code)
+					}
+				} else if msg := errorResult.ToMessage(); msg != "" {
+					failReason = msg
+				} else {
+					// unknown error format, log original response
+					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
+					failReason = "upstream returned unrecognized message"
 				}
-
-				// 其他错误认为是任务失败，记录错误信息并更新任务状态
-				taskResult = relaycommon.FailTaskInfo("upstream returned error")
-			} else {
-				// unknown error format, log original response
-				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
-				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
 			}
 		}
+		taskResult = relaycommon.FailTaskInfo(failReason)
 	}
 
 	shouldRefund := false

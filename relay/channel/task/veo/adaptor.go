@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +56,15 @@ type historyListResponse struct {
 	Result  []historyItem `json:"result"`
 }
 
+type referenceItem struct {
+	MediaType     string `json:"media_type,omitempty"`
+	ThumbnailURL  string `json:"thumbnail_url,omitempty"`
+	ImageURL      string `json:"image_url,omitempty"`
+	VideoURL      string `json:"video_url,omitempty"`
+	Status        int    `json:"status,omitempty"`
+	ErrorMessage  string `json:"error_message,omitempty"`
+}
+
 type historyItem struct {
 	ID             int              `json:"id"`
 	UUID           string           `json:"uuid"`
@@ -71,6 +81,7 @@ type historyItem struct {
 	CreatedAt      string           `json:"created_at"`
 	UpdatedAt      string           `json:"updated_at,omitempty"`
 	ThumbnailURL   string           `json:"thumbnail_url,omitempty"`
+	ReferenceItem  []referenceItem  `json:"reference_item,omitempty"`
 	GeneratedVideo []generatedVideo `json:"generated_video,omitempty"`
 	GeneratedImage []generatedImage `json:"generated_image,omitempty"`
 }
@@ -299,6 +310,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if modeImage != "" {
 			writer.WriteField("mode_image", modeImage)
 		}
+		debugLog := fmt.Sprintf("[SeedanceDebug] mode=%s, duration=%s, ref_images_file=%d, ref_images_value=%d\n", mode, duration, len(formData.File["ref_images"]), len(formData.Value["ref_images"]))
+		os.WriteFile("/tmp/seedance_debug.log", []byte(debugLog), 0644)
 		if mode != "" {
 			writer.WriteField("mode", mode)
 		}
@@ -306,7 +319,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			writer.WriteField("duration", duration)
 		}
 
-	// Handle ref_images and files (for reference images)
+		isGrok := strings.HasPrefix(modelName, "grok-")
+
+		// Handle ref_images and files (for reference images)
 		for fieldName, fileHeaders := range formData.File {
 			if fieldName != "ref_images" && fieldName != "files" && fieldName != "ref_videos" && fieldName != "ref_audios" {
 				continue
@@ -327,10 +342,17 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 						continue
 					}
 				}
+
+				// grok: local images must use "files" field, not "ref_images".
+				upstreamField := fieldName
+				if isGrok && fieldName == "ref_images" {
+					upstreamField = "files"
+				}
+
 				h := make(textproto.MIMEHeader)
 				// Preserve original field name (ref_images/ref_videos/ref_audios/files)
 				// so upstream can correctly identify reference media types.
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fh.Filename))
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, upstreamField, fh.Filename))
 				h.Set("Content-Type", ct)
 				part, err := writer.CreatePart(h)
 				if err != nil {
@@ -360,6 +382,45 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				if val == "" {
 					continue
 				}
+
+				// grok: text values have different field mappings.
+				// - HTTP URLs  -> file_urls
+				// - data: URI  -> decode and send as files multipart part
+				// - other text (UUID etc) -> keep as ref_images
+				if isGrok {
+					if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
+						writer.WriteField("file_urls", val)
+						continue
+					}
+					if strings.HasPrefix(val, "data:") {
+						// data: URI -> decode and send as files multipart part
+						rest := val[len("data:"):]
+						mimeType := "application/octet-stream"
+						if idx := strings.Index(rest, ","); idx >= 0 {
+							mimeType = rest[:idx]
+							if sem := strings.Index(mimeType, ";"); sem >= 0 {
+								mimeType = mimeType[:sem]
+							}
+							b64str := rest[idx+1:]
+							data, _ := base64.StdEncoding.DecodeString(b64str)
+							if len(data) > 0 && len(data) <= maxVeoImageSize {
+								h := make(textproto.MIMEHeader)
+								filename := fmt.Sprintf("ref_image_%d_%d.%s", time.Now().UnixNano(), i, extFromMime(mimeType))
+								h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="files"; filename="%s"`, filename))
+								h.Set("Content-Type", mimeType)
+								part, err := writer.CreatePart(h)
+								if err == nil {
+									part.Write(data)
+								}
+							}
+						}
+						continue
+					}
+					// UUID or other string -> keep as ref_images
+					writer.WriteField("ref_images", val)
+					continue
+				}
+
 				var data []byte
 				mimeType := "application/octet-stream"
 
@@ -530,6 +591,14 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		// Extract image URL from generated_image array
 		if len(h.GeneratedImage) > 0 && h.GeneratedImage[0].ImageURL != "" {
 			taskResult.Url = h.GeneratedImage[0].ImageURL
+		}
+		// Pass reference_item for downstream consumers
+		if len(h.ReferenceItem) > 0 {
+			refs := make([]interface{}, len(h.ReferenceItem))
+			for i, r := range h.ReferenceItem {
+				refs[i] = r
+			}
+			taskResult.ReferenceItem = refs
 		}
 	case 3: // failed
 		taskResult.Status = model.TaskStatusFailure

@@ -223,7 +223,15 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
-		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
+		// 优先解析 GeminiGen 格式的错误 {"detail": {"error_code": "...", "message": "..."}}
+		errMsg := string(responseBody)
+		if code, msg := dto.TryParseGeminiGenError(responseBody); msg != "" {
+			errMsg = msg
+			if code != "" {
+				errMsg = fmt.Sprintf("[%s] %s", code, msg)
+			}
+		}
+		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", errMsg), "fail_to_fetch_task", resp.StatusCode)
 	}
 
 	// 10. 返回 OtherRatios 给下游（header 必须在 DoResponse 写 body 之前设置）
