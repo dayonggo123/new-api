@@ -278,6 +278,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			modeImage = v[0]
 		}
 
+		mode := ""
+		if v, ok := formData.Value["mode"]; ok && len(v) > 0 {
+			mode = v[0]
+		}
+
+		duration := ""
+		if v, ok := formData.Value["duration"]; ok && len(v) > 0 {
+			duration = v[0]
+		}
+
 		writer.WriteField("prompt", prompt)
 		writer.WriteField("model", modelName)
 		if resolution != "" {
@@ -288,6 +298,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 		if modeImage != "" {
 			writer.WriteField("mode_image", modeImage)
+		}
+		if mode != "" {
+			writer.WriteField("mode", mode)
+		}
+		if duration != "" {
+			writer.WriteField("duration", duration)
 		}
 
 	// Handle ref_images and files (for reference images)
