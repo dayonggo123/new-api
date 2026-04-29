@@ -487,6 +487,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		task.Progress = taskResult.Progress
 	}
 
+	// Always capture upstream URL as soon as it becomes available, even during processing.
+	// Some platforms (e.g. grok) may provide the video URL before status transitions to completed.
+	if taskResult.Url != "" && !strings.HasPrefix(taskResult.Url, "data:") {
+		task.PrivateData.ResultURL = taskResult.Url
+	}
+
 	isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
 	if isDone && snap.Status != task.Status {
 		won, err := task.UpdateWithStatus(snap.Status)

@@ -581,6 +581,20 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case 1: // processing
 		taskResult.Status = model.TaskStatusInProgress
 		taskResult.Progress = fmt.Sprintf("%d%%", h.StatusPercent)
+		// Some platforms (e.g. grok) may return video/image URLs even while status is still processing.
+		if len(h.GeneratedVideo) > 0 && h.GeneratedVideo[0].VideoURL != "" {
+			taskResult.Url = h.GeneratedVideo[0].VideoURL
+		}
+		if len(h.GeneratedImage) > 0 && h.GeneratedImage[0].ImageURL != "" {
+			taskResult.Url = h.GeneratedImage[0].ImageURL
+		}
+		if len(h.ReferenceItem) > 0 {
+			refs := make([]interface{}, len(h.ReferenceItem))
+			for i, r := range h.ReferenceItem {
+				refs[i] = r
+			}
+			taskResult.ReferenceItem = refs
+		}
 	case 2: // completed
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
