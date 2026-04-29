@@ -328,7 +328,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 					}
 				}
 				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="files"; filename="%s"`, fh.Filename))
+				// Preserve original field name (ref_images/ref_videos/ref_audios/files)
+				// so upstream can correctly identify reference media types.
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fh.Filename))
 				h.Set("Content-Type", ct)
 				part, err := writer.CreatePart(h)
 				if err != nil {
@@ -373,12 +375,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 						data, _ = base64.StdEncoding.DecodeString(b64str)
 					}
 				} else if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
-					if isImageURL(val) {
-						// Image URL -> forward as file_urls text field (upstream fetches)
-						writer.WriteField("file_urls", val)
-						continue
-					}
-					// Non-image URL -> download and send as files part
+					// All HTTP URLs (including images): download and send as files part.
+					// Upstream does not accept URL references for ref_images; it requires
+					// actual file content in the multipart body.
 					resp, err := http.Get(val)
 					if err == nil && resp.StatusCode == 200 {
 						data, _ = io.ReadAll(resp.Body)
@@ -397,7 +396,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				}
 				h := make(textproto.MIMEHeader)
 				filename := fmt.Sprintf("ref_image_%d_%d.%s", time.Now().UnixNano(), i, extFromMime(mimeType))
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="files"; filename="%s"`, filename))
+				// Use original field name (ref_images/files) so upstream can identify it.
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, filename))
 				h.Set("Content-Type", mimeType)
 				part, err := writer.CreatePart(h)
 				if err != nil {
