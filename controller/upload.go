@@ -128,6 +128,86 @@ func extFromMime(mime string) string {
 	}
 }
 
+// UploadVideos handles POST /uapi/v1/upload_videos
+// Accepts multipart form with "videos" field (multiple files)
+// Returns URLs for the uploaded files
+func UploadVideos(c *gin.Context) {
+	videoDir := filepath.Join(uploadDir, "videos")
+	if err := os.MkdirAll(videoDir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("failed to create video directory: %v", err),
+		})
+		return
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("failed to parse multipart form: %v", err),
+		})
+		return
+	}
+
+	files := form.File["videos"]
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "no videos provided in 'videos' field",
+		})
+		return
+	}
+
+	baseURL := getUploadBaseURL(c)
+
+	var urls []string
+	for _, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			continue
+		}
+
+		data, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			continue
+		}
+
+		contentType := fileHeader.Header.Get("Content-Type")
+		if contentType == "" || contentType == "application/octet-stream" {
+			contentType = http.DetectContentType(data)
+		}
+		if !strings.HasPrefix(contentType, "video/") && !strings.HasPrefix(contentType, "application/mp4") {
+			common.SysLog(fmt.Sprintf("upload video skipped non-video: %s", contentType))
+			continue
+		}
+
+		ext := extFromMime(contentType)
+		if ext == "bin" {
+			ext = "mp4"
+		}
+		filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
+		filePath := filepath.Join(videoDir, filename)
+
+		if err := os.WriteFile(filePath, data, 0644); err != nil {
+			common.SysLog(fmt.Sprintf("failed to write uploaded video: %v", err))
+			continue
+		}
+
+		url := fmt.Sprintf("%s/uploads/videos/%s", baseURL, filename)
+		urls = append(urls, url)
+	}
+
+	if len(urls) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "no valid video files were uploaded",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"urls": urls,
+	})
+}
+
 // UploadImagesJSON handles POST /uapi/v1/upload_images/json
 // Accepts JSON body: {"images": ["data:image/png;base64,xxxxx", ...]}
 // Returns: {"urls": ["https://host/uploads/uuid.png", ...]}

@@ -209,6 +209,7 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		relayUploadRouter.POST("/v1/upload_images", controller.UploadImages)
 		relayUploadRouter.POST("/v1/upload_images/json", controller.UploadImagesJSON)
+		relayUploadRouter.POST("/v1/upload_videos", controller.UploadVideos)
 	}
 
 	relayGeminiRouter := router.Group("/v1beta")
