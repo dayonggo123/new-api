@@ -56,6 +56,24 @@ const EditPromptModal = (props) => {
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
 
+  const PRESET_TAGS = [
+    '电影感', '超写实', 'photography', 'nature', 'portrait', 'landscape',
+    '写实', 'vehicle', 'character', 'minimalist', 'fashion', '自拍',
+    '高级感', '时尚', '极简风', '人像', '辣妹', '胶片感', '街拍',
+    'logo', '金发', '少女', 'interior', 'typography', 'paper-craft',
+    'illustration', 'branding', '极简', '超现实', 'cartoon', 'product',
+    '比基尼', '微距', '光影', '复古风', '复古', '3d', '奢华', 'food',
+    'retro', 'poster', '氛围感', '特写', 'architecture', '高定', '质感',
+    '闪光灯', '红发', '写真', '夜景', 'neon', '运动风', '治愈系', 'toy',
+    '电影质感', '杂志风', '微缩', '性感', '唯美', 'creative',
+    'futuristic', '时尚大片', '九宫格', '写实风', '美食', '信息图',
+    '慵懒风', '情侣', '奇幻', '健身房', '暗黑风', 'animal', '少女感',
+    '大片感', '肖像', '霓虹', '回眸', '黑白', '梦幻', '皮克斯', '柔光',
+    '街头风', '美女', 'ui', '夏日', '奢华风', '抓拍', '飞溅', '居家',
+    '霓虹灯', '红裙', '海报', '科幻', 'fantasy', '赛博风', '纯欲风',
+    '四宫格', '千禧风', '雨夜', '浪漫',
+  ];
+
   const getInitValues = () => ({
     title: '',
     content: '',
@@ -64,7 +82,7 @@ const EditPromptModal = (props) => {
     cover_image_url: '',
     category_id: '',
     variables: '',
-    tags: '',
+    tags: [],
     sort_order: 0,
     status: true,
   });
@@ -105,7 +123,7 @@ const EditPromptModal = (props) => {
           ...data,
           status: data.status === 1,
           variables: data.variables || '',
-          tags: data.tags || '',
+          tags: data.tags ? JSON.parse(data.tags) : [],
         };
         formApiRef.current?.setValues({ ...getInitValues(), ...values });
       } else {
@@ -147,17 +165,8 @@ const EditPromptModal = (props) => {
       localInputs.variables = '';
     }
 
-    if (localInputs.tags && localInputs.tags.trim() !== '') {
-      try {
-        JSON.parse(localInputs.tags);
-      } catch (e) {
-        showError(t('标签格式不正确，请输入合法的JSON'));
-        setLoading(false);
-        return;
-      }
-    } else {
-      localInputs.tags = '';
-    }
+    // Convert tags array to JSON string for backend
+    localInputs.tags = JSON.stringify(localInputs.tags || []);
 
     localInputs.sort_order = parseInt(localInputs.sort_order) || 0;
 
@@ -397,24 +406,34 @@ const EditPromptModal = (props) => {
                       />
                     </Col>
                     <Col span={24}>
-                      <Form.TextArea
+                      <Form.TagInput
                         field='tags'
                         label={t('标签')}
-                        placeholder={t('JSON格式 ["科幻", "风景"]')}
-                        rows={2}
+                        placeholder={t('输入标签按回车添加')}
+                        separator={','}
                         style={{ width: '100%' }}
-                        rules={[
-                          {
-                            validator: (rule, value) => {
-                              if (!value || value.trim() === '') {
-                                return Promise.resolve();
-                              }
-                              return verifyJSONPromise(value);
-                            },
-                            message: t('请输入合法的JSON格式'),
-                          },
-                        ]}
                       />
+                      <div className='flex flex-wrap gap-1 mt-2'>
+                        {PRESET_TAGS.map((tag) => (
+                          <Tag
+                            key={tag}
+                            size='small'
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              const current =
+                                formApiRef.current?.getValue('tags') || [];
+                              if (!current.includes(tag)) {
+                                formApiRef.current?.setValue('tags', [
+                                  ...current,
+                                  tag,
+                                ]);
+                              }
+                            }}
+                          >
+                            {tag}
+                          </Tag>
+                        ))}
+                      </div>
                     </Col>
                     <Col span={12}>
                       <Form.InputNumber
