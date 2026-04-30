@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Tabs, Button, Card, Form, Row, Col, Tag, Space, Spin, Typography, Avatar, Popconfirm, SideSheet } from '@douyinfe/semi-ui';
-import { IconBook, IconSave, IconClose, IconPlus } from '@douyinfe/semi-icons';
+import { IconSave, IconClose, IconPlus } from '@douyinfe/semi-icons';
+import { BookOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import PromptsPage from '../../components/table/prompts';
@@ -215,7 +216,7 @@ const Prompt = () => {
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
             <Avatar size="small" color="blue">
-              <IconBook size={16} />
+              <BookOpen size={16} />
             </Avatar>
             <Text className="text-lg font-medium">{t('分类列表')}</Text>
           </div>
