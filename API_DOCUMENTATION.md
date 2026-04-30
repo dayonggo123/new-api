@@ -3,7 +3,7 @@
 ## 更新日志
 | 日期 | 变更内容 |
 |------|---------|
-| 2026-04-29 | OpenAI 图片接口增加 `/image-proxy/:id` 懒加载代理，解决上游临时图片 URL 过期问题；nano-banana / imagen-4 参考图字段映射修复；Seedance 支持 `mode`、`duration` 字段；`ref_images`/`ref_videos`/`ref_audios` 字段名保持原样转发；所有 HTTP URL 图片自动下载后作为文件上传；修复轮询跳过 `progress=100%` 任务的问题；Grok 参考图字段映射修复；GeminiGen 错误解析支持 `error_message` 字段；轮询在 processing 状态也提取 `video_url` 和 `reference_item` |
+| 2026-04-29 | OpenAI 图片接口增加 `?async=true` 异步模式（提交返回 task_id，轮询 `/v1/images/tasks/:task_id` 获取结果），解决上游生成时间过长导致网关超时的问题；增加 `/image-proxy/:id` 懒加载代理，解决上游临时图片 URL 过期问题；nano-banana / imagen-4 参考图字段映射修复；Seedance 支持 `mode`、`duration` 字段；`ref_images`/`ref_videos`/`ref_audios` 字段名保持原样转发；所有 HTTP URL 图片自动下载后作为文件上传；修复轮询跳过 `progress=100%` 任务的问题；Grok 参考图字段映射修复；GeminiGen 错误解析支持 `error_message` 字段；轮询在 processing 状态也提取 `video_url` 和 `reference_item` |
 | 2026-04-25 | 渠道测试修复：`/uapi/` 路径支持 RelayModeVideoSubmit，GeminiGen 渠道可在后台直接测试；渠道名称统一为 GeminiGen；新增 `/uapi/v1/upload_images` 图片上传接口；`file_urls` 文本字段转发修复 |
 | 2026-04-23 | `ref_images` 支持三种格式（multipart 文件/base64 data URL/HTTP URL）；`nano-banana-2` 图生图验证通过 |
 | 2026-04-22 | `/uapi/` 通道修复完成，视频和图片接口全部验证通过；新增 seedance-2-remix/omni 视频模型 |
@@ -69,6 +69,53 @@ curl -X POST https://heharse.cloud/v1/images/generations \
 ```
 
 > **图片 URL 说明**: 返回的 `url` 是本站持久化代理地址，不会因上游临时链接过期而失效。客户端直接用 `<img src="{url}">` 展示即可，无需额外处理。
+
+#### 异步模式 `?async=true`
+
+部分上游渠道（如 gpt-image-2）生成耗时较长（>60s），直接调用可能触发网关超时。此时可在 URL 中加上 `?async=true` 启用异步模式：
+
+**提交任务**：
+```bash
+curl -X POST "https://heharse.cloud/v1/images/generations?async=true" \
+  -H "Authorization: Bearer {API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2",
+    "prompt": "A futuristic city",
+    "size": "1024x1024"
+  }'
+```
+
+**响应**（立即返回，不含图片）：
+```json
+{
+  "task_id": "task_abc123",
+  "status": "pending",
+  "created_at": 1713000000
+}
+```
+
+**轮询查询**：
+```bash
+curl "https://heharse.cloud/v1/images/tasks/task_abc123" \
+  -H "Authorization: Bearer {API_KEY}"
+```
+
+**轮询成功响应**：
+```json
+{
+  "task_id": "task_abc123",
+  "status": "completed",
+  "data": [
+    {
+      "url": "https://heharse.cloud/image-proxy/uuid.png",
+      "revised_prompt": "A futuristic city with flying cars..."
+    }
+  ]
+}
+```
+
+> **说明**：异步模式下的 `url` 同样经过持久化代理处理，不会过期。轮询间隔建议 3-5 秒，任务通常在 60-90 秒内完成。任务映射在服务端保留 24 小时。
 
 ### 1.4 文本补全 `/v1/completions`
 ```bash
@@ -537,6 +584,7 @@ for url in urls:
 | `insufficient_user_quota` | 余额不足 |
 | `model_not_found` | 模型未配置渠道 |
 | `task_not_exist` | 任务不存在 |
+| `404` | 异步图片任务不存在或已过期（24h） |
 | `fail_to_fetch_task` | 上游请求失败（如参考图文件无效） |
 | `INVALID_FILE_CONTENT` | 参考图文件格式不正确（非图片） |
 | `FILE_DOWNLOAD_FAILED` | `file_urls` 中的图片 URL 无法下载 |
@@ -595,6 +643,29 @@ for url in urls:
 ```
 
 > 视频 URL 由 Cloudflare CDN 直接提供，非视频代理地址。
+
+**异步图片任务提交成功**：
+```json
+{
+  "task_id": "task_abc123",
+  "status": "pending",
+  "created_at": 1713000000
+}
+```
+
+**异步图片任务轮询成功**：
+```json
+{
+  "task_id": "task_abc123",
+  "status": "completed",
+  "data": [
+    {
+      "url": "https://heharse.cloud/image-proxy/uuid.png",
+      "revised_prompt": "A futuristic city with flying cars..."
+    }
+  ]
+}
+```
 
 **错误响应**:
 ```json

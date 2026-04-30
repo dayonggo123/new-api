@@ -106,6 +106,32 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 
+	// Async mode: if upstream returns a task_id, return it directly
+	// and let the client poll /v1/images/tasks/{task_id} for the result.
+	if c.Query("async") == "true" && httpResp != nil {
+		body, readErr := io.ReadAll(httpResp.Body)
+		httpResp.Body.Close()
+		if readErr != nil {
+			return types.NewOpenAIError(readErr, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+		}
+		var asyncResp map[string]any
+		if err := common.Unmarshal(body, &asyncResp); err == nil {
+			taskID := ""
+			if t, ok := asyncResp["task_id"].(string); ok && t != "" {
+				taskID = t
+			} else if t, ok := asyncResp["id"].(string); ok && t != "" {
+				taskID = t
+			}
+			if taskID != "" {
+				service.RegisterAsyncImageTask(taskID, info)
+				c.JSON(http.StatusOK, asyncResp)
+				return nil
+			}
+		}
+		// Not an async response, restore body for normal processing
+		httpResp.Body = io.NopCloser(bytes.NewReader(body))
+	}
+
 	// Intercept image generation responses to replace temporary upstream URLs
 	// with persistent local proxy URLs.
 	httpResp = rewriteImageResponseWithProxyURLs(c, httpResp)

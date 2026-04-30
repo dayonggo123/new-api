@@ -165,6 +165,9 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
 	}
 
+	// Async image task polling
+	router.GET("/v1/images/tasks/:task_id", middleware.TokenAuth(), controller.AsyncImageTaskFetch)
+
 	// Public image proxy: lazy-loads upstream images with persistent URLs
 	router.GET("/image-proxy/:id", controller.ImageProxy)
 
