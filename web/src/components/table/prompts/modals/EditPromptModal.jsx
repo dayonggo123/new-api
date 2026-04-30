@@ -38,11 +38,13 @@ import {
   Avatar,
   Row,
   Col,
+  Upload,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
   IconClose,
   IconBookStroked,
+  IconUpload,
 } from '@douyinfe/semi-icons';
 
 const { Text, Title } = Typography;
@@ -69,6 +71,28 @@ const EditPromptModal = (props) => {
 
   const handleCancel = () => {
     props.handleClose();
+  };
+
+  const handleCoverUpload = async ({ file, onSuccess, onError }) => {
+    const formData = new FormData();
+    formData.append('images', file);
+    try {
+      const res = await API.post('/uapi/v1/upload_images', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      if (res.data.urls && res.data.urls.length > 0) {
+        onSuccess(res.data);
+        formApiRef.current?.setValue('cover_image_url', res.data.urls[0]);
+        showSuccess(t('封面上传成功'));
+      } else {
+        onError(new Error('Upload failed'));
+      }
+    } catch (err) {
+      showError(err.message || t('上传失败'));
+      onError(err);
+    }
   };
 
   const loadPrompt = async () => {
@@ -247,10 +271,26 @@ const EditPromptModal = (props) => {
                     <Col span={24}>
                       <Form.Input
                         field='cover_image_url'
-                        label={t('封面图URL')}
-                        placeholder={t('请输入封面图片地址')}
+                        label={t('封面图')}
+                        placeholder={t('请输入封面图片地址或点击上传')}
                         style={{ width: '100%' }}
                         showClear
+                        suffix={
+                          <Upload
+                            customRequest={handleCoverUpload}
+                            accept='image/*'
+                            showUploadList={false}
+                            limit={1}
+                          >
+                            <Button
+                              icon={<IconUpload size={14} />}
+                              type='tertiary'
+                              size='small'
+                            >
+                              {t('上传')}
+                            </Button>
+                          </Upload>
+                        }
                       />
                     </Col>
                     <Col span={24}>
@@ -272,9 +312,6 @@ const EditPromptModal = (props) => {
                         placeholder={t('请输入中文提示词内容')}
                         rows={4}
                         style={{ width: '100%' }}
-                        rules={[
-                          { required: true, message: t('请输入内容') },
-                        ]}
                       />
                     </Col>
                     <Col span={24}>
@@ -284,6 +321,9 @@ const EditPromptModal = (props) => {
                         placeholder={t('请输入英文提示词内容')}
                         rows={4}
                         style={{ width: '100%' }}
+                        rules={[
+                          { required: true, message: t('请输入英文内容') },
+                        ]}
                       />
                     </Col>
                     <Col span={24}>

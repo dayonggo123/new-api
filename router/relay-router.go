@@ -208,7 +208,7 @@ func SetRelayRouter(router *gin.Engine) {
 	// Upload endpoint: only needs TokenAuth (no Distribute/ModelRequestRateLimit)
 	relayUploadRouter := router.Group("/uapi")
 	relayUploadRouter.Use(middleware.RouteTag("relay"))
-	relayUploadRouter.Use(middleware.TokenAuth())
+	relayUploadRouter.Use(middleware.TokenOrUserAuth())
 	{
 		relayUploadRouter.POST("/v1/upload_images", controller.UploadImages)
 		relayUploadRouter.POST("/v1/upload_images/json", controller.UploadImagesJSON)
