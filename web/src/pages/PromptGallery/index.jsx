@@ -16,6 +16,7 @@ import {
   IconClose,
   IconImage,
   IconLanguage,
+  IconHeartStroked,
 } from '@douyinfe/semi-icons';
 import './style.css';
 
@@ -221,27 +222,46 @@ export default function PromptGallery() {
           >
             {/* Modal Header */}
             <div className='detail-modal-header'>
-              <div className='detail-modal-title'>
+              <div className='detail-modal-header-main'>
                 <h2>{selectedPrompt.title}</h2>
+                <div className='detail-meta-row'>
+                  {selectedPrompt.author && (
+                    <span className='detail-meta-item'>
+                      {t('来源')}: {selectedPrompt.author}
+                    </span>
+                  )}
+                  {selectedPrompt.model && (
+                    <span className='detail-meta-item'>
+                      {t('模型')}: {selectedPrompt.model}
+                    </span>
+                  )}
+                </div>
+                {parseTags(selectedPrompt.tags).length > 0 && (
+                  <div className='detail-tags-row-compact'>
+                    {parseTags(selectedPrompt.tags).map((tag, idx) => (
+                      <Tag key={idx} size='small' color='light-blue'>
+                        {tag}
+                      </Tag>
+                    ))}
+                  </div>
+                )}
               </div>
-              <button className='detail-modal-close' onClick={closeDetail}>
-                <IconClose size={20} />
-              </button>
+              <div className='detail-modal-actions'>
+                <button
+                  className='detail-modal-fav'
+                  title={t('收藏')}
+                  onClick={() => showSuccess(t('收藏功能即将上线'))}
+                >
+                  <IconHeartStroked size={18} />
+                </button>
+                <button className='detail-modal-close' onClick={closeDetail}>
+                  <IconClose size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Modal Body */}
             <div className='detail-modal-body'>
-              {/* Tags */}
-              {parseTags(selectedPrompt.tags).length > 0 && (
-                <div className='detail-tags-row'>
-                  {parseTags(selectedPrompt.tags).map((tag, idx) => (
-                    <Tag key={idx} size='small' color='light-blue'>
-                      {tag}
-                    </Tag>
-                  ))}
-                </div>
-              )}
-
               {/* Cover Image */}
               <div className='detail-cover-image'>
                 <img

@@ -198,6 +198,8 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.ContentEn = prompt.ContentEn
 	cleanPrompt.Description = prompt.Description
 	cleanPrompt.CoverImageUrl = prompt.CoverImageUrl
+	cleanPrompt.Author = prompt.Author
+	cleanPrompt.Model = prompt.Model
 	cleanPrompt.Variables = prompt.Variables
 	cleanPrompt.Tags = prompt.Tags
 	cleanPrompt.SortOrder = prompt.SortOrder

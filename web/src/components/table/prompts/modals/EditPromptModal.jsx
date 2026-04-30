@@ -80,6 +80,8 @@ const EditPromptModal = (props) => {
     content_en: '',
     description: '',
     cover_image_url: '',
+    author: '',
+    model: '',
     category_id: '',
     variables: '',
     tags: [],
@@ -311,6 +313,24 @@ const EditPromptModal = (props) => {
                         rules={[
                           { required: true, message: t('请输入标题') },
                         ]}
+                        showClear
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Input
+                        field='author'
+                        label={t('来源')}
+                        placeholder={t('如 @username')}
+                        style={{ width: '100%' }}
+                        showClear
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Input
+                        field='model'
+                        label={t('模型')}
+                        placeholder={t('如 ChatGPT、Midjourney')}
+                        style={{ width: '100%' }}
                         showClear
                       />
                     </Col>
