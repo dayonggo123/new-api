@@ -57,7 +57,9 @@ const EditPromptModal = (props) => {
   const getInitValues = () => ({
     title: '',
     content: '',
+    content_en: '',
     description: '',
+    cover_image_url: '',
     category_id: '',
     variables: '',
     tags: '',
@@ -78,8 +80,8 @@ const EditPromptModal = (props) => {
         const values = {
           ...data,
           status: data.status === 1,
-          variables: data.variables ? JSON.stringify(data.variables) : '',
-          tags: data.tags ? JSON.stringify(data.tags) : '',
+          variables: data.variables || '',
+          tags: data.tags || '',
         };
         formApiRef.current?.setValues({ ...getInitValues(), ...values });
       } else {
@@ -108,29 +110,29 @@ const EditPromptModal = (props) => {
     // Convert status boolean to number
     localInputs.status = localInputs.status ? 1 : 2;
 
-    // Parse JSON fields
+    // Validate JSON fields but keep them as strings for the backend
     if (localInputs.variables && localInputs.variables.trim() !== '') {
       try {
-        localInputs.variables = JSON.parse(localInputs.variables);
+        JSON.parse(localInputs.variables);
       } catch (e) {
         showError(t('变量格式不正确，请输入合法的JSON'));
         setLoading(false);
         return;
       }
     } else {
-      localInputs.variables = [];
+      localInputs.variables = '';
     }
 
     if (localInputs.tags && localInputs.tags.trim() !== '') {
       try {
-        localInputs.tags = JSON.parse(localInputs.tags);
+        JSON.parse(localInputs.tags);
       } catch (e) {
         showError(t('标签格式不正确，请输入合法的JSON'));
         setLoading(false);
         return;
       }
     } else {
-      localInputs.tags = [];
+      localInputs.tags = '';
     }
 
     localInputs.sort_order = parseInt(localInputs.sort_order) || 0;
@@ -244,6 +246,15 @@ const EditPromptModal = (props) => {
                   <Row gutter={12}>
                     <Col span={24}>
                       <Form.Input
+                        field='cover_image_url'
+                        label={t('封面图URL')}
+                        placeholder={t('请输入封面图片地址')}
+                        style={{ width: '100%' }}
+                        showClear
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.Input
                         field='title'
                         label={t('标题')}
                         placeholder={t('请输入标题')}
@@ -257,13 +268,22 @@ const EditPromptModal = (props) => {
                     <Col span={24}>
                       <Form.TextArea
                         field='content'
-                        label={t('内容')}
-                        placeholder={t('请输入提示词内容')}
-                        rows={5}
+                        label={t('内容（中文）')}
+                        placeholder={t('请输入中文提示词内容')}
+                        rows={4}
                         style={{ width: '100%' }}
                         rules={[
                           { required: true, message: t('请输入内容') },
                         ]}
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.TextArea
+                        field='content_en'
+                        label={t('内容（英文）')}
+                        placeholder={t('请输入英文提示词内容')}
+                        rows={4}
+                        style={{ width: '100%' }}
                       />
                     </Col>
                     <Col span={24}>

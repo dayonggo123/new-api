@@ -195,7 +195,9 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.CategoryId = prompt.CategoryId
 	cleanPrompt.Title = prompt.Title
 	cleanPrompt.Content = prompt.Content
+	cleanPrompt.ContentEn = prompt.ContentEn
 	cleanPrompt.Description = prompt.Description
+	cleanPrompt.CoverImageUrl = prompt.CoverImageUrl
 	cleanPrompt.Variables = prompt.Variables
 	cleanPrompt.Tags = prompt.Tags
 	cleanPrompt.SortOrder = prompt.SortOrder

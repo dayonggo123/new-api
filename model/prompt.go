@@ -7,19 +7,21 @@ import (
 )
 
 type Prompt struct {
-	Id          int            `json:"id"`
-	CategoryId  int            `json:"category_id" gorm:"index"`
-	Title       string         `json:"title" gorm:"index"`
-	Content     string         `json:"content" gorm:"type:text"`
-	Description string         `json:"description"`
-	Variables   string         `json:"variables" gorm:"type:text"` // JSON array of variable definitions
-	Tags        string         `json:"tags" gorm:"type:text"`      // JSON array of tag strings
-	SortOrder   int            `json:"sort_order" gorm:"default:0"`
-	Status      int            `json:"status" gorm:"default:1"` // 1=enabled, 2=disabled
-	UsageCount  int            `json:"usage_count" gorm:"default:0"`
-	CreatedTime int64          `json:"created_time" gorm:"bigint"`
-	UpdatedTime int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt   gorm.DeletedAt `gorm:"index"`
+	Id            int            `json:"id"`
+	CategoryId    int            `json:"category_id" gorm:"index"`
+	Title         string         `json:"title" gorm:"index"`
+	Content       string         `json:"content" gorm:"type:text"`
+	ContentEn     string         `json:"content_en" gorm:"type:text"`
+	Description   string         `json:"description"`
+	CoverImageUrl string         `json:"cover_image_url"`
+	Variables     string         `json:"variables" gorm:"type:text"` // JSON array of variable definitions
+	Tags          string         `json:"tags" gorm:"type:text"`      // JSON array of tag strings
+	SortOrder     int            `json:"sort_order" gorm:"default:0"`
+	Status        int            `json:"status" gorm:"default:1"` // 1=enabled, 2=disabled
+	UsageCount    int            `json:"usage_count" gorm:"default:0"`
+	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
+	UpdatedTime   int64          `json:"updated_time" gorm:"bigint"`
+	DeletedAt     gorm.DeletedAt `gorm:"index"`
 }
 
 func GetAllPrompts(startIdx int, num int) (prompts []*Prompt, total int64, err error) {
@@ -150,7 +152,7 @@ func (prompt *Prompt) Insert() error {
 }
 
 func (prompt *Prompt) Update() error {
-	return DB.Model(prompt).Select("category_id", "title", "content", "description", "variables", "tags", "sort_order", "status").Updates(prompt).Error
+	return DB.Model(prompt).Select("category_id", "title", "content", "content_en", "description", "cover_image_url", "variables", "tags", "sort_order", "status").Updates(prompt).Error
 }
 
 func (prompt *Prompt) Delete() error {

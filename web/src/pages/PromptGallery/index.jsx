@@ -6,12 +6,20 @@ import {
   Input,
   Tag,
   Modal,
-  Form,
   Empty,
   Spin,
 } from '@douyinfe/semi-ui';
-import { Search, Copy, BookOpen, Sparkles } from 'lucide-react';
+import {
+  IconSearch,
+  IconCopy,
+  IconBookStroked,
+  IconClose,
+  IconImage,
+  IconLanguage,
+} from '@douyinfe/semi-icons';
 import './style.css';
+
+const FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%23f0f0f0%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22%3E%E6%9A%82%E6%97%A0%E5%9B%BE%E7%89%87%3C/text%3E%3C/svg%3E';
 
 export default function PromptGallery() {
   const { t } = useTranslation();
@@ -89,6 +97,15 @@ export default function PromptGallery() {
     }
   };
 
+  const parseTags = (tagsStr) => {
+    if (!tagsStr) return [];
+    try {
+      return JSON.parse(tagsStr);
+    } catch {
+      return [];
+    }
+  };
+
   const renderPromptContent = (prompt) => {
     const variables = parseVariables(prompt.variables);
     if (variables.length === 0) return prompt.content;
@@ -112,12 +129,17 @@ export default function PromptGallery() {
     setSelectedPrompt(null);
   };
 
+  // Use content_en if available, otherwise fallback
+  const getEnglishContent = (prompt) => {
+    return prompt.content_en || '';
+  };
+
   return (
     <div className='prompt-gallery-page'>
       {/* Header */}
       <div className='gallery-header'>
         <div className='header-content'>
-          <BookOpen size={32} />
+          <IconBookStroked size={36} style={{ opacity: 0.9 }} />
           <h1>{t('提示词画廊')}</h1>
           <p>{t('浏览和发现优质 AI 提示词')}</p>
         </div>
@@ -143,7 +165,7 @@ export default function PromptGallery() {
           ))}
         </div>
         <Input
-          prefix={<Search size={16} />}
+          prefix={<IconSearch size={16} />}
           placeholder={t('搜索提示词...')}
           value={keyword}
           onChange={(v) => setKeyword(v)}
@@ -151,8 +173,8 @@ export default function PromptGallery() {
         />
       </div>
 
-      {/* Prompt Grid */}
-      <div className='prompt-grid'>
+      {/* Masonry Grid */}
+      <div className='gallery-masonry'>
         {loading ? (
           <div className='loading-wrap'>
             <Spin size='large' />
@@ -161,35 +183,29 @@ export default function PromptGallery() {
           <Empty title={t('暂无提示词')} />
         ) : (
           prompts.map((prompt) => (
-            <div key={prompt.id} className='prompt-card'>
-              <div className='card-header'>
+            <div
+              key={prompt.id}
+              className='gallery-card'
+              onClick={() => openDetail(prompt)}
+            >
+              <div className='gallery-card-image-wrap'>
+                <img
+                  src={prompt.cover_image_url || FALLBACK_IMAGE}
+                  alt={prompt.title}
+                  loading='lazy'
+                  onError={(e) => {
+                    e.target.src = FALLBACK_IMAGE;
+                  }}
+                />
+                <div className='gallery-card-overlay'>
+                  <span className='gallery-card-badge'>AI 生图</span>
+                </div>
+              </div>
+              <div className='gallery-card-footer'>
                 <h3>{prompt.title}</h3>
-                <Tag size='small' color='light-blue'>
+                <span className='gallery-card-category'>
                   {getCategoryName(prompt.category_id)}
-                </Tag>
-              </div>
-              <div className='card-content'>
-                <p>{prompt.content.slice(0, 120)}{prompt.content.length > 120 ? '...' : ''}</p>
-              </div>
-              {prompt.description && (
-                <p className='card-desc'>{prompt.description}</p>
-              )}
-              <div className='card-actions'>
-                <Button
-                  theme='light'
-                  type='tertiary'
-                  icon={<Copy size={14} />}
-                  onClick={() => handleCopy(prompt.content)}
-                >
-                  {t('复制')}
-                </Button>
-                <Button
-                  theme='solid'
-                  icon={<Sparkles size={14} />}
-                  onClick={() => openDetail(prompt)}
-                >
-                  {t('详情')}
-                </Button>
+                </span>
               </div>
             </div>
           ))
@@ -197,65 +213,125 @@ export default function PromptGallery() {
       </div>
 
       {/* Detail Modal */}
-      <Modal
-        title={selectedPrompt?.title}
-        visible={showDetail}
-        onCancel={closeDetail}
-        footer={null}
-        width={600}
-      >
-        {selectedPrompt && (
-          <div className='detail-content'>
-            <Tag color='light-blue'>
-              {getCategoryName(selectedPrompt.category_id)}
-            </Tag>
-            {selectedPrompt.description && (
-              <p className='detail-desc'>{selectedPrompt.description}</p>
-            )}
-
-            {/* Variables Input */}
-            {parseVariables(selectedPrompt.variables).length > 0 && (
-              <div className='variables-section'>
-                <h4>{t('变量')}</h4>
-                {parseVariables(selectedPrompt.variables).map((v) => (
-                  <div key={v.name} className='variable-row'>
-                    <label>{v.label || v.name}</label>
-                    <Input
-                      placeholder={v.example || ''}
-                      value={variableValues[v.name] || ''}
-                      onChange={(val) =>
-                        setVariableValues((prev) => ({
-                          ...prev,
-                          [v.name]: val,
-                        }))
-                      }
-                    />
-                  </div>
-                ))}
+      {showDetail && selectedPrompt && (
+        <div className='gallery-detail-backdrop' onClick={closeDetail}>
+          <div
+            className='gallery-detail-modal'
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className='detail-modal-header'>
+              <div className='detail-modal-title'>
+                <h2>{selectedPrompt.title}</h2>
               </div>
-            )}
-
-            {/* Preview */}
-            <div className='preview-section'>
-              <h4>{t('预览')}</h4>
-              <pre className='preview-text'>
-                {renderPromptContent(selectedPrompt)}
-              </pre>
+              <button className='detail-modal-close' onClick={closeDetail}>
+                <IconClose size={20} />
+              </button>
             </div>
 
-            <Button
-              theme='solid'
-              block
-              icon={<Copy size={14} />}
-              onClick={() =>
-                handleCopy(renderPromptContent(selectedPrompt))
-              }
-            >
-              {t('复制完整提示词')}
-            </Button>
+            {/* Modal Body */}
+            <div className='detail-modal-body'>
+              {/* Tags */}
+              {parseTags(selectedPrompt.tags).length > 0 && (
+                <div className='detail-tags-row'>
+                  {parseTags(selectedPrompt.tags).map((tag, idx) => (
+                    <Tag key={idx} size='small' color='light-blue'>
+                      {tag}
+                    </Tag>
+                  ))}
+                </div>
+              )}
+
+              {/* Cover Image */}
+              <div className='detail-cover-image'>
+                <img
+                  src={selectedPrompt.cover_image_url || FALLBACK_IMAGE}
+                  alt={selectedPrompt.title}
+                  onError={(e) => {
+                    e.target.src = FALLBACK_IMAGE;
+                  }}
+                />
+              </div>
+
+              {/* Variables Input */}
+              {parseVariables(selectedPrompt.variables).length > 0 && (
+                <div className='detail-variables-section'>
+                  <h4 className='detail-section-title'>{t('变量')}</h4>
+                  <div className='detail-variables-grid'>
+                    {parseVariables(selectedPrompt.variables).map((v) => (
+                      <div key={v.name} className='detail-variable-item'>
+                        <label>{v.label || v.name}</label>
+                        <Input
+                          placeholder={v.example || ''}
+                          value={variableValues[v.name] || ''}
+                          onChange={(val) =>
+                            setVariableValues((prev) => ({
+                              ...prev,
+                              [v.name]: val,
+                            }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* English Prompt */}
+              {getEnglishContent(selectedPrompt) && (
+                <div className='detail-prompt-block'>
+                  <div className='detail-prompt-header'>
+                    <span className='detail-prompt-label'>
+                      <IconLanguage size={14} />
+                      English
+                    </span>
+                    <div className='detail-prompt-actions'>
+                      <Button
+                        theme='borderless'
+                        size='small'
+                        icon={<IconCopy size={12} />}
+                        onClick={() =>
+                          handleCopy(getEnglishContent(selectedPrompt))
+                        }
+                      >
+                        {t('复制')}
+                      </Button>
+                    </div>
+                  </div>
+                  <pre className='detail-prompt-text'>
+                    {getEnglishContent(selectedPrompt)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Chinese Prompt */}
+              <div className='detail-prompt-block'>
+                <div className='detail-prompt-header'>
+                  <span className='detail-prompt-label'>
+                    <IconLanguage size={14} />
+                    中文
+                  </span>
+                  <div className='detail-prompt-actions'>
+                    <Button
+                      theme='borderless'
+                      size='small'
+                      icon={<IconCopy size={12} />}
+                      onClick={() =>
+                        handleCopy(renderPromptContent(selectedPrompt))
+                      }
+                    >
+                      {t('复制')}
+                    </Button>
+                  </div>
+                </div>
+                <pre className='detail-prompt-text'>
+                  {renderPromptContent(selectedPrompt)}
+                </pre>
+              </div>
+            </div>
           </div>
-        )}
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }
