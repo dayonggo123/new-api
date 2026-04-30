@@ -42,8 +42,8 @@ import {
 import {
   IconSave,
   IconClose,
+  IconBookStroked,
 } from '@douyinfe/semi-icons';
-import { BookOpen } from 'lucide-react';
 
 const { Text, Title } = Typography;
 
@@ -229,7 +229,7 @@ const EditPromptModal = (props) => {
                       color='blue'
                       className='mr-2 shadow-md'
                     >
-                      <BookOpen size={16} />
+                      <IconBookStroked size={16} />
                     </Avatar>
                     <div>
                       <Text className='text-lg font-medium'>
@@ -303,7 +303,7 @@ const EditPromptModal = (props) => {
                       color='green'
                       className='mr-2 shadow-md'
                     >
-                      <BookOpen size={16} />
+                      <IconBookStroked size={16} />
                     </Avatar>
                     <div>
                       <Text className='text-lg font-medium'>
