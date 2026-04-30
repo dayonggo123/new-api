@@ -17,12 +17,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export * from './channel.constants';
-export * from './user.constants';
-export * from './toast.constants';
-export * from './common.constant';
-export * from './dashboard.constants';
-export * from './playground.constants';
-export * from './redemption.constants';
-export * from './prompt.constants';
-export * from './channel-affinity-template.constants';
+import React from 'react';
+import { Button } from '@douyinfe/semi-ui';
+
+const PromptsActions = ({
+  setEditingPrompt,
+  setShowEdit,
+  t,
+}) => {
+  // Add new prompt
+  const handleAddPrompt = () => {
+    setEditingPrompt({
+      id: undefined,
+    });
+    setShowEdit(true);
+  };
+
+  return (
+    <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
+      <Button
+        type='primary'
+        className='flex-1 md:flex-initial'
+        onClick={handleAddPrompt}
+        size='small'
+      >
+        {t('添加提示词')}
+      </Button>
+    </div>
+  );
+};
+
+export default PromptsActions;

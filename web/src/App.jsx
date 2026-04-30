@@ -34,6 +34,8 @@ import PasswordResetConfirm from './components/auth/PasswordResetConfirm';
 import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
+import Prompt from './pages/Prompt';
+import PromptGallery from './pages/PromptGallery';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
@@ -161,6 +163,20 @@ function App() {
             <AdminRoute>
               <Redemption />
             </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/prompt'
+          element={
+            <AdminRoute>
+              <Prompt />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/prompt-gallery'
+          element={
+            <PromptGallery />
           }
         />
         <Route

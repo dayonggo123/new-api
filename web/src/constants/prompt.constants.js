@@ -17,12 +17,40 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export * from './channel.constants';
-export * from './user.constants';
-export * from './toast.constants';
-export * from './common.constant';
-export * from './dashboard.constants';
-export * from './playground.constants';
-export * from './redemption.constants';
-export * from './prompt.constants';
-export * from './channel-affinity-template.constants';
+export const PROMPT_STATUS = {
+  ENABLED: 1,
+  DISABLED: 2,
+};
+
+export const PROMPT_STATUS_MAP = {
+  [PROMPT_STATUS.ENABLED]: {
+    color: 'green',
+    text: '启用',
+  },
+  [PROMPT_STATUS.DISABLED]: {
+    color: 'red',
+    text: '禁用',
+  },
+};
+
+export const PROMPT_ACTIONS = {
+  DELETE: 'delete',
+  ENABLE: 'enable',
+  DISABLE: 'disable',
+};
+
+export const PROMPT_CATEGORY_STATUS = {
+  ENABLED: 1,
+  DISABLED: 2,
+};
+
+export const PROMPT_CATEGORY_STATUS_MAP = {
+  [PROMPT_CATEGORY_STATUS.ENABLED]: {
+    color: 'green',
+    text: '启用',
+  },
+  [PROMPT_CATEGORY_STATUS.DISABLED]: {
+    color: 'red',
+    text: '禁用',
+  },
+};

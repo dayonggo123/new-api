@@ -281,6 +281,34 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
+
+		// Prompt Library Admin Routes
+		promptCategoryRoute := apiRouter.Group("/prompt-category")
+		promptCategoryRoute.Use(middleware.AdminAuth())
+		{
+			promptCategoryRoute.GET("/", controller.GetAllPromptCategories)
+			promptCategoryRoute.GET("/all", controller.GetEnabledPromptCategories)
+			promptCategoryRoute.GET("/:id", controller.GetPromptCategory)
+			promptCategoryRoute.POST("/", controller.AddPromptCategory)
+			promptCategoryRoute.PUT("/", controller.UpdatePromptCategory)
+			promptCategoryRoute.DELETE("/:id", controller.DeletePromptCategory)
+		}
+
+		promptRoute := apiRouter.Group("/prompt")
+		promptRoute.Use(middleware.AdminAuth())
+		{
+			promptRoute.GET("/", controller.GetAllPrompts)
+			promptRoute.GET("/:id", controller.GetPrompt)
+			promptRoute.POST("/", controller.AddPrompt)
+			promptRoute.PUT("/", controller.UpdatePrompt)
+			promptRoute.DELETE("/:id", controller.DeletePrompt)
+		}
+
+		// Prompt Library Public Routes (no auth required)
+		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
+		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
+		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
+
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
