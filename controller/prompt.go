@@ -13,15 +13,12 @@ import (
 // ==================== Admin: Prompt Category ====================
 
 func GetAllPromptCategories(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
-	categories, total, err := model.GetAllPromptCategories(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	categories, _, err := model.GetAllPromptCategories(0, 0)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(categories)
-	common.ApiSuccess(c, pageInfo)
+	common.ApiSuccess(c, categories)
 }
 
 func GetEnabledPromptCategories(c *gin.Context) {
