@@ -597,8 +597,11 @@ func GetPromptSEOPage(c *gin.Context) {
 		title = "Prompt Gallery"
 	}
 
-	// Build description from content (truncated)
-	description := prompt.Description
+	// Build description: prefer AI-generated intro, fallback to content
+	description := prompt.Intro
+	if description == "" {
+		description = prompt.Description
+	}
 	if description == "" {
 		description = prompt.Content
 	}
@@ -614,8 +617,54 @@ func GetPromptSEOPage(c *gin.Context) {
 	contentDisplay = strings.ReplaceAll(contentDisplay, ">", "&gt;")
 	contentEnDisplay := strings.ReplaceAll(prompt.ContentEn, "<", "&lt;")
 	contentEnDisplay = strings.ReplaceAll(contentEnDisplay, ">", "&gt;")
+	introDisplay := strings.ReplaceAll(prompt.Intro, "<", "&lt;")
+	introDisplay = strings.ReplaceAll(introDisplay, ">", "&gt;")
 
-	// Schema.org JSON-LD
+	// Build FAQ section and Schema.org FAQPage markup
+	faqHTML := ""
+	faqSchemaJSON := ""
+	if prompt.Faq != "" {
+		var faqItems []struct {
+			Question string `json:"question"`
+			Answer   string `json:"answer"`
+		}
+		_ = json.Unmarshal([]byte(prompt.Faq), &faqItems)
+		if len(faqItems) > 0 {
+			// HTML FAQ section
+			var faqBuilder strings.Builder
+			faqBuilder.WriteString(`<h2>常见问题</h2><div class="faq">`)
+			for _, item := range faqItems {
+				q := strings.ReplaceAll(item.Question, "<", "&lt;")
+				q = strings.ReplaceAll(q, ">", "&gt;")
+				a := strings.ReplaceAll(item.Answer, "<", "&lt;")
+				a = strings.ReplaceAll(a, ">", "&gt;")
+				faqBuilder.WriteString(fmt.Sprintf(`<div class="faq-item"><h3>%s</h3><p>%s</p></div>`, q, a))
+			}
+			faqBuilder.WriteString(`</div>`)
+			faqHTML = faqBuilder.String()
+
+			// Schema.org FAQPage JSON-LD
+			faqSchema := map[string]interface{}{
+				"@context": "https://schema.org",
+				"@type":    "FAQPage",
+				"mainEntity": func() []map[string]interface{} {
+					var items []map[string]interface{}
+					for _, item := range faqItems {
+						items = append(items, map[string]interface{}{
+							"@type":          "Question",
+							"name":           item.Question,
+							"acceptedAnswer": map[string]string{"@type": "Answer", "text": item.Answer},
+						})
+					}
+					return items
+				}(),
+			}
+			faqSchemaBytes, _ := json.Marshal(faqSchema)
+			faqSchemaJSON = string(faqSchemaBytes)
+		}
+	}
+
+	// Schema.org JSON-LD for CreativeWork
 	schema := map[string]interface{}{
 		"@context":    "https://schema.org",
 		"@type":       "CreativeWork",
@@ -658,13 +707,20 @@ func GetPromptSEOPage(c *gin.Context) {
   <meta name="twitter:description" content="%s">
   %s
   <script type="application/ld+json">%s</script>
+  %s
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.6;color:#333;max-width:800px;margin:0 auto;padding:20px}
     h1{color:#4f46e5;font-size:28px;margin-bottom:12px}
+    h2{color:#333;font-size:22px;margin-top:32px;margin-bottom:16px;border-bottom:2px solid #4f46e5;padding-bottom:8px}
+    h3{color:#555;font-size:16px;margin-top:16px;margin-bottom:8px}
     .meta{color:#666;font-size:14px;margin-bottom:20px}
     .cover{width:100%%;max-width:640px;border-radius:12px;margin-bottom:20px}
     .tag{display:inline-block;background:#f0f0f0;padding:4px 12px;border-radius:16px;font-size:13px;margin-right:8px;margin-bottom:8px}
     .content{background:#f8f9fa;padding:16px;border-radius:8px;white-space:pre-wrap;word-break:break-word;margin-bottom:20px}
+    .intro{background:#eef2ff;padding:16px;border-radius:8px;border-left:4px solid #4f46e5;margin-bottom:20px;font-size:15px}
+    .faq-item{margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px}
+    .faq-item h3{margin:0 0 8px;color:#4f46e5;font-size:15px}
+    .faq-item p{margin:0;color:#555}
     .btn{display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:500}
     .btn:hover{background:#4338ca}
     footer{margin-top:40px;padding-top:20px;border-top:1px solid #eee;color:#999;font-size:13px}
@@ -678,7 +734,9 @@ func GetPromptSEOPage(c *gin.Context) {
   </div>
   %s
   %s
+  %s
   <div class="content">%s</div>
+  %s
   %s
   <a class="btn" href="/#/prompt-gallery">在完整网站中查看</a>
   <footer>
@@ -702,6 +760,12 @@ func GetPromptSEOPage(c *gin.Context) {
 			return ""
 		}(),
 		string(schemaJSON),
+		func() string {
+			if faqSchemaJSON != "" {
+				return fmt.Sprintf(`<script type="application/ld+json">%s</script>`, faqSchemaJSON)
+			}
+			return ""
+		}(),
 		title,
 		func() string {
 			if prompt.Author != "" {
@@ -718,6 +782,12 @@ func GetPromptSEOPage(c *gin.Context) {
 		func() string {
 			if prompt.CoverImageUrl != "" {
 				return fmt.Sprintf(`<img class="cover" src="%s" alt="%s">`, prompt.CoverImageUrl, title)
+			}
+			return ""
+		}(),
+		func() string {
+			if introDisplay != "" {
+				return fmt.Sprintf(`<div class="intro">%s</div>`, introDisplay)
 			}
 			return ""
 		}(),
@@ -740,6 +810,7 @@ func GetPromptSEOPage(c *gin.Context) {
 			}
 			return ""
 		}(),
+		faqHTML,
 		pageURL, pageURL,
 	)
 

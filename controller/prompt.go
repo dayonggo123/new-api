@@ -1,12 +1,16 @@
 package controller
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -173,6 +177,8 @@ func AddPrompt(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 异步生成 SEO 关键词和介绍文案
+	go generatePromptSEO(&prompt)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -210,6 +216,8 @@ func UpdatePrompt(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 异步生成 SEO 关键词和介绍文案
+	go generatePromptSEO(cleanPrompt)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -274,4 +282,14 @@ func GetPublicPromptCategories(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, categories)
+}
+
+// generatePromptSEO 异步调用 AI 生成 SEO 关键词和介绍文案
+func generatePromptSEO(prompt *model.Prompt) {
+	result, err := service.GenerateSEOForPrompt(prompt)
+	if err != nil {
+		logger.LogError(context.Background(), fmt.Sprintf("generate seo for prompt %d failed: %v", prompt.Id, err))
+		return
+	}
+	service.UpdatePromptSEO(prompt.Id, result)
 }
