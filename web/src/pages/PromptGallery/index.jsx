@@ -23,6 +23,38 @@ const FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/200
 
 export default function PromptGallery() {
   const { t } = useTranslation();
+
+  // 工具函数必须声明在 useMemo/useCallback 之前，避免 TDZ
+  function parseVariables(variablesStr) {
+    if (!variablesStr) return [];
+    try {
+      return JSON.parse(variablesStr);
+    } catch {
+      return [];
+    }
+  }
+
+  function parseTags(tagsStr) {
+    if (!tagsStr) return [];
+    try {
+      return JSON.parse(tagsStr);
+    } catch {
+      return [];
+    }
+  }
+
+  function renderPromptContent(prompt) {
+    const variables = parseVariables(prompt.variables);
+    if (variables.length === 0) return prompt.content;
+
+    let result = prompt.content;
+    variables.forEach((v) => {
+      const val = variableValues[v.name] || v.example || '';
+      result = result.replace(new RegExp(`\\{\\{${v.name}\\}\\}`, 'g'), val);
+    });
+    return result;
+  }
+
   const [prompts, setPrompts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,36 +155,6 @@ export default function PromptGallery() {
   const getCategoryName = (categoryId) => {
     const cat = categories.find((c) => c.id === categoryId);
     return cat ? cat.name : t('未分类');
-  };
-
-  const parseVariables = (variablesStr) => {
-    if (!variablesStr) return [];
-    try {
-      return JSON.parse(variablesStr);
-    } catch {
-      return [];
-    }
-  };
-
-  const parseTags = (tagsStr) => {
-    if (!tagsStr) return [];
-    try {
-      return JSON.parse(tagsStr);
-    } catch {
-      return [];
-    }
-  };
-
-  const renderPromptContent = (prompt) => {
-    const variables = parseVariables(prompt.variables);
-    if (variables.length === 0) return prompt.content;
-
-    let result = prompt.content;
-    variables.forEach((v) => {
-      const val = variableValues[v.name] || v.example || '';
-      result = result.replace(new RegExp(`\\{\\{${v.name}\\}\\}`, 'g'), val);
-    });
-    return result;
   };
 
   const openDetail = (prompt) => {
