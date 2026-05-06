@@ -3524,6 +3524,14 @@
     "提示词画廊": "Prompt Gallery",
     "搜索提示词...": "Search prompts...",
     "浏览和发现优质 AI 提示词，涵盖图像生成、文本创作、代码辅助等多个领域。": "Browse and discover high-quality AI prompts, covering image generation, text creation, code assistance, and more.",
-    "浏览和搜索GPT Image 2、Nano Banana 2/Pro、Seedance 2.0等AI图片、视频提示词案例，探索灵感。": "Browse and search AI image and video prompt cases for GPT Image 2, Nano Banana 2/Pro, Seedance 2.0, etc., and explore inspiration."
+    "浏览和搜索GPT Image 2、Nano Banana 2/Pro、Seedance 2.0等AI图片、视频提示词案例，探索灵感。": "Browse and search AI image and video prompt cases for GPT Image 2, Nano Banana 2/Pro, Seedance 2.0, etc., and explore inspiration.",
+    "SEO 管理": "SEO Management",
+    "编辑 SEO 内容": "Edit SEO Content",
+    "SEO 关键词": "SEO Keywords",
+    "介绍文案": "Introduction",
+    "FAQ (JSON 格式)": "FAQ (JSON Format)",
+    "搜索提示词标题": "Search prompt title",
+    "AI 重新生成已启动": "AI regeneration started",
+    "SEO 内容更新成功": "SEO content updated successfully"
   }
 }

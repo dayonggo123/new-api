@@ -76,6 +76,7 @@ import {
   Server,
   CalendarClock,
   Book,
+  Search,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -139,6 +140,8 @@ export function getLucideIcon(key, selected = false) {
       return <Gift {...commonProps} color={iconColor} />;
     case 'prompt':
       return <Book {...commonProps} color={iconColor} />;
+    case 'seo':
+      return <Search {...commonProps} color={iconColor} />;
     case 'user':
     case 'personal':
       return <User {...commonProps} color={iconColor} />;

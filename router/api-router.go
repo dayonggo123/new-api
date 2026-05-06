@@ -304,6 +304,16 @@ func SetApiRouter(router *gin.Engine) {
 			promptRoute.DELETE("/:id", controller.DeletePrompt)
 		}
 
+		// SEO Management Routes
+		seoRoute := apiRouter.Group("/prompt/seo")
+		seoRoute.Use(middleware.AdminAuth())
+		{
+			seoRoute.GET("/list", controller.GetPromptSEOList)
+			seoRoute.GET("/:id", controller.GetPromptSEODetail)
+			seoRoute.PUT("/:id", controller.UpdatePromptSEOFields)
+			seoRoute.POST("/:id/regenerate", controller.RegeneratePromptSEO)
+		}
+
 		// Prompt Library Public Routes (no auth required)
 		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)

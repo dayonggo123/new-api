@@ -293,3 +293,111 @@ func generatePromptSEO(prompt *model.Prompt) {
 	}
 	service.UpdatePromptSEO(prompt.Id, result)
 }
+
+// ==================== Admin: SEO Management ====================
+
+func GetPromptSEOList(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+
+	prompts, total, err := model.SearchPromptsWithCategory(keyword, 0, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 只返回 SEO 相关字段
+	type SEOItem struct {
+		Id            int    `json:"id"`
+		Title         string `json:"title"`
+		CategoryName  string `json:"category_name"`
+		SeoKeywords   string `json:"seo_keywords"`
+		Intro         string `json:"intro"`
+		Faq           string `json:"faq"`
+		Status        int    `json:"status"`
+		CreatedTime   int64  `json:"created_time"`
+		UpdatedTime   int64  `json:"updated_time"`
+	}
+
+	items := make([]*SEOItem, len(prompts))
+	for i, p := range prompts {
+		items[i] = &SEOItem{
+			Id:           p.Id,
+			Title:        p.Title,
+			CategoryName: p.CategoryName,
+			SeoKeywords:  p.SeoKeywords,
+			Intro:        p.Intro,
+			Faq:          p.Faq,
+			Status:       p.Status,
+			CreatedTime:  p.CreatedTime,
+			UpdatedTime:  p.UpdatedTime,
+		}
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func GetPromptSEODetail(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	prompt, err := model.GetPromptById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    prompt,
+	})
+}
+
+func UpdatePromptSEOFields(c *gin.Context) {
+	var req struct {
+		Id          int    `json:"id"`
+		SeoKeywords string `json:"seo_keywords"`
+		Intro       string `json:"intro"`
+		Faq         string `json:"faq"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	updates := map[string]interface{}{
+		"seo_keywords": req.SeoKeywords,
+		"intro":        req.Intro,
+		"faq":          req.Faq,
+	}
+	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", req.Id).Updates(updates).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+func RegeneratePromptSEO(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	prompt, err := model.GetPromptById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	go generatePromptSEO(prompt.Prompt)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "AI 生成任务已启动，请稍后刷新查看结果",
+	})
+}

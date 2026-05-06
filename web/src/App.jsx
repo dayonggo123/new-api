@@ -36,6 +36,7 @@ import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import Prompt from './pages/Prompt';
 import PromptGallery from './pages/PromptGallery';
+import SEOManagement from './pages/SEOManagement';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
@@ -170,6 +171,14 @@ function App() {
           element={
             <AdminRoute>
               <Prompt />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/seo'
+          element={
+            <AdminRoute>
+              <SEOManagement />
             </AdminRoute>
           }
         />
