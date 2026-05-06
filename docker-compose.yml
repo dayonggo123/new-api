@@ -23,7 +23,7 @@ services:
 #      - STREAMING_TIMEOUT=300
 #      - SESSION_SECRET=random_string
 #      - SYNC_FREQUENCY=60
-#      - GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
+      - GOOGLE_ANALYTICS_ID=G-PG3KCCKN33
 #      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js
 
