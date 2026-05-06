@@ -66,11 +66,19 @@ func GetOptions(c *gin.Context) {
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
-		if strings.HasSuffix(k, "Token") ||
+		isSensitive := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key") {
+			strings.HasSuffix(k, "api_key")
+		if isSensitive {
+			// 对 seo_setting 的敏感字段保留 key 但清空 value，使前端可编辑
+			if strings.HasPrefix(k, "seo_setting.") {
+				options = append(options, &model.Option{
+					Key:   k,
+					Value: "",
+				})
+			}
 			continue
 		}
 		options = append(options, &model.Option{
