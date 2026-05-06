@@ -26,6 +26,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       home: true,
       console: true,
       pricing: true,
+      promptGallery: true,
       docs: true,
       about: true,
     };
@@ -48,6 +49,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('模型广场'),
         itemKey: 'pricing',
         to: '/pricing',
+      },
+      {
+        text: t('提示词库'),
+        itemKey: 'promptGallery',
+        to: '/prompt-gallery',
       },
       ...(docsLink
         ? [
@@ -76,6 +82,10 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         return typeof modules.pricing === 'object'
           ? modules.pricing.enabled
           : modules.pricing;
+      }
+      // promptGallery: 默认显示，支持后台配置开关
+      if (link.itemKey === 'promptGallery') {
+        return modules.promptGallery !== false;
       }
       return modules[link.itemKey] === true;
     });

@@ -292,6 +292,7 @@ const EditPromptModal = (props) => {
                             accept='image/*'
                             showUploadList={false}
                             limit={1}
+                            autoUpload={false}
                           >
                             <Button
                               icon={<IconUpload size={14} />}
