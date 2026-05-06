@@ -3513,6 +3513,17 @@
     "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)",
     "，当前无生效订阅，将自动使用钱包": ", no active subscription. Wallet will be used automatically.",
     "，时间：": ",time:",
-    "，点击更新": ", click Update"
+    "，点击更新": ", click Update",
+    "AI 生图": "AI Image Gen",
+    "中文": "Chinese",
+    "共 {{count}} 个提示词_one": "{{count}} prompt",
+    "共 {{count}} 个提示词_other": "{{count}} prompts",
+    "收藏功能即将上线": "Favorites coming soon",
+    "提示词": "Prompt",
+    "提示词图库": "Prompt Gallery",
+    "提示词画廊": "Prompt Gallery",
+    "搜索提示词...": "Search prompts...",
+    "浏览和发现优质 AI 提示词，涵盖图像生成、文本创作、代码辅助等多个领域。": "Browse and discover high-quality AI prompts, covering image generation, text creation, code assistance, and more.",
+    "浏览和搜索GPT Image 2、Nano Banana 2/Pro、Seedance 2.0等AI图片、视频提示词案例，探索灵感。": "Browse and search AI image and video prompt cases for GPT Image 2, Nano Banana 2/Pro, Seedance 2.0, etc., and explore inspiration."
   }
 }

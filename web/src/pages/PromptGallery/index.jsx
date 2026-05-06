@@ -193,7 +193,7 @@ export default function PromptGallery() {
         <div className='header-content'>
           <h1>OpenNana{t('提示词图库')}</h1>
           <p className='header-subtitle'>
-            浏览和搜索GPT Image 2、Nano Banana 2/Pro、Seedance 2.0等AI图片、视频提示词案例，探索灵感。
+            {t('浏览和搜索GPT Image 2、Nano Banana 2/Pro、Seedance 2.0等AI图片、视频提示词案例，探索灵感。')}
           </p>
 
           {/* Search Bar */}
@@ -215,14 +215,14 @@ export default function PromptGallery() {
               {t('搜索')}
             </Button>
             <span className='header-search-count'>
-              共 {filteredPrompts.length} 个{t('提示词')}
+              {t('共 {{count}} 个提示词', { count: filteredPrompts.length })}
             </span>
           </div>
 
           {/* Model Filter */}
           {modelList.length > 1 && (
             <div className='header-filter-row'>
-              <span className='header-filter-label'>模型：</span>
+              <span className='header-filter-label'>{t('模型')}：</span>
               <div className='header-filter-tags'>
                 {modelList.map((model) => (
                   <span
@@ -240,7 +240,7 @@ export default function PromptGallery() {
           {/* Tag Filter */}
           {tagList.length > 1 && (
             <div className='header-filter-row'>
-              <span className='header-filter-label' style={{ opacity: 0 }}>标签：</span>
+              <span className='header-filter-label' style={{ opacity: 0 }}>{t('标签')}：</span>
               <div className='header-filter-tags'>
                 {visibleTags.map((tag) => (
                   <span
@@ -256,7 +256,7 @@ export default function PromptGallery() {
                     className='header-filter-tag more-btn'
                     onClick={() => setShowAllTags(!showAllTags)}
                   >
-                    {showAllTags ? '收起 ▲' : '展开 ▼'}
+                    {showAllTags ? t('收起') + ' ▲' : t('展开') + ' ▼'}
                   </span>
                 )}
               </div>
@@ -311,7 +311,7 @@ export default function PromptGallery() {
                   }}
                 />
                 <div className='gallery-card-overlay'>
-                  <span className='gallery-card-badge'>AI 生图</span>
+                  <span className='gallery-card-badge'>{t('AI 生图')}</span>
                 </div>
               </div>
               <div className='gallery-card-footer'>
@@ -441,7 +441,7 @@ export default function PromptGallery() {
                 <div className='detail-prompt-header'>
                   <span className='detail-prompt-label'>
                     <IconLanguage size={14} />
-                    中文
+                    {t('中文')}
                   </span>
                   <div className='detail-prompt-actions'>
                     <Button
