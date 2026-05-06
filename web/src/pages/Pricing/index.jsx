@@ -19,9 +19,21 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import ModelPricingPage from '../../components/table/model-pricing/layout/PricingPage';
+import SEO from '../../components/seo/SEO';
+import { ProductSchema } from '../../components/seo/SchemaOrg';
 
 const Pricing = () => (
   <>
+    <SEO
+      title='模型定价'
+      description='查看 New API 支持的所有大模型定价信息，包括 OpenAI、Claude、Gemini、DeepSeek 等 40+ 供应商的透明计费标准。'
+      pathname='/pricing'
+      keywords='AI模型定价, OpenAI价格, Claude价格, Gemini价格, DeepSeek价格, LLM计费, API定价'
+    />
+    <ProductSchema
+      name='New API 模型定价'
+      description='查看 New API 支持的所有大模型定价信息，透明计费标准。'
+    />
     <ModelPricingPage />
   </>
 );

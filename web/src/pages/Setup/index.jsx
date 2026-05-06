@@ -19,13 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { SetupWizard } from '../../components/setup';
+import SEO from '../../components/seo/SEO';
 
 /**
  * Setup页面组件
  * 使用新的组件化结构进行系统初始化
  */
 const Setup = () => {
-  return <SetupWizard />;
+  return (
+    <>
+      <SEO title='系统初始化' noindex pathname='/setup' />
+      <SetupWizard />
+    </>
+  );
 };
 
 export default Setup;

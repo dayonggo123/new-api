@@ -19,6 +19,8 @@ import {
   IconHeartStroked,
 } from '@douyinfe/semi-icons';
 import './style.css';
+import SEO from '../../components/seo/SEO';
+import { WebPageSchema } from '../../components/seo/SchemaOrg';
 
 const FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%23f0f0f0%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22%3E%E6%9A%82%E6%97%A0%E5%9B%BE%E7%89%87%3C/text%3E%3C/svg%3E';
 
@@ -137,6 +139,17 @@ export default function PromptGallery() {
 
   return (
     <div className='prompt-gallery-page'>
+      <SEO
+        title={t('提示词画廊')}
+        description={t('浏览和发现优质 AI 提示词，涵盖图像生成、文本创作、代码辅助等多个领域。')}
+        pathname='/prompt-gallery'
+        keywords='AI提示词, Prompt工程, 提示词模板, ChatGPT提示词, Midjourney提示词, AI创作'
+      />
+      <WebPageSchema
+        pageTitle={t('提示词画廊')}
+        pageDescription={t('浏览和发现优质 AI 提示词，涵盖图像生成、文本创作、代码辅助等多个领域。')}
+        pathname='/prompt-gallery'
+      />
       {/* Header */}
       <div className='gallery-header'>
         <div className='header-content'>

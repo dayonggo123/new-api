@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import '@douyinfe/semi-ui/dist/css/semi.css';
 import { UserProvider } from './context/User';
 import 'react-toastify/dist/ReactToastify.css';
@@ -57,21 +58,23 @@ function SemiLocaleWrapper({ children }) {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <StatusProvider>
-      <UserProvider>
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <ThemeProvider>
-            <SemiLocaleWrapper>
-              <PageLayout />
-            </SemiLocaleWrapper>
-          </ThemeProvider>
-        </BrowserRouter>
-      </UserProvider>
-    </StatusProvider>
+    <HelmetProvider>
+      <StatusProvider>
+        <UserProvider>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <ThemeProvider>
+              <SemiLocaleWrapper>
+                <PageLayout />
+              </SemiLocaleWrapper>
+            </ThemeProvider>
+          </BrowserRouter>
+        </UserProvider>
+      </StatusProvider>
+    </HelmetProvider>
   </React.StrictMode>,
 );

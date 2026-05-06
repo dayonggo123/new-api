@@ -26,6 +26,8 @@ import {
   IllustrationConstructionDark,
 } from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
+import SEO from '../../components/seo/SEO';
+import { WebPageSchema } from '../../components/seo/SchemaOrg';
 
 const About = () => {
   const { t } = useTranslation();
@@ -134,6 +136,16 @@ const About = () => {
 
   return (
     <div className='mt-[60px] px-2'>
+      <SEO
+        title={t('关于')}
+        description={t('关于 New API —— 由 QuantumNous 开发的统一 AI 模型聚合与分发网关。')}
+        pathname='/about'
+      />
+      <WebPageSchema
+        pageTitle={t('关于 New API')}
+        pageDescription={t('关于 New API —— 由 QuantumNous 开发的统一 AI 模型聚合与分发网关。')}
+        pathname='/about'
+      />
       {aboutLoaded && about === '' ? (
         <div className='flex justify-center items-center h-screen p-8'>
           <Empty

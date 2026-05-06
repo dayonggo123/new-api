@@ -40,6 +40,8 @@ import {
 } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
+import SEO from '../../components/seo/SEO';
+import { SoftwareApplicationSchema } from '../../components/seo/SchemaOrg';
 import {
   Moonshot,
   OpenAI,
@@ -150,6 +152,13 @@ const Home = () => {
 
   return (
     <div className='w-full overflow-x-hidden'>
+      <SEO
+        title={t('首页')}
+        description={t('统一的 AI 模型聚合与分发网关，支持 40+ 大模型供应商，一键转换为 OpenAI / Claude / Gemini 兼容接口。')}
+        pathname='/'
+        keywords='AI API, LLM Gateway, OpenAI API, Claude API, Gemini API, 大模型接口, API聚合, AI网关'
+      />
+      <SoftwareApplicationSchema />
       <NoticeModal
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}

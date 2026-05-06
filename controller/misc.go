@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -363,4 +364,42 @@ func ResetPassword(c *gin.Context) {
 		"data":    password,
 	})
 	return
+}
+
+// GetSitemap 生成 SEO Sitemap XML
+func GetSitemap(c *gin.Context) {
+	serverAddr := strings.TrimSuffix(system_setting.ServerAddress, "/")
+	if serverAddr == "" {
+		serverAddr = "https://example.com"
+	}
+
+	c.Header("Content-Type", "application/xml; charset=utf-8")
+	c.Header("Cache-Control", "public, max-age=3600")
+
+	urls := []string{
+		serverAddr + "/",
+		serverAddr + "/pricing",
+		serverAddr + "/about",
+		serverAddr + "/prompt-gallery",
+		serverAddr + "/user-agreement",
+		serverAddr + "/privacy-policy",
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
+	sb.WriteString("\n")
+	sb.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
+	sb.WriteString("\n")
+
+	for _, url := range urls {
+		sb.WriteString("  <url>\n")
+		sb.WriteString(fmt.Sprintf("    <loc>%s</loc>\n", url))
+		sb.WriteString(fmt.Sprintf("    <lastmod>%s</lastmod>\n", time.Now().Format("2006-01-02")))
+		sb.WriteString("    <changefreq>weekly</changefreq>\n")
+		sb.WriteString("    <priority>0.8</priority>\n")
+		sb.WriteString("  </url>\n")
+	}
+
+	sb.WriteString("</urlset>")
+	c.String(http.StatusOK, sb.String())
 }

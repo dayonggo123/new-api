@@ -20,17 +20,25 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import DocumentRenderer from '../../components/common/DocumentRenderer';
+import SEO from '../../components/seo/SEO';
 
 const PrivacyPolicy = () => {
   const { t } = useTranslation();
 
   return (
-    <DocumentRenderer
-      apiEndpoint='/api/privacy-policy'
-      title={t('隐私政策')}
-      cacheKey='privacy_policy'
-      emptyMessage={t('加载隐私政策内容失败...')}
-    />
+    <>
+      <SEO
+        title={t('隐私政策')}
+        description={t('New API 隐私政策 —— 了解我们如何收集、使用和保护您的个人信息。')}
+        pathname='/privacy-policy'
+      />
+      <DocumentRenderer
+        apiEndpoint='/api/privacy-policy'
+        title={t('隐私政策')}
+        cacheKey='privacy_policy'
+        emptyMessage={t('加载隐私政策内容失败...')}
+      />
+    </>
   );
 };
 
