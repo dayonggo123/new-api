@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Tag, Typography } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -37,6 +37,7 @@ export default function SettingsSEO(props) {
     'seo_setting.seo_ai_base_url': '',
     'seo_setting.seo_ai_api_key': '',
   });
+  const [apiKeySet, setApiKeySet] = useState(false);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
 
@@ -47,7 +48,14 @@ export default function SettingsSEO(props) {
   }
 
   function onSubmit() {
-    const updateArray = compareObjects(inputs, inputsRow);
+    let updateArray = compareObjects(inputs, inputsRow);
+    // 如果 API Key 为空字符串且之前已设置，不提交（避免覆盖已保存的密钥）
+    updateArray = updateArray.filter((item) => {
+      if (item.key === 'seo_setting.seo_ai_api_key' && inputs[item.key] === '') {
+        return false;
+      }
+      return true;
+    });
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
       let value = '';
@@ -89,15 +97,24 @@ export default function SettingsSEO(props) {
       'seo_setting.seo_ai_api_key': '',
     };
     const currentInputs = {};
+    let keySet = false;
     for (const key in defaults) {
       let value = props.options[key];
       if (key === 'seo_setting.seo_ai_enabled') {
         value = value === 'true' || value === true;
+      } else if (key === 'seo_setting.seo_ai_api_key') {
+        if (value === '******') {
+          keySet = true;
+          value = '';
+        } else {
+          value = value !== undefined && value !== null ? String(value) : defaults[key];
+        }
       } else {
         value = value !== undefined && value !== null ? String(value) : defaults[key];
       }
       currentInputs[key] = value;
     }
+    setApiKeySet(keySet);
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
@@ -152,9 +169,26 @@ export default function SettingsSEO(props) {
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Input
                   field={'seo_setting.seo_ai_api_key'}
-                  label={t('API Key')}
+                  label={
+                    <span>
+                      {t('API Key')}
+                      {apiKeySet && (
+                        <Tag
+                          color='green'
+                          size='small'
+                          style={{ marginLeft: 8 }}
+                        >
+                          {t('已设置')}
+                        </Tag>
+                      )}
+                    </span>
+                  }
                   initValue={''}
-                  placeholder={t('输入 API Key')}
+                  placeholder={
+                    apiKeySet
+                      ? t('输入新值以覆盖已保存的密钥')
+                      : t('输入 API Key')
+                  }
                   onChange={handleFieldChange('seo_setting.seo_ai_api_key')}
                   type='password'
                   showClear

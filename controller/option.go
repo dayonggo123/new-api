@@ -72,11 +72,15 @@ func GetOptions(c *gin.Context) {
 			strings.HasSuffix(k, "secret") ||
 			strings.HasSuffix(k, "api_key")
 		if isSensitive {
-			// 对 seo_setting 的敏感字段保留 key 但清空 value，使前端可编辑
+			// 对 seo_setting 的敏感字段保留 key，用占位符表示已设置
 			if strings.HasPrefix(k, "seo_setting.") {
+				displayValue := ""
+				if v != "" {
+					displayValue = "******"
+				}
 				options = append(options, &model.Option{
 					Key:   k,
-					Value: "",
+					Value: displayValue,
 				})
 			}
 			continue
