@@ -418,6 +418,155 @@ func GetSitemap(c *gin.Context) {
 	c.String(http.StatusOK, sb.String())
 }
 
+// buildSEOKeywords 基于提示词内容智能构建丰富的 SEO 关键词
+func buildSEOKeywords(prompt *model.Prompt) string {
+	var kwSet = make(map[string]struct{})
+	var result []string
+
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
+		}
+		if _, ok := kwSet[s]; !ok {
+			kwSet[s] = struct{}{}
+			result = append(result, s)
+		}
+	}
+
+	// 1. 核心标题词
+	add(prompt.Title)
+
+	// 2. 模型 + 标题组合（高价值）
+	if prompt.Model != "" {
+		add(prompt.Model)
+		add(prompt.Model + " " + prompt.Title)
+		add(prompt.Model + " Prompt")
+		add(prompt.Model + " 提示词")
+	}
+
+	// 3. 标签
+	if prompt.Tags != "" {
+		var tags []string
+		_ = json.Unmarshal([]byte(prompt.Tags), &tags)
+		for _, t := range tags {
+			add(t)
+			add(t + " Prompt")
+			add(t + " 提示词")
+			if prompt.Model != "" {
+				add(prompt.Model + " " + t)
+			}
+		}
+	}
+
+	// 4. 内容类型智能判断
+	contentLower := strings.ToLower(prompt.Content + " " + prompt.Title)
+	var contentType string
+	if strings.Contains(contentLower, "image") || strings.Contains(contentLower, "图片") || strings.Contains(contentLower, "photo") || strings.Contains(contentLower, "绘画") {
+		contentType = "image"
+	} else if strings.Contains(contentLower, "video") || strings.Contains(contentLower, "视频") || strings.Contains(contentLower, "seedance") {
+		contentType = "video"
+	} else if strings.Contains(contentLower, "code") || strings.Contains(contentLower, "代码") || strings.Contains(contentLower, "programming") {
+		contentType = "code"
+	} else if strings.Contains(contentLower, "text") || strings.Contains(contentLower, "文案") || strings.Contains(contentLower, "writing") || strings.Contains(contentLower, "文章") {
+		contentType = "text"
+	}
+
+	switch contentType {
+	case "image":
+		add("AI图片生成")
+		add("AI绘画提示词")
+		add("AI生图Prompt")
+		add("图片生成提示词")
+		add("AI图像生成")
+	case "video":
+		add("AI视频生成")
+		add("视频生成提示词")
+		add("AI视频Prompt")
+		add("视频创作提示词")
+	case "code":
+		add("AI编程提示词")
+		add("代码生成Prompt")
+		add("AI代码辅助")
+	case "text":
+		add("AI文案生成")
+		add("文本创作提示词")
+		add("AI写作Prompt")
+	}
+
+	// 5. 从内容提取核心名词（简单分词，提取 2-4 字以上的词）
+	contentWords := extractKeywordsFromText(prompt.Title + " " + prompt.Content)
+	for _, w := range contentWords {
+		if len([]rune(w)) >= 2 {
+			add(w)
+		}
+	}
+
+	// 6. 通用高价值长尾词
+	add("AI提示词")
+	add("Prompt工程")
+	add("Prompt模板")
+	add("AI创作")
+	add("提示词分享")
+	add("高质量Prompt")
+	add("OpenNana提示词")
+
+	// 限制总长度（Google 建议 meta keywords 不要太长）
+	var filtered []string
+	var totalLen int
+	for _, k := range result {
+		if totalLen+len(k) > 500 {
+			break
+		}
+		filtered = append(filtered, k)
+		totalLen += len(k) + 2 // +2 for ", "
+	}
+
+	return strings.Join(filtered, ", ")
+}
+
+// extractKeywordsFromText 从文本中提取潜在关键词（中文按字符，英文按空格）
+func extractKeywordsFromText(text string) []string {
+	var words []string
+	// 简单提取：按空格分割英文，按常见标点分割中文短语
+	replacer := strings.NewReplacer(
+		"，", " ", "、", " ", "。", " ", "！", " ", "？", " ",
+		",", " ", ".", " ", "!", " ", "?", " ",
+		"\n", " ", "\t", " ",
+	)
+	parts := strings.Fields(replacer.Replace(text))
+	seen := make(map[string]struct{})
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" || len(p) < 2 {
+			continue
+		}
+		// 过滤常见停用词
+		stopWords := map[string]bool{
+			"the": true, "a": true, "an": true, "is": true, "are": true, "was": true, "were": true,
+			"be": true, "been": true, "being": true, "have": true, "has": true, "had": true,
+			"do": true, "does": true, "did": true, "will": true, "would": true, "could": true,
+			"should": true, "may": true, "might": true, "must": true, "shall": true,
+			"can": true, "need": true, "dare": true, "ought": true, "used": true,
+			"to": true, "of": true, "in": true, "for": true, "on": true, "with": true,
+			"at": true, "by": true, "from": true, "as": true, "into": true, "through": true,
+			"during": true, "before": true, "after": true, "above": true, "below": true,
+			"between": true, "under": true, "again": true, "further": true, "then": true, "once": true,
+			"这里": true, "那里": true, "这个": true, "那个": true, "然后": true, "但是": true,
+			"因为": true, "所以": true, "如果": true, "虽然": true, "而且": true,
+		}
+		lower := strings.ToLower(p)
+		if stopWords[lower] {
+			continue
+		}
+		if _, ok := seen[lower]; !ok {
+			seen[lower] = struct{}{}
+			words = append(words, p)
+		}
+	}
+	return words
+}
+
 // GetPromptSEOPage 为每个提示词生成独立的 SEO HTML 页面
 func GetPromptSEOPage(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
@@ -452,22 +601,8 @@ func GetPromptSEOPage(c *gin.Context) {
 		description = description[:200] + "..."
 	}
 
-	// Build keywords from tags
-	var keywords string
-	if prompt.Tags != "" {
-		var tagArr []string
-		_ = json.Unmarshal([]byte(prompt.Tags), &tagArr)
-		keywords = strings.Join(tagArr, ", ")
-	}
-	if prompt.Model != "" {
-		if keywords != "" {
-			keywords += ", "
-		}
-		keywords += prompt.Model
-	}
-	if keywords == "" {
-		keywords = "AI提示词, Prompt工程, AI创作"
-	}
+	// Build rich SEO keywords from prompt data
+	keywords := buildSEOKeywords(prompt)
 
 	// Clean content for display (escape HTML)
 	contentDisplay := strings.ReplaceAll(prompt.Content, "<", "&lt;")
