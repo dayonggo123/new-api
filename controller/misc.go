@@ -686,6 +686,7 @@ func GetPromptSEOPage(c *gin.Context) {
 
 	// Build SEO head injection
 	var seoHead strings.Builder
+	seoHead.WriteString(`<meta name="google-site-verification" content="W_hk0thQjq8IV0KmBQZXFVclXCfRxlhxRcjrhYDSxbg" />`)
 	seoHead.WriteString(fmt.Sprintf(`<title>%s</title>`, title))
 	seoHead.WriteString(fmt.Sprintf(`<meta name="description" content="%s">`, description))
 	seoHead.WriteString(fmt.Sprintf(`<meta name="keywords" content="%s">`, keywords))
