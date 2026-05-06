@@ -21,6 +21,7 @@ type Prompt struct {
 	SortOrder     int            `json:"sort_order" gorm:"default:0"`
 	Status        int            `json:"status" gorm:"default:1"` // 1=enabled, 2=disabled
 	UsageCount    int            `json:"usage_count" gorm:"default:0"`
+	SeoKeywords   string         `json:"seo_keywords" gorm:"type:text"` // Google Suggest 等生成的 SEO 关键词
 	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime   int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt     gorm.DeletedAt `gorm:"index"`

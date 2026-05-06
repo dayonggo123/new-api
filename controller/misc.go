@@ -420,6 +420,11 @@ func GetSitemap(c *gin.Context) {
 
 // buildSEOKeywords 基于提示词内容智能构建丰富的 SEO 关键词
 func buildSEOKeywords(prompt *model.Prompt) string {
+	// 优先使用 Google Suggest API 生成的实时热门关键词
+	if prompt.SeoKeywords != "" {
+		return prompt.SeoKeywords
+	}
+
 	var kwSet = make(map[string]struct{})
 	var result []string
 

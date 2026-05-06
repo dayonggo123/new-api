@@ -115,6 +115,9 @@ func main() {
 	// Upload file auto-cleanup task (remove images/videos/proxy-cache older than 3 days)
 	service.StartUploadCleanupTask(3)
 
+	// SEO keyword auto-update task (fetch Google Suggest trends daily)
+	service.StartSEOKeywordUpdateTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)
