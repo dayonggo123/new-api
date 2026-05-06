@@ -82,11 +82,21 @@ export default function SettingsSEO(props) {
   }
 
   useEffect(() => {
+    const defaults = {
+      'seo_setting.seo_ai_enabled': false,
+      'seo_setting.seo_ai_model': 'gpt-4o-mini',
+      'seo_setting.seo_ai_base_url': '',
+      'seo_setting.seo_ai_api_key': '',
+    };
     const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+    for (const key in defaults) {
+      let value = props.options[key];
+      if (key === 'seo_setting.seo_ai_enabled') {
+        value = value === 'true' || value === true;
+      } else {
+        value = value !== undefined && value !== null ? String(value) : defaults[key];
       }
+      currentInputs[key] = value;
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
