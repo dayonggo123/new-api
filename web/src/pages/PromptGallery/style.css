@@ -3,32 +3,130 @@
   background: var(--semi-color-bg-0);
 }
 
-/* Header */
+/* ===== Header ===== */
 .gallery-header {
   background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
   color: white;
-  padding: 48px 24px;
-  text-align: center;
+  padding: 48px 24px 32px;
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .header-content h1 {
-  font-size: 28px;
-  font-weight: 600;
-  margin: 12px 0 8px;
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  letter-spacing: -0.5px;
 }
 
-.header-content p {
+.header-subtitle {
   font-size: 14px;
   opacity: 0.85;
-  margin: 0;
+  margin: 0 0 24px;
+  line-height: 1.6;
+  max-width: 640px;
 }
 
-/* Toolbar */
+/* Search Bar */
+.header-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.header-search-input {
+  width: 320px;
+  min-width: 240px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  border: none;
+}
+
+.header-search-input .semi-input-wrapper {
+  background: transparent;
+}
+
+.header-search-input input::placeholder {
+  color: #9ca3af;
+}
+
+.header-search-btn {
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 0 20px;
+  height: 36px;
+}
+
+.header-search-count {
+  font-size: 13px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+/* Filter Rows */
+.header-filter-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.header-filter-label {
+  font-size: 13px;
+  opacity: 0.7;
+  white-space: nowrap;
+  line-height: 28px;
+  flex-shrink: 0;
+  min-width: 36px;
+}
+
+.header-filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.header-filter-tag {
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.header-filter-tag:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.header-filter-tag.active {
+  background: rgba(255, 255, 255, 0.95);
+  color: #4f46e5;
+  border-color: rgba(255, 255, 255, 0.95);
+  font-weight: 500;
+}
+
+.header-filter-tag.more-btn {
+  background: transparent;
+  border-style: dashed;
+}
+
+/* ===== Toolbar (Category) ===== */
 .gallery-toolbar {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--semi-color-border);
   flex-wrap: wrap;
   background: var(--semi-color-bg-0);
@@ -57,7 +155,7 @@
   min-width: 200px;
 }
 
-/* Masonry Grid */
+/* ===== Masonry Grid ===== */
 .gallery-masonry {
   column-count: 4;
   column-gap: 16px;
@@ -155,7 +253,7 @@
   grid-column: 1 / -1;
 }
 
-/* Detail Modal Backdrop */
+/* ===== Detail Modal Backdrop ===== */
 .gallery-detail-backdrop {
   position: fixed;
   inset: 0;
@@ -173,7 +271,7 @@
   background: var(--semi-color-bg-0);
   border-radius: 16px;
   width: 100%;
-  max-width: 600px;
+  max-width: 640px;
   max-height: calc(100vh - 80px);
   overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -272,18 +370,21 @@
   gap: 6px;
 }
 
-/* Cover Image in Detail */
+/* Cover Image in Detail —— 展示完整图片 */
 .detail-cover-image {
   border-radius: 12px;
   overflow: hidden;
   background: var(--semi-color-fill-0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .detail-cover-image img {
   width: 100%;
+  height: auto;
   display: block;
-  object-fit: cover;
-  max-height: 400px;
+  object-fit: contain;
 }
 
 /* Variables Section */
@@ -370,6 +471,31 @@
   .gallery-masonry {
     column-count: 1;
     padding: 16px;
+  }
+
+  .gallery-header {
+    padding: 32px 16px 24px;
+  }
+
+  .header-content h1 {
+    font-size: 24px;
+  }
+
+  .header-search-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-search-input {
+    width: 100%;
+  }
+
+  .header-search-btn {
+    width: 100%;
+  }
+
+  .header-search-count {
+    text-align: center;
   }
 
   .gallery-toolbar {

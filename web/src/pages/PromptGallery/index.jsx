@@ -1,20 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { API, showError, showSuccess, copy } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
   Input,
   Tag,
-  Modal,
   Empty,
   Spin,
 } from '@douyinfe/semi-ui';
 import {
   IconSearch,
   IconCopy,
-  IconBookStroked,
   IconClose,
-  IconImage,
   IconLanguage,
   IconHeartStroked,
 } from '@douyinfe/semi-icons';
@@ -31,6 +28,9 @@ export default function PromptGallery() {
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [activeCategory, setActiveCategory] = useState(0);
+  const [activeModel, setActiveModel] = useState('全部');
+  const [activeTag, setActiveTag] = useState('全部');
+  const [showAllTags, setShowAllTags] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [variableValues, setVariableValues] = useState({});
@@ -79,6 +79,40 @@ export default function PromptGallery() {
     }, 300);
     return () => clearTimeout(timer);
   }, [loadPrompts]);
+
+  // Extract unique models from prompts
+  const modelList = useMemo(() => {
+    const models = new Set();
+    prompts.forEach((p) => {
+      if (p.model) models.add(p.model);
+    });
+    return ['全部', ...Array.from(models)];
+  }, [prompts]);
+
+  // Extract unique tags from prompts
+  const tagList = useMemo(() => {
+    const tags = new Set();
+    prompts.forEach((p) => {
+      const tagArr = parseTags(p.tags);
+      tagArr.forEach((tag) => tags.add(tag));
+    });
+    return ['全部', ...Array.from(tags)];
+  }, [prompts]);
+
+  // Frontend filter by model and tag
+  const filteredPrompts = useMemo(() => {
+    let result = prompts;
+    if (activeModel !== '全部') {
+      result = result.filter((p) => p.model === activeModel);
+    }
+    if (activeTag !== '全部') {
+      result = result.filter((p) => {
+        const tagArr = parseTags(p.tags);
+        return tagArr.includes(activeTag);
+      });
+    }
+    return result;
+  }, [prompts, activeModel, activeTag]);
 
   const handleCopy = async (text) => {
     if (await copy(text)) {
@@ -132,10 +166,11 @@ export default function PromptGallery() {
     setSelectedPrompt(null);
   };
 
-  // Use content_en if available, otherwise fallback
   const getEnglishContent = (prompt) => {
     return prompt.content_en || '';
   };
+
+  const visibleTags = showAllTags ? tagList : tagList.slice(0, 13);
 
   return (
     <div className='prompt-gallery-page'>
@@ -150,23 +185,92 @@ export default function PromptGallery() {
         pageDescription={t('浏览和发现优质 AI 提示词，涵盖图像生成、文本创作、代码辅助等多个领域。')}
         pathname='/prompt-gallery'
       />
+
       {/* Header */}
       <div className='gallery-header'>
         <div className='header-content'>
-          <IconBookStroked size={36} style={{ opacity: 0.9 }} />
-          <h1>{t('提示词画廊')}</h1>
-          <p>{t('浏览和发现优质 AI 提示词')}</p>
+          <h1>OpenNana{t('提示词图库')}</h1>
+          <p className='header-subtitle'>
+            浏览和搜索GPT Image 2、Nano Banana 2/Pro、Seedance 2.0等AI图片、视频提示词案例，探索灵感。
+          </p>
+
+          {/* Search Bar */}
+          <div className='header-search-bar'>
+            <Input
+              prefix={<IconSearch size={16} style={{ color: '#9ca3af' }} />}
+              placeholder={t('搜索提示词...')}
+              value={keyword}
+              onChange={(v) => setKeyword(v)}
+              className='header-search-input'
+              onEnterPress={() => loadPrompts()}
+            />
+            <Button
+              theme='solid'
+              type='primary'
+              className='header-search-btn'
+              onClick={() => loadPrompts()}
+            >
+              {t('搜索')}
+            </Button>
+            <span className='header-search-count'>
+              共 {filteredPrompts.length} 个{t('提示词')}
+            </span>
+          </div>
+
+          {/* Model Filter */}
+          {modelList.length > 1 && (
+            <div className='header-filter-row'>
+              <span className='header-filter-label'>模型：</span>
+              <div className='header-filter-tags'>
+                {modelList.map((model) => (
+                  <span
+                    key={model}
+                    className={`header-filter-tag ${activeModel === model ? 'active' : ''}`}
+                    onClick={() => setActiveModel(model)}
+                  >
+                    {model}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tag Filter */}
+          {tagList.length > 1 && (
+            <div className='header-filter-row'>
+              <span className='header-filter-label' style={{ opacity: 0 }}>标签：</span>
+              <div className='header-filter-tags'>
+                {visibleTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className={`header-filter-tag ${activeTag === tag ? 'active' : ''}`}
+                    onClick={() => setActiveTag(tag)}
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {tagList.length > 13 && (
+                  <span
+                    className='header-filter-tag more-btn'
+                    onClick={() => setShowAllTags(!showAllTags)}
+                  >
+                    {showAllTags ? '收起 ▲' : '展开 ▼'}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Search & Filter */}
+      {/* Category Tabs (legacy, keep for compatibility) */}
       <div className='gallery-toolbar'>
         <div className='category-tabs'>
           <Tag
             className={activeCategory === 0 ? 'active' : ''}
             onClick={() => setActiveCategory(0)}
           >
-            {t('全部')}
+            {t('全部分类')}
           </Tag>
           {categories.map((cat) => (
             <Tag
@@ -178,13 +282,6 @@ export default function PromptGallery() {
             </Tag>
           ))}
         </div>
-        <Input
-          prefix={<IconSearch size={16} />}
-          placeholder={t('搜索提示词...')}
-          value={keyword}
-          onChange={(v) => setKeyword(v)}
-          className='search-input'
-        />
       </div>
 
       {/* Masonry Grid */}
@@ -193,10 +290,10 @@ export default function PromptGallery() {
           <div className='loading-wrap'>
             <Spin size='large' />
           </div>
-        ) : prompts.length === 0 ? (
+        ) : filteredPrompts.length === 0 ? (
           <Empty title={t('暂无提示词')} />
         ) : (
-          prompts.map((prompt) => (
+          filteredPrompts.map((prompt) => (
             <div
               key={prompt.id}
               className='gallery-card'
