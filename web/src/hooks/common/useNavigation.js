@@ -83,9 +83,9 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
           ? modules.pricing.enabled
           : modules.pricing;
       }
-      // promptGallery: 默认显示，支持后台配置开关
+      // promptGallery: 始终固定显示，不受后台配置开关影响
       if (link.itemKey === 'promptGallery') {
-        return modules.promptGallery !== false;
+        return true;
       }
       return modules[link.itemKey] === true;
     });

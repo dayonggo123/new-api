@@ -97,11 +97,7 @@ const EditPromptModal = (props) => {
     const formData = new FormData();
     formData.append('images', file);
     try {
-      const res = await API.post('/uapi/v1/upload_images', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const res = await API.post('/uapi/v1/upload_images', formData);
       if (res.data.urls && res.data.urls.length > 0) {
         onSuccess(res.data);
         formApiRef.current?.setValue('cover_image_url', res.data.urls[0]);
@@ -292,7 +288,6 @@ const EditPromptModal = (props) => {
                             accept='image/*'
                             showUploadList={false}
                             limit={1}
-                            autoUpload={false}
                           >
                             <Button
                               icon={<IconUpload size={14} />}
