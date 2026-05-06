@@ -274,7 +274,11 @@ const SEOManagement = () => {
       const res = await API.post(`/api/prompt/seo/${id}/regenerate`);
       const { success, message } = res.data;
       if (success) {
-        showSuccess(t('AI 重新生成已启动'));
+        showSuccess(t('AI 重新生成已启动，3秒后自动刷新'));
+        // 延迟刷新，给异步 AI 任务预留时间
+        setTimeout(() => {
+          loadData(activePage, pageSize, keyword);
+        }, 3000);
       } else {
         showError(message);
       }
