@@ -414,7 +414,7 @@ func GetSitemap(c *gin.Context) {
 	}
 
 	sb.WriteString("</urlset>")
-	c.String(http.StatusOK, sb.String())
+	c.Data(http.StatusOK, "application/xml; charset=utf-8", []byte(sb.String()))
 }
 
 // buildSEOKeywords 基于提示词内容智能构建丰富的 SEO 关键词
