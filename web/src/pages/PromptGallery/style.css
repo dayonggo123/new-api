@@ -1,6 +1,7 @@
 .prompt-gallery-page {
   min-height: 100vh;
   background: var(--semi-color-bg-0);
+  padding-top: 64px; /* 避开顶部固定导航栏 */
 }
 
 /* ===== Header ===== */
@@ -11,8 +12,10 @@
 }
 
 .header-content {
+  width: 100%;
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 0;
+  padding: 0 24px;
 }
 
 .header-content h1 {
