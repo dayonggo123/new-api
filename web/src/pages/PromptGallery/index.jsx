@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API, showError, showSuccess, copy } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,6 +24,7 @@ const FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/200
 
 export default function PromptGallery() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   // 工具函数必须声明在 useMemo/useCallback 之前，避免 TDZ
   function parseVariables(variablesStr) {
@@ -158,9 +160,7 @@ export default function PromptGallery() {
   };
 
   const openDetail = (prompt) => {
-    setSelectedPrompt(prompt);
-    setVariableValues({});
-    setShowDetail(true);
+    navigate(`/prompt/${prompt.id}`);
   };
 
   const closeDetail = () => {

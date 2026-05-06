@@ -571,7 +571,10 @@ func extractKeywordsFromText(text string) []string {
 	return words
 }
 
-// GetPromptSEOPage 为每个提示词生成独立的 SEO HTML 页面
+// IndexPage 是嵌入的 SPA index.html，用于 SEO 页面注入
+var IndexPage []byte
+
+// GetPromptSEOPage 为每个提示词生成独立的 SEO HTML 页面（基于 SPA index.html 注入）
 func GetPromptSEOPage(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -593,7 +596,7 @@ func GetPromptSEOPage(c *gin.Context) {
 	pageURL := fmt.Sprintf("%s/prompt/%d", serverAddr, prompt.Id)
 	title := prompt.Title
 	if title == "" {
-		title = "Prompt Gallery"
+		title = "AI Prompt Gallery"
 	}
 
 	// Build description: prefer AI-generated intro, fallback to content
@@ -612,12 +615,14 @@ func GetPromptSEOPage(c *gin.Context) {
 	keywords := buildSEOKeywords(prompt.Prompt)
 
 	// Clean content for display (escape HTML)
-	contentDisplay := strings.ReplaceAll(prompt.Content, "<", "&lt;")
-	contentDisplay = strings.ReplaceAll(contentDisplay, ">", "&gt;")
-	contentEnDisplay := strings.ReplaceAll(prompt.ContentEn, "<", "&lt;")
-	contentEnDisplay = strings.ReplaceAll(contentEnDisplay, ">", "&gt;")
-	introDisplay := strings.ReplaceAll(prompt.Intro, "<", "&lt;")
-	introDisplay = strings.ReplaceAll(introDisplay, ">", "&gt;")
+	escapeHTML := func(s string) string {
+		s = strings.ReplaceAll(s, "<", "&lt;")
+		s = strings.ReplaceAll(s, ">", "&gt;")
+		return s
+	}
+	contentDisplay := escapeHTML(prompt.Content)
+	contentEnDisplay := escapeHTML(prompt.ContentEn)
+	introDisplay := escapeHTML(prompt.Intro)
 
 	// Build FAQ section and Schema.org FAQPage markup
 	faqHTML := ""
@@ -629,20 +634,16 @@ func GetPromptSEOPage(c *gin.Context) {
 		}
 		_ = common.Unmarshal([]byte(prompt.Faq), &faqItems)
 		if len(faqItems) > 0 {
-			// HTML FAQ section
 			var faqBuilder strings.Builder
-			faqBuilder.WriteString(`<h2>常见问题</h2><div class="faq">`)
+			faqBuilder.WriteString(`<section class="seo-faq"><h2>常见问题</h2>`)
 			for _, item := range faqItems {
-				q := strings.ReplaceAll(item.Question, "<", "&lt;")
-				q = strings.ReplaceAll(q, ">", "&gt;")
-				a := strings.ReplaceAll(item.Answer, "<", "&lt;")
-				a = strings.ReplaceAll(a, ">", "&gt;")
-				faqBuilder.WriteString(fmt.Sprintf(`<div class="faq-item"><h3>%s</h3><p>%s</p></div>`, q, a))
+				q := escapeHTML(item.Question)
+				a := escapeHTML(item.Answer)
+				faqBuilder.WriteString(fmt.Sprintf(`<details class="seo-faq-item"><summary>%s</summary><p>%s</p></details>`, q, a))
 			}
-			faqBuilder.WriteString(`</div>`)
+			faqBuilder.WriteString(`</section>`)
 			faqHTML = faqBuilder.String()
 
-			// Schema.org FAQPage JSON-LD
 			faqSchema := map[string]interface{}{
 				"@context": "https://schema.org",
 				"@type":    "FAQPage",
@@ -683,135 +684,65 @@ func GetPromptSEOPage(c *gin.Context) {
 	}
 	schemaJSON, _ := common.Marshal(schema)
 
+	// Build SEO head injection
+	var seoHead strings.Builder
+	seoHead.WriteString(fmt.Sprintf(`<title>%s</title>`, title))
+	seoHead.WriteString(fmt.Sprintf(`<meta name="description" content="%s">`, description))
+	seoHead.WriteString(fmt.Sprintf(`<meta name="keywords" content="%s">`, keywords))
+	seoHead.WriteString(fmt.Sprintf(`<link rel="canonical" href="%s">`, pageURL))
+	seoHead.WriteString(fmt.Sprintf(`<meta property="og:title" content="%s">`, title))
+	seoHead.WriteString(fmt.Sprintf(`<meta property="og:description" content="%s">`, description))
+	seoHead.WriteString(fmt.Sprintf(`<meta property="og:url" content="%s">`, pageURL))
+	seoHead.WriteString(`<meta property="og:type" content="article">`)
+	if prompt.CoverImageUrl != "" {
+		seoHead.WriteString(fmt.Sprintf(`<meta property="og:image" content="%s">`, prompt.CoverImageUrl))
+		seoHead.WriteString(fmt.Sprintf(`<meta name="twitter:image" content="%s">`, prompt.CoverImageUrl))
+	}
+	seoHead.WriteString(`<meta name="twitter:card" content="summary_large_image">`)
+	seoHead.WriteString(fmt.Sprintf(`<meta name="twitter:title" content="%s">`, title))
+	seoHead.WriteString(fmt.Sprintf(`<meta name="twitter:description" content="%s">`, description))
+	seoHead.WriteString(fmt.Sprintf(`<script type="application/ld+json">%s</script>`, string(schemaJSON)))
+	if faqSchemaJSON != "" {
+		seoHead.WriteString(fmt.Sprintf(`<script type="application/ld+json">%s</script>`, faqSchemaJSON))
+	}
+	seoHead.WriteString(`<style>.seo-content{display:none}</style>`)
+
+	// Build noscript visible content for crawlers
+	var seoBody strings.Builder
+	seoBody.WriteString(`<noscript><div class="seo-noscript" style="max-width:800px;margin:0 auto;padding:20px;font-family:sans-serif;line-height:1.6">`)
+	seoBody.WriteString(fmt.Sprintf(`<h1>%s</h1>`, title))
+	if prompt.CoverImageUrl != "" {
+		seoBody.WriteString(fmt.Sprintf(`<img src="%s" alt="%s" style="max-width:100%%;border-radius:12px;margin-bottom:16px">`, prompt.CoverImageUrl, title))
+	}
+	if introDisplay != "" {
+		seoBody.WriteString(fmt.Sprintf(`<p style="background:#eef2ff;padding:16px;border-radius:8px;border-left:4px solid #4f46e5">%s</p>`, introDisplay))
+	}
+	if prompt.Author != "" {
+		seoBody.WriteString(fmt.Sprintf(`<p>来源: %s</p>`, prompt.Author))
+	}
+	if prompt.Model != "" {
+		seoBody.WriteString(fmt.Sprintf(`<p>模型: %s</p>`, prompt.Model))
+	}
+	if prompt.MediaType != "" {
+		seoBody.WriteString(fmt.Sprintf(`<p>类型: %s</p>`, prompt.MediaType))
+	}
+	seoBody.WriteString(fmt.Sprintf(`<h2>提示词内容</h2><pre style="background:#f8f9fa;padding:16px;border-radius:8px;white-space:pre-wrap">%s</pre>`, contentDisplay))
+	if contentEnDisplay != "" {
+		seoBody.WriteString(fmt.Sprintf(`<h2>English Prompt</h2><pre style="background:#f8f9fa;padding:16px;border-radius:8px;white-space:pre-wrap">%s</pre>`, contentEnDisplay))
+	}
+	seoBody.WriteString(faqHTML)
+	seoBody.WriteString(`<p><a href="/prompt-gallery" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">浏览更多提示词</a></p>`)
+	seoBody.WriteString(`</div></noscript>`)
+
+	// Inject into index.html
+	htmlStr := string(IndexPage)
+	// Remove default title/meta and inject SEO head before </head>
+	htmlStr = strings.Replace(htmlStr, "<title>New API</title>", "", 1)
+	htmlStr = strings.Replace(htmlStr, "</head>", seoHead.String()+"</head>", 1)
+	// Inject noscript content right after <body>
+	htmlStr = strings.Replace(htmlStr, "<body>", "<body>"+seoBody.String(), 1)
+
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.Header("Cache-Control", "public, max-age=3600")
-
-	html := fmt.Sprintf(`<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>%s - OpenNana Prompt Gallery</title>
-  <meta name="description" content="%s">
-  <meta name="keywords" content="%s">
-  <link rel="canonical" href="%s">
-  <meta property="og:title" content="%s">
-  <meta property="og:description" content="%s">
-  <meta property="og:url" content="%s">
-  <meta property="og:type" content="article">
-  <meta property="og:site_name" content="OpenNana Prompt Gallery">
-  %s
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="%s">
-  <meta name="twitter:description" content="%s">
-  %s
-  <script type="application/ld+json">%s</script>
-  %s
-  <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.6;color:#333;max-width:800px;margin:0 auto;padding:20px}
-    h1{color:#4f46e5;font-size:28px;margin-bottom:12px}
-    h2{color:#333;font-size:22px;margin-top:32px;margin-bottom:16px;border-bottom:2px solid #4f46e5;padding-bottom:8px}
-    h3{color:#555;font-size:16px;margin-top:16px;margin-bottom:8px}
-    .meta{color:#666;font-size:14px;margin-bottom:20px}
-    .cover{width:100%%;max-width:640px;border-radius:12px;margin-bottom:20px}
-    .tag{display:inline-block;background:#f0f0f0;padding:4px 12px;border-radius:16px;font-size:13px;margin-right:8px;margin-bottom:8px}
-    .content{background:#f8f9fa;padding:16px;border-radius:8px;white-space:pre-wrap;word-break:break-word;margin-bottom:20px}
-    .intro{background:#eef2ff;padding:16px;border-radius:8px;border-left:4px solid #4f46e5;margin-bottom:20px;font-size:15px}
-    .faq-item{margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px}
-    .faq-item h3{margin:0 0 8px;color:#4f46e5;font-size:15px}
-    .faq-item p{margin:0;color:#555}
-    .btn{display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:500}
-    .btn:hover{background:#4338ca}
-    footer{margin-top:40px;padding-top:20px;border-top:1px solid #eee;color:#999;font-size:13px}
-  </style>
-</head>
-<body>
-  <h1>%s</h1>
-  <div class="meta">
-    %s
-    %s
-  </div>
-  %s
-  %s
-  %s
-  <div class="content">%s</div>
-  %s
-  %s
-  <a class="btn" href="/#/prompt-gallery">在完整网站中查看</a>
-  <footer>
-    <p>© OpenNana Prompt Gallery · <a href="%s">%s</a></p>
-  </footer>
-</body>
-</html>`,
-		title, description, keywords, pageURL,
-		title, description, pageURL,
-		func() string {
-			if prompt.CoverImageUrl != "" {
-				return fmt.Sprintf(`<meta property="og:image" content="%s">`, prompt.CoverImageUrl)
-			}
-			return ""
-		}(),
-		title, description,
-		func() string {
-			if prompt.CoverImageUrl != "" {
-				return fmt.Sprintf(`<meta name="twitter:image" content="%s">`, prompt.CoverImageUrl)
-			}
-			return ""
-		}(),
-		string(schemaJSON),
-		func() string {
-			if faqSchemaJSON != "" {
-				return fmt.Sprintf(`<script type="application/ld+json">%s</script>`, faqSchemaJSON)
-			}
-			return ""
-		}(),
-		title,
-		func() string {
-			if prompt.Author != "" {
-				return fmt.Sprintf(`<span>来源: %s</span> · `, prompt.Author)
-			}
-			return ""
-		}(),
-		func() string {
-			if prompt.Model != "" {
-				return fmt.Sprintf(`<span>模型: %s</span>`, prompt.Model)
-			}
-			return ""
-		}(),
-		func() string {
-			if prompt.CoverImageUrl != "" {
-				return fmt.Sprintf(`<img class="cover" src="%s" alt="%s">`, prompt.CoverImageUrl, title)
-			}
-			return ""
-		}(),
-		func() string {
-			if introDisplay != "" {
-				return fmt.Sprintf(`<div class="intro">%s</div>`, introDisplay)
-			}
-			return ""
-		}(),
-		func() string {
-			if keywords != "" {
-				var tags []string
-				_ = common.Unmarshal([]byte(prompt.Tags), &tags)
-				var tagHTML strings.Builder
-				for _, tag := range tags {
-					tagHTML.WriteString(fmt.Sprintf(`<span class="tag">%s</span>`, tag))
-				}
-				return tagHTML.String()
-			}
-			return ""
-		}(),
-		contentDisplay,
-		func() string {
-			if contentEnDisplay != "" {
-				return fmt.Sprintf(`<h3>English</h3><div class="content">%s</div>`, contentEnDisplay)
-			}
-			return ""
-		}(),
-		faqHTML,
-		pageURL, pageURL,
-	)
-
-	c.String(http.StatusOK, html)
+	c.String(http.StatusOK, htmlStr)
 }
