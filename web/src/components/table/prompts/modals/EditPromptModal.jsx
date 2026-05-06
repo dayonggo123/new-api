@@ -93,9 +93,9 @@ const EditPromptModal = (props) => {
     props.handleClose();
   };
 
-  const handleCoverUpload = async ({ file, onSuccess, onError }) => {
+  const handleCoverUpload = async ({ fileInstance, onSuccess, onError }) => {
     const formData = new FormData();
-    formData.append('images', file);
+    formData.append('images', fileInstance);
     try {
       const res = await API.post('/uapi/v1/upload_images', formData);
       if (res.data.urls && res.data.urls.length > 0) {
