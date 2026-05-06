@@ -56,6 +56,9 @@
     },
     {
       "name": "系统设置"
+    },
+    {
+      "name": "提示词库"
     }
   ],
   "paths": {
@@ -4942,6 +4945,123 @@
           }
         ]
       }
+    },
+    "/api/public/prompt-categories": {
+      "get": {
+        "summary": "获取提示词分类列表",
+        "deprecated": false,
+        "description": "🔓 无需鉴权",
+        "tags": [
+          "提示词库"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPromptCategoryListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/public/prompts": {
+      "get": {
+        "summary": "获取提示词列表",
+        "deprecated": false,
+        "description": "🔓 无需鉴权；支持关键词搜索、分类筛选和分页",
+        "tags": [
+          "提示词库"
+        ],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "按标题或内容搜索关键词",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category_id",
+            "in": "query",
+            "description": "分类ID",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码，默认1",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPromptListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/public/prompts/{id}": {
+      "get": {
+        "summary": "获取单个提示词详情",
+        "deprecated": false,
+        "description": "🔓 无需鉴权；同时会增加该提示词的使用次数",
+        "tags": [
+          "提示词库"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "提示词ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPromptDetailResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
     }
   },
   "components": {
@@ -5120,6 +5240,136 @@
             "type": "integer"
           }
         }
+      },
+      "PromptCategory": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "sort_order": {
+            "type": "integer"
+          }
+        }
+      },
+      "Prompt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "category_id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string",
+            "description": "中文提示词内容"
+          },
+          "content_en": {
+            "type": "string",
+            "description": "英文提示词内容"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cover_image_url": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string",
+            "description": "来源/作者，如 @username"
+          },
+          "model": {
+            "type": "string",
+            "description": "推荐使用的AI模型，如 ChatGPT"
+          },
+          "variables": {
+            "type": "string",
+            "description": "JSON字符串，变量定义数组"
+          },
+          "tags": {
+            "type": "string",
+            "description": "JSON字符串，标签数组"
+          },
+          "sort_order": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "integer",
+            "description": "1=启用, 2=禁用"
+          },
+          "usage_count": {
+            "type": "integer"
+          },
+          "created_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_time": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PublicPromptCategoryListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PromptCategory"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PublicPromptListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/PageInfo"
+              }
+            }
+          }
+        ]
+      },
+      "PublicPromptDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Prompt"
+              }
+            }
+          }
+        ]
       }
     },
     "responses": {},
