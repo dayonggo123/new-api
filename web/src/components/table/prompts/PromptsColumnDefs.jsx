@@ -79,6 +79,18 @@ export const getPromptsColumns = ({
       },
     },
     {
+      title: t('类型'),
+      dataIndex: 'media_type',
+      width: 80,
+      render: (text) => {
+        return (
+          <Tag color={text === 'video' ? 'purple' : 'blue'} size='small'>
+            {text === 'video' ? t('视频') : t('图片')}
+          </Tag>
+        );
+      },
+    },
+    {
       title: t('状态'),
       dataIndex: 'status',
       key: 'status',

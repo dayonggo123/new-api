@@ -83,6 +83,7 @@ const EditPromptModal = (props) => {
     author: '',
     model: '',
     category_id: '',
+    media_type: 'image',
     variables: '',
     tags: [],
     sort_order: 0,
@@ -360,7 +361,7 @@ const EditPromptModal = (props) => {
                         style={{ width: '100%' }}
                       />
                     </Col>
-                    <Col span={24}>
+                    <Col span={12}>
                       <Form.Select
                         field='category_id'
                         label={t('分类')}
@@ -376,6 +377,17 @@ const EditPromptModal = (props) => {
                           </Form.Select.Option>
                         ))}
                       </Form.Select>
+                    </Col>
+                    <Col span={12}>
+                      <Form.RadioGroup
+                        field='media_type'
+                        label={t('内容类型')}
+                        type='button'
+                        defaultValue='image'
+                      >
+                        <Form.Radio value='image'>{t('图片')}</Form.Radio>
+                        <Form.Radio value='video'>{t('视频')}</Form.Radio>
+                      </Form.RadioGroup>
                     </Col>
                   </Row>
                 </Card>

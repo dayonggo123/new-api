@@ -174,6 +174,9 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
                         {t('分类')}: {data.category_name}
                       </div>
                     )}
+                    <div className='text-xs text-gray-600'>
+                      {t('类型')}: {data.media_type === 'video' ? t('视频') : t('图片')}
+                    </div>
                   </div>
                 </div>
                 <Row gutter={12}>
@@ -366,6 +369,9 @@ const SEOManagement = () => {
                   <th className='text-left py-2 px-3 font-medium'>
                     {t('分类')}
                   </th>
+                  <th className='text-left py-2 px-3 font-medium w-20'>
+                    {t('类型')}
+                  </th>
                   <th className='text-left py-2 px-3 font-medium'>
                     {t('SEO 关键词')}
                   </th>
@@ -403,6 +409,11 @@ const SEOManagement = () => {
                     </td>
                     <td className='py-2 px-3'>
                       {item.category_name || '-'}
+                    </td>
+                    <td className='py-2 px-3'>
+                      <Tag color={item.media_type === 'video' ? 'purple' : 'blue'} size='small'>
+                        {item.media_type === 'video' ? t('视频') : t('图片')}
+                      </Tag>
                     </td>
                     <td className='py-2 px-3 text-gray-600'>
                       {truncate(item.seo_keywords, 40)}

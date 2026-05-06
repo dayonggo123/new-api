@@ -316,9 +316,16 @@ export default function PromptGallery() {
               </div>
               <div className='gallery-card-footer'>
                 <h3>{prompt.title}</h3>
-                <span className='gallery-card-category'>
-                  {prompt.category_name || t('未分类')}
-                </span>
+                <div className='gallery-card-meta'>
+                  <span className='gallery-card-category'>
+                    {prompt.category_name || t('未分类')}
+                  </span>
+                  {prompt.media_type === 'video' && (
+                    <span className='gallery-card-media-type video-badge'>
+                      {t('视频')}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           ))
@@ -347,6 +354,9 @@ export default function PromptGallery() {
                       {t('模型')}: {selectedPrompt.model}
                     </span>
                   )}
+                  <span className='detail-meta-item'>
+                    {t('类型')}: {selectedPrompt.media_type === 'video' ? t('视频') : t('图片')}
+                  </span>
                 </div>
                 {parseTags(selectedPrompt.tags).length > 0 && (
                   <div className='detail-tags-row-compact'>

@@ -3060,6 +3060,7 @@
     "规则名称（可读性更好，也会出现在管理侧日志中）。": "Tên quy tắc (dễ đọc hơn, cũng hiển thị trong log quản trị).",
     "规则导航": "Điều hướng quy tắc",
     "规则未找到，请刷新后重试": "Không tìm thấy quy tắc, vui lòng làm mới và thử lại",
+    "图片": "Hình ảnh",
     "视频": "Video",
     "视频Remix": "Remix video",
     "视频无法在当前浏览器中播放，这可能是由于：": "The video cannot be played in this browser, possibly because:",

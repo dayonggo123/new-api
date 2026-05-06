@@ -24,6 +24,7 @@ type Prompt struct {
 	SeoKeywords   string         `json:"seo_keywords" gorm:"type:text"` // AI 生成的 SEO 关键词
 	Intro         string         `json:"intro" gorm:"type:text"`        // AI 生成的介绍文案
 	Faq           string         `json:"faq" gorm:"type:text"`          // AI 生成的 FAQ 问答（JSON）
+	MediaType     string         `json:"media_type" gorm:"default:'image'"` // 内容类型: image / video
 	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime   int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt     gorm.DeletedAt `gorm:"index"`
@@ -172,7 +173,7 @@ func (prompt *Prompt) Insert() error {
 }
 
 func (prompt *Prompt) Update() error {
-	return DB.Model(prompt).Select("category_id", "title", "content", "content_en", "description", "cover_image_url", "author", "model", "variables", "tags", "sort_order", "status").Updates(prompt).Error
+	return DB.Model(prompt).Select("category_id", "title", "content", "content_en", "description", "cover_image_url", "author", "model", "variables", "tags", "sort_order", "status", "media_type").Updates(prompt).Error
 }
 
 func (prompt *Prompt) Delete() error {

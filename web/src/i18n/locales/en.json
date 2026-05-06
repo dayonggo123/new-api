@@ -2754,6 +2754,7 @@
     "规则名称（可读性更好，也会出现在管理侧日志中）。": "Rule name (for better readability, also appears in admin logs).",
     "规则导航": "Rule Navigation",
     "规则未找到，请刷新后重试": "Rule not found, please refresh and try again",
+    "图片": "Image",
     "视频": "Video",
     "视频Remix": "Video remix",
     "视频无法在当前浏览器中播放，这可能是由于：": "The video cannot be played in this browser, possibly because:",

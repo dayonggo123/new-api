@@ -2728,6 +2728,7 @@
     "规则名称（可读性更好，也会出现在管理侧日志中）。": "Nom de la règle (pour une meilleure lisibilité, apparaît également dans les journaux d'administration).",
     "规则导航": "Navigation des règles",
     "规则未找到，请刷新后重试": "Règle non trouvée, veuillez actualiser et réessayer",
+    "图片": "Image",
     "视频": "Vidéo",
     "视频Remix": "Remix vidéo",
     "视频无法在当前浏览器中播放，这可能是由于：": "La vidéo ne peut pas être lue dans ce navigateur, cela peut être dû à :",
