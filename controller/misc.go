@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -337,7 +336,7 @@ type PasswordResetRequest struct {
 
 func ResetPassword(c *gin.Context) {
 	var req PasswordResetRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	err := common.DecodeJson(c.Request.Body, &req)
 	if req.Email == "" || req.Token == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -453,7 +452,7 @@ func buildSEOKeywords(prompt *model.Prompt) string {
 	// 3. 标签
 	if prompt.Tags != "" {
 		var tags []string
-		_ = json.Unmarshal([]byte(prompt.Tags), &tags)
+		_ = common.Unmarshal([]byte(prompt.Tags), &tags)
 		for _, t := range tags {
 			add(t)
 			add(t + " Prompt")
@@ -628,7 +627,7 @@ func GetPromptSEOPage(c *gin.Context) {
 			Question string `json:"question"`
 			Answer   string `json:"answer"`
 		}
-		_ = json.Unmarshal([]byte(prompt.Faq), &faqItems)
+		_ = common.Unmarshal([]byte(prompt.Faq), &faqItems)
 		if len(faqItems) > 0 {
 			// HTML FAQ section
 			var faqBuilder strings.Builder
@@ -659,7 +658,7 @@ func GetPromptSEOPage(c *gin.Context) {
 					return items
 				}(),
 			}
-			faqSchemaBytes, _ := json.Marshal(faqSchema)
+			faqSchemaBytes, _ := common.Marshal(faqSchema)
 			faqSchemaJSON = string(faqSchemaBytes)
 		}
 	}
@@ -682,7 +681,7 @@ func GetPromptSEOPage(c *gin.Context) {
 	if prompt.CoverImageUrl != "" {
 		schema["image"] = prompt.CoverImageUrl
 	}
-	schemaJSON, _ := json.Marshal(schema)
+	schemaJSON, _ := common.Marshal(schema)
 
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.Header("Cache-Control", "public, max-age=3600")
@@ -794,7 +793,7 @@ func GetPromptSEOPage(c *gin.Context) {
 		func() string {
 			if keywords != "" {
 				var tags []string
-				_ = json.Unmarshal([]byte(prompt.Tags), &tags)
+				_ = common.Unmarshal([]byte(prompt.Tags), &tags)
 				var tagHTML strings.Builder
 				for _, tag := range tags {
 					tagHTML.WriteString(fmt.Sprintf(`<span class="tag">%s</span>`, tag))
