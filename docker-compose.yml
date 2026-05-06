@@ -1,10 +1,6 @@
-# New-API Docker Compose Configuration (MySQL + Local Build)
+# New-API Docker Compose Configuration (Host MySQL + Local Build)
 # 
-# Quick Start:
-#   1. docker-compose up -d
-#   2. Access at http://localhost:3000
-#
-# ⚠️  IMPORTANT: Change all default passwords before deploying to production!
+# Uses existing host MySQL at port 13306 instead of Docker mysql service.
 
 services:
   new-api:
@@ -19,21 +15,20 @@ services:
       - ./data:/data
       - ./logs:/app/logs
     environment:
-      - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service
+      - SQL_DSN=root:rAFZtETi3jebacKC@tcp(172.17.0.1:13306)/new-api
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
-      - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
-      - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)
-#      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 （Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions）
-#      - SESSION_SECRET=random_string  # 多机部署时设置，必须修改这个随机字符串！！ （multi-node deployment, set this to a random string!!!!!!!）
-#      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
-#      - GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX  # Google Analytics 的测量 ID (Google Analytics Measurement ID)
-#      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Umami 网站 ID (Umami Website ID)
-#      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+#      - STREAMING_TIMEOUT=300
+#      - SESSION_SECRET=random_string
+#      - SYNC_FREQUENCY=60
+#      - GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
+#      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+#      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js
 
     depends_on:
       - redis
-      - mysql
     networks:
       - new-api-network
     healthcheck:
@@ -48,23 +43,6 @@ services:
     restart: always
     networks:
       - new-api-network
-
-  mysql:
-    image: mysql:8.2
-    container_name: mysql
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
-      MYSQL_DATABASE: new-api
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - new-api-network
-    # ports:
-    #   - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
-
-volumes:
-  mysql_data:
 
 networks:
   new-api-network:
