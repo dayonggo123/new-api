@@ -17,8 +17,9 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
 
-	// SEO: dynamic sitemap must be registered before the catch-all static middleware
+	// SEO: dynamic routes must be registered before the catch-all static middleware
 	router.GET("/sitemap.xml", controller.GetSitemap)
+	router.GET("/prompt/:id", controller.GetPromptSEOPage)
 
 	efs, _ := fs.Sub(buildFS, "web/dist")
 	fileServer := http.FileServer(http.FS(efs))
