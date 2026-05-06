@@ -217,7 +217,7 @@ func UpdatePrompt(c *gin.Context) {
 		return
 	}
 	// 异步生成 SEO 关键词和介绍文案
-	go generatePromptSEO(cleanPrompt)
+	go generatePromptSEO(cleanPrompt.Prompt)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

@@ -93,7 +93,7 @@ func runSEOKeywordUpdateOnce() {
 			continue
 		}
 
-		keywords, err := fetchGoogleSuggestions(ctx, buildSearchQuery(p))
+		keywords, err := fetchGoogleSuggestions(ctx, buildSearchQuery(p.Prompt))
 		if err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("seo keyword update: prompt_id=%d fetch failed: %v", p.Id, err))
 			failed++

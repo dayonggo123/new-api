@@ -317,7 +317,7 @@ export default function PromptGallery() {
               <div className='gallery-card-footer'>
                 <h3>{prompt.title}</h3>
                 <span className='gallery-card-category'>
-                  {getCategoryName(prompt.category_id)}
+                  {prompt.category_name || t('未分类')}
                 </span>
               </div>
             </div>

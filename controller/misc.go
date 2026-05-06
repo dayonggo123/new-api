@@ -609,7 +609,7 @@ func GetPromptSEOPage(c *gin.Context) {
 	}
 
 	// Build rich SEO keywords from prompt data
-	keywords := buildSEOKeywords(prompt)
+	keywords := buildSEOKeywords(prompt.Prompt)
 
 	// Clean content for display (escape HTML)
 	contentDisplay := strings.ReplaceAll(prompt.Content, "<", "&lt;")

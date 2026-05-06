@@ -96,16 +96,23 @@ func SearchPrompts(keyword string, categoryId int, startIdx int, num int) (promp
 	return prompts, total, nil
 }
 
-func GetPromptById(id int) (*Prompt, error) {
+func GetPromptById(id int) (*PromptWithCategory, error) {
 	if id == 0 {
 		return nil, errors.New("id is empty")
 	}
 	prompt := Prompt{Id: id}
 	err := DB.First(&prompt, "id = ?", id).Error
-	return &prompt, err
+	if err != nil {
+		return nil, err
+	}
+	result := attachCategoryInfo([]*Prompt{&prompt})
+	if len(result) == 0 {
+		return nil, errors.New("prompt not found")
+	}
+	return result[0], nil
 }
 
-func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (prompts []*Prompt, total int64, err error) {
+func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (prompts []*PromptWithCategory, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -116,6 +123,7 @@ func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (pr
 		}
 	}()
 
+	var rawPrompts []*Prompt
 	query := tx.Model(&Prompt{}).Where("status = ?", 1)
 	if categoryId > 0 {
 		query = query.Where("category_id = ?", categoryId)
@@ -131,7 +139,7 @@ func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (pr
 		return nil, 0, err
 	}
 
-	err = query.Order("sort_order asc, usage_count desc, id desc").Limit(num).Offset(startIdx).Find(&prompts).Error
+	err = query.Order("sort_order asc, usage_count desc, id desc").Limit(num).Offset(startIdx).Find(&rawPrompts).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -140,16 +148,23 @@ func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (pr
 	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
-	return prompts, total, nil
+	return attachCategoryInfo(rawPrompts), total, nil
 }
 
-func GetPublicPromptById(id int) (*Prompt, error) {
+func GetPublicPromptById(id int) (*PromptWithCategory, error) {
 	if id == 0 {
 		return nil, errors.New("id is empty")
 	}
 	prompt := Prompt{Id: id}
 	err := DB.Where("status = ?", 1).First(&prompt, "id = ?", id).Error
-	return &prompt, err
+	if err != nil {
+		return nil, err
+	}
+	result := attachCategoryInfo([]*Prompt{&prompt})
+	if len(result) == 0 {
+		return nil, errors.New("prompt not found")
+	}
+	return result[0], nil
 }
 
 func (prompt *Prompt) Insert() error {

@@ -73,9 +73,9 @@ export const getPromptsColumns = ({
     },
     {
       title: t('分类'),
-      dataIndex: 'category_id',
+      dataIndex: 'category_name',
       render: (text) => {
-        return <div>{getCategoryName(text)}</div>;
+        return <div>{text || '-'}</div>;
       },
     },
     {
