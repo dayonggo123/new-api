@@ -15,7 +15,7 @@ services:
       - ./data:/data
       - ./logs:/app/logs
     environment:
-      - SQL_DSN=root:rAFZtETi3jebacKC@tcp(172.17.0.1:13306)/new-api
+      - SQL_DSN=root:rAFZtETi3jebacKC@tcp(172.17.0.1:13306)/newapi
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true
