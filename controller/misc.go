@@ -375,7 +375,7 @@ func GetSitemap(c *gin.Context) {
 
 	c.Header("Content-Type", "application/xml; charset=utf-8")
 	c.Header("Cache-Control", "public, max-age=3600")
-	c.Header("Content-Encoding", "identity")
+	c.Header("X-Debug-Sitemap", "handler-v2")
 
 	urls := []string{
 		serverAddr + "/",
