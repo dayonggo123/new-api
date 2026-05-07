@@ -51,7 +51,7 @@ export default function PromptDetail() {
         showError(message);
       }
     } catch (error) {
-      showError(error.message);
+      showError(error?.message || error);
     }
     setLoading(false);
   };

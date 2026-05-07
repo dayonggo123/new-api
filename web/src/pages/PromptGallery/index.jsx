@@ -77,7 +77,7 @@ export default function PromptGallery() {
         setCategories(res.data.data || []);
       }
     } catch (error) {
-      showError(error.message);
+      showError(error?.message || error);
     }
   }, []);
 
@@ -98,7 +98,7 @@ export default function PromptGallery() {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(error.message);
+      showError(error?.message || error);
     }
     setLoading(false);
   }, [keyword, activeCategory]);

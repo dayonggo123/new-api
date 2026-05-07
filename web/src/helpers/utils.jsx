@@ -121,8 +121,12 @@ if (isMobileScreen) {
 
 export function showError(error) {
   console.error(error);
+  if (!error) {
+    Toast.error('错误：未知错误');
+    return;
+  }
   if (error.message) {
-    if (error.name === 'AxiosError') {
+    if (error.name === 'AxiosError' && error.response) {
       switch (error.response.status) {
         case 401:
           // 清除用户状态
