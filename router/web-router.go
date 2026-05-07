@@ -16,13 +16,15 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	// Make index page available to controller for SEO injection
 	controller.IndexPage = indexPage
 
+	// SEO routes: register BEFORE gzip middleware.
+	// Google Search Console has issues parsing gzip-compressed sitemaps,
+	// so /sitemap.xml must be served without Content-Encoding: gzip.
+	router.GET("/sitemap.xml", controller.GetSitemap)
+	router.GET("/prompt/:id", controller.GetPromptSEOPage)
+
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
-
-	// SEO: dynamic routes must be registered before the catch-all static middleware
-	router.GET("/sitemap.xml", controller.GetSitemap)
-	router.GET("/prompt/:id", controller.GetPromptSEOPage)
 
 	efs, _ := fs.Sub(buildFS, "web/dist")
 	fileServer := http.FileServer(http.FS(efs))
