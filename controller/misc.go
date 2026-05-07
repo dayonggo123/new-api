@@ -369,49 +369,6 @@ func ResetPassword(c *gin.Context) {
 // GetSitemap 生成 SEO Sitemap XML
 func GetSitemap(c *gin.Context) {
 	c.String(http.StatusOK, "DEBUG-SITEMAP-V3-ACTIVE")
-	return
-	// Original code below is temporarily unreachable for debugging
-	_ = strings.TrimSuffix(system_setting.ServerAddress, "/")
-
-	urls := []string{
-		serverAddr + "/",
-		serverAddr + "/pricing",
-		serverAddr + "/about",
-		serverAddr + "/prompt-gallery",
-		serverAddr + "/user-agreement",
-		serverAddr + "/privacy-policy",
-	}
-
-	var sb strings.Builder
-	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
-	sb.WriteString("\n")
-	sb.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
-	sb.WriteString("\n")
-
-	for _, url := range urls {
-		sb.WriteString("  <url>\n")
-		sb.WriteString(fmt.Sprintf("    <loc>%s</loc>\n", url))
-		sb.WriteString(fmt.Sprintf("    <lastmod>%s</lastmod>\n", time.Now().Format("2006-01-02")))
-		sb.WriteString("    <changefreq>weekly</changefreq>\n")
-		sb.WriteString("    <priority>0.8</priority>\n")
-		sb.WriteString("  </url>\n")
-	}
-
-	// Add all public prompts to sitemap
-	prompts, _, err := model.GetPublicPrompts(0, "", 0, 10000)
-	if err == nil {
-		for _, p := range prompts {
-			sb.WriteString("  <url>\n")
-			sb.WriteString(fmt.Sprintf("    <loc>%s/prompt/%d</loc>\n", serverAddr, p.Id))
-			sb.WriteString(fmt.Sprintf("    <lastmod>%s</lastmod>\n", time.Now().Format("2006-01-02")))
-			sb.WriteString("    <changefreq>weekly</changefreq>\n")
-			sb.WriteString("    <priority>0.6</priority>\n")
-			sb.WriteString("  </url>\n")
-		}
-	}
-
-	sb.WriteString("</urlset>")
-	c.Data(http.StatusOK, "application/xml; charset=utf-8", []byte(sb.String()))
 }
 
 // buildSEOKeywords 基于提示词内容智能构建丰富的 SEO 关键词
