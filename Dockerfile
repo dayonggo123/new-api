@@ -18,6 +18,7 @@ WORKDIR /build
 ADD go.mod go.sum ./
 RUN go mod download
 
+ARG CACHEBUST=1
 COPY . .
 # Verify latest source files are actually copied into the container
 RUN grep -q "X-Debug-Sitemap" controller/misc.go && grep -q "server.GET(\"/sitemap.xml\"" main.go && echo "Source files verified"
