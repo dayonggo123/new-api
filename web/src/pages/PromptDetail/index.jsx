@@ -43,7 +43,7 @@ export default function PromptDetail() {
   const loadPrompt = async () => {
     setLoading(true);
     try {
-      const res = await API.get(`/api/prompt/public/${id}`);
+      const res = await API.get(`/api/public/prompts/${id}`);
       const { success, data, message } = res.data;
       if (success) {
         setPrompt(data);

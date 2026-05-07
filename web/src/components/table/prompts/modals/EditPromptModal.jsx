@@ -121,6 +121,7 @@ const EditPromptModal = (props) => {
         const values = {
           ...data,
           status: data.status === 1,
+          media_type: data.media_type || 'image',
           variables: data.variables || '',
           tags: data.tags ? JSON.parse(data.tags) : [],
         };
