@@ -19,7 +19,6 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	// SEO routes: register BEFORE gzip middleware.
 	// Google Search Console has issues parsing gzip-compressed sitemaps,
 	// so /sitemap.xml must be served without Content-Encoding: gzip.
-	router.GET("/sitemap.xml", controller.GetSitemap)
 	router.GET("/prompt/:id", controller.GetPromptSEOPage)
 
 	router.Use(gzip.Gzip(gzip.DefaultCompression))

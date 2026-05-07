@@ -188,6 +188,9 @@ func main() {
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
 
+	// Register sitemap before any middleware that might interfere (gzip, static fallback)
+	server.GET("/sitemap.xml", controller.GetSitemap)
+
 	// 设置路由
 	router.SetRouter(server, buildFS, indexPage)
 	var port = os.Getenv("PORT")
