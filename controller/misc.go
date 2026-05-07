@@ -368,14 +368,10 @@ func ResetPassword(c *gin.Context) {
 
 // GetSitemap 生成 SEO Sitemap XML
 func GetSitemap(c *gin.Context) {
-	serverAddr := strings.TrimSuffix(system_setting.ServerAddress, "/")
-	if serverAddr == "" {
-		serverAddr = "https://example.com"
-	}
-
-	c.Header("Content-Type", "application/xml; charset=utf-8")
-	c.Header("Cache-Control", "public, max-age=3600")
-	c.Header("X-Debug-Sitemap", "handler-v2")
+	c.String(http.StatusOK, "DEBUG-SITEMAP-V3-ACTIVE")
+	return
+	// Original code below is temporarily unreachable for debugging
+	_ = strings.TrimSuffix(system_setting.ServerAddress, "/")
 
 	urls := []string{
 		serverAddr + "/",
