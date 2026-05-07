@@ -20,10 +20,10 @@ RUN go mod download
 
 ARG CACHEBUST=1
 COPY . .
-# Debug: print what was actually copied
-RUN echo "=== controller/misc.go first 10 lines ===" && head -10 controller/misc.go && echo "=== main.go sitemap line ===" && grep -n "sitemap" main.go || echo "NOT FOUND"
-# Verify latest source files are actually copied into the container
-RUN grep -q "X-Debug-Sitemap" controller/misc.go && grep -q "server.GET(\"/sitemap.xml\"" main.go && echo "Source files verified"
+# Explicitly copy files that are being incorrectly cached by Docker
+COPY main.go ./main.go
+COPY controller/misc.go ./controller/misc.go
+COPY router/web-router.go ./router/web-router.go
 COPY --from=builder /build/dist ./web/dist
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
