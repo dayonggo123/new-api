@@ -64,6 +64,11 @@ export default function SettingsSidebarModulesAdmin(props) {
       models: true,
       deployment: true,
       redemption: true,
+      prompt: true,
+      seo: true,
+      notification: true,
+      tier: true,
+      tag: true,
       user: true,
       subscription: true,
       setting: true,
@@ -269,6 +274,31 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'redemption',
           title: t('兑换码管理'),
           description: t('兑换码生成管理'),
+        },
+        {
+          key: 'prompt',
+          title: t('提示词库'),
+          description: t('提示词库管理'),
+        },
+        {
+          key: 'seo',
+          title: t('SEO 管理'),
+          description: t('SEO 配置管理'),
+        },
+        {
+          key: 'notification',
+          title: t('消息管理'),
+          description: t('消息通知管理'),
+        },
+        {
+          key: 'tier',
+          title: t('层级管理'),
+          description: t('用户层级管理'),
+        },
+        {
+          key: 'tag',
+          title: t('标签管理'),
+          description: t('用户标签管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
         {
