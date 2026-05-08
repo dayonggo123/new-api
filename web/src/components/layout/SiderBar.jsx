@@ -51,6 +51,7 @@ const routerMap = {
   playground: '/console/playground',
   personal: '/console/personal',
   seo: '/console/seo',
+  notification: '/console/notification',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -189,6 +190,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('SEO 管理'),
         itemKey: 'seo',
         to: '/seo',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('消息管理'),
+        itemKey: 'notification',
+        to: '/notification',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

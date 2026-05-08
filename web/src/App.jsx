@@ -38,6 +38,7 @@ import Prompt from './pages/Prompt';
 import PromptGallery from './pages/PromptGallery';
 import PromptDetail from './pages/PromptDetail';
 import SEOManagement from './pages/SEOManagement';
+import NotificationManagement from './pages/NotificationManagement';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
@@ -180,6 +181,14 @@ function App() {
           element={
             <AdminRoute>
               <SEOManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/notification'
+          element={
+            <AdminRoute>
+              <NotificationManagement />
             </AdminRoute>
           }
         />
