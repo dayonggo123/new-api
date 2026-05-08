@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsSigninPoints from '../../pages/Setting/Operation/SettingsSigninPoints';
 import SettingsSEO from '../../pages/Setting/Operation/SettingsSEO';
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -158,6 +159,10 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 积分签到规则 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsSigninPoints options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
