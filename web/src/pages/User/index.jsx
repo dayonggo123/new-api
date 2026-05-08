@@ -17,13 +17,35 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { Tabs } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 import UsersTable from '../../components/table/users';
+import TierManagement from '../TierManagement';
+import TagManagement from '../TagManagement';
 
 const User = () => {
+  const { t } = useTranslation();
+  const [activeKey, setActiveKey] = useState('users');
+
   return (
     <div className='mt-[60px] px-2'>
-      <UsersTable />
+      <Tabs
+        type='card'
+        activeKey={activeKey}
+        onChange={setActiveKey}
+        style={{ marginBottom: 12 }}
+      >
+        <Tabs.TabPane itemKey='users' tab={t('用户列表')}>
+          <UsersTable />
+        </Tabs.TabPane>
+        <Tabs.TabPane itemKey='tiers' tab={t('层级管理')}>
+          <TierManagement />
+        </Tabs.TabPane>
+        <Tabs.TabPane itemKey='tags' tab={t('标签管理')}>
+          <TagManagement />
+        </Tabs.TabPane>
+      </Tabs>
     </div>
   );
 };
