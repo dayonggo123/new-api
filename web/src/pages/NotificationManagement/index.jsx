@@ -130,12 +130,21 @@ export default function NotificationManagement() {
         ...values,
         use_template: !!useTemplate,
       };
-      // handle array values from multi-select
-      if (values.target_tiers && !Array.isArray(values.target_tiers)) {
-        payload.target_tiers = [values.target_tiers];
+      // handle array values from multi-select / tag-input, convert to int arrays
+      if (values.target_users) {
+        payload.target_users = Array.isArray(values.target_users)
+          ? values.target_users.map(Number).filter((v) => !isNaN(v))
+          : [Number(values.target_users)].filter((v) => !isNaN(v));
       }
-      if (values.target_tags && !Array.isArray(values.target_tags)) {
-        payload.target_tags = [values.target_tags];
+      if (values.target_tiers) {
+        payload.target_tiers = Array.isArray(values.target_tiers)
+          ? values.target_tiers.map(Number).filter((v) => !isNaN(v))
+          : [Number(values.target_tiers)].filter((v) => !isNaN(v));
+      }
+      if (values.target_tags) {
+        payload.target_tags = Array.isArray(values.target_tags)
+          ? values.target_tags.map(Number).filter((v) => !isNaN(v))
+          : [Number(values.target_tags)].filter((v) => !isNaN(v));
       }
       const res = await API.post('/api/admin/notifications', payload);
       const { success, message } = res.data;
