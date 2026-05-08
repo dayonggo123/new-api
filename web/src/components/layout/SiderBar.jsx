@@ -52,6 +52,8 @@ const routerMap = {
   personal: '/console/personal',
   seo: '/console/seo',
   notification: '/console/notification',
+  tier: '/console/tier',
+  tag: '/console/tag',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -196,6 +198,18 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('消息管理'),
         itemKey: 'notification',
         to: '/notification',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('层级管理'),
+        itemKey: 'tier',
+        to: '/tier',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('标签管理'),
+        itemKey: 'tag',
+        to: '/tag',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

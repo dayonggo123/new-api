@@ -12,17 +12,19 @@ import {
   Select,
   Typography,
   Empty,
+  Tooltip,
+  Banner,
 } from '@douyinfe/semi-ui';
 import {
   IconPlus,
-  IconSearch,
   IconRefresh,
+  IconHelpCircle,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 const typeMap = {
@@ -36,7 +38,18 @@ const targetTypeMap = {
   all: '全员广播',
   users: '指定用户',
   group: '指定分组',
+  tier: '按层级',
+  tag: '按标签',
 };
+
+const templateVars = [
+  { key: '{{username}}', desc: '用户名' },
+  { key: '{{display_name}}', desc: '显示名称' },
+  { key: '{{tier_name}}', desc: '层级名称' },
+  { key: '{{tier_level}}', desc: '层级编号' },
+  { key: '{{total_points}}', desc: '总积分' },
+  { key: '{{consecutive_days}}', desc: '连续签到天数' },
+];
 
 export default function NotificationManagement() {
   const { t } = useTranslation();
@@ -47,8 +60,13 @@ export default function NotificationManagement() {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState('');
   const [formApi, setFormApi] = useState(null);
+  const [targetType, setTargetType] = useState('all');
+  const [useTemplate, setUseTemplate] = useState(false);
+
+  // tier / tag options
+  const [tiers, setTiers] = useState([]);
+  const [tags, setTags] = useState([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -72,19 +90,59 @@ export default function NotificationManagement() {
     setLoading(false);
   }, [page, pageSize]);
 
+  const loadTiers = useCallback(async () => {
+    try {
+      const res = await API.get('/api/admin/tiers');
+      if (res.data.success) {
+        setTiers(res.data.data || []);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const loadTags = useCallback(async () => {
+    try {
+      const res = await API.get('/api/admin/tags');
+      if (res.data.success) {
+        setTags(res.data.data || []);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    loadTiers();
+    loadTags();
+  }, [loadTiers, loadTags]);
+
   const handleSubmit = async (values) => {
     setSubmitting(true);
     try {
-      const res = await API.post('/api/admin/notifications', values);
+      const payload = {
+        ...values,
+        use_template: useTemplate,
+      };
+      // handle array values from multi-select
+      if (values.target_tiers && !Array.isArray(values.target_tiers)) {
+        payload.target_tiers = [values.target_tiers];
+      }
+      if (values.target_tags && !Array.isArray(values.target_tags)) {
+        payload.target_tags = [values.target_tags];
+      }
+      const res = await API.post('/api/admin/notifications', payload);
       const { success, message } = res.data;
       if (success) {
         showSuccess(message || '发送成功');
         setModalVisible(false);
         formApi?.reset();
+        setTargetType('all');
+        setUseTemplate(false);
         loadData();
       } else {
         showError(message);
@@ -128,7 +186,7 @@ export default function NotificationManagement() {
     {
       title: '目标',
       dataIndex: 'user_id',
-      width: 100,
+      width: 120,
       render: (userId) => (
         <Tag color={userId === 0 ? 'red' : 'blue'}>
           {userId === 0 ? '全员广播' : `用户 ${userId}`}
@@ -156,6 +214,65 @@ export default function NotificationManagement() {
       },
     },
   ];
+
+  const renderTargetFields = () => {
+    switch (targetType) {
+      case 'users':
+        return (
+          <Form.TagInput
+            field='target_users'
+            label='目标用户 ID'
+            rules={[{ required: true, message: '请至少输入一个用户 ID' }]}
+            placeholder='输入用户 ID 后按回车'
+          />
+        );
+      case 'group':
+        return (
+          <Form.Input
+            field='target_group'
+            label='目标用户组'
+            rules={[{ required: true, message: '请输入用户组名' }]}
+            placeholder='如：default'
+          />
+        );
+      case 'tier':
+        return (
+          <Form.Select
+            field='target_tiers'
+            label='目标层级'
+            rules={[{ required: true, message: '请选择至少一个层级' }]}
+            placeholder='选择目标层级'
+            multiple
+            filter
+          >
+            {tiers.map((tier) => (
+              <Form.Select.Option key={tier.level} value={tier.level}>
+                <Tag color={tier.color || 'blue'}>L{tier.level} {tier.name}</Tag>
+              </Form.Select.Option>
+            ))}
+          </Form.Select>
+        );
+      case 'tag':
+        return (
+          <Form.Select
+            field='target_tags'
+            label='目标标签'
+            rules={[{ required: true, message: '请选择至少一个标签' }]}
+            placeholder='选择目标标签'
+            multiple
+            filter
+          >
+            {tags.map((tag) => (
+              <Form.Select.Option key={tag.id} value={tag.id}>
+                <Tag color={tag.color || 'blue'}>{tag.name}</Tag>
+              </Form.Select.Option>
+            ))}
+          </Form.Select>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div style={{ padding: '20px' }}>
@@ -206,9 +323,9 @@ export default function NotificationManagement() {
       <Modal
         title='发布消息'
         visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => { setModalVisible(false); setTargetType('all'); setUseTemplate(false); }}
         footer={null}
-        width={600}
+        width={640}
       >
         <Form
           getFormApi={(api) => setFormApi(api)}
@@ -228,6 +345,47 @@ export default function NotificationManagement() {
             placeholder='请输入消息内容'
             rows={4}
           />
+
+          {useTemplate && (
+            <Banner
+              type='info'
+              icon={<IconHelpCircle />}
+              title='模板变量可用'
+              description={
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                  {templateVars.map((v) => (
+                    <Tooltip content={v.desc} key={v.key}>
+                      <Tag color='blue' style={{ cursor: 'pointer' }}>{v.key}</Tag>
+                    </Tooltip>
+                  ))}
+                </div>
+              }
+              closeIcon={null}
+            />
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+            <Form.Checkbox
+              field='use_template'
+              noLabel
+              onChange={(checked) => setUseTemplate(checked)}
+            >
+              启用模板变量替换
+            </Form.Checkbox>
+            <Tooltip
+              content={
+                <div>
+                  <div>开启后，消息内容中的变量会自动替换为每个用户的实际值：</div>
+                  {templateVars.map((v) => (
+                    <div key={v.key}>{v.key} = {v.desc}</div>
+                  ))}
+                </div>
+              }
+            >
+              <IconHelpCircle style={{ color: 'var(--semi-color-text-2)', cursor: 'pointer' }} />
+            </Tooltip>
+          </div>
+
           <Form.Select
             field='type'
             label='类型'
@@ -240,24 +398,31 @@ export default function NotificationManagement() {
             <Form.Select.Option value='announcement'>公告</Form.Select.Option>
             <Form.Select.Option value='task_status'>任务</Form.Select.Option>
           </Form.Select>
+
           <Form.Select
             field='target_type'
             label='发送目标'
             rules={[{ required: true, message: '请选择发送目标' }]}
             placeholder='请选择发送目标'
             initValue='all'
+            onChange={(value) => setTargetType(value)}
           >
             <Form.Select.Option value='all'>全员广播</Form.Select.Option>
             <Form.Select.Option value='users'>指定用户</Form.Select.Option>
             <Form.Select.Option value='group'>指定分组</Form.Select.Option>
+            <Form.Select.Option value='tier'>按层级</Form.Select.Option>
+            <Form.Select.Option value='tag'>按标签</Form.Select.Option>
           </Form.Select>
+
+          {renderTargetFields()}
+
           <Form.Input
             field='action_url'
             label='跳转链接'
             placeholder='可选：点击消息后的跳转链接'
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 }}>
-            <Button onClick={() => setModalVisible(false)}>取消</Button>
+            <Button onClick={() => { setModalVisible(false); setTargetType('all'); setUseTemplate(false); }}>取消</Button>
             <Button type='primary' htmlType='submit' loading={submitting}>
               发布
             </Button>

@@ -39,6 +39,8 @@ import PromptGallery from './pages/PromptGallery';
 import PromptDetail from './pages/PromptDetail';
 import SEOManagement from './pages/SEOManagement';
 import NotificationManagement from './pages/NotificationManagement';
+import TierManagement from './pages/TierManagement';
+import TagManagement from './pages/TagManagement';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
@@ -189,6 +191,22 @@ function App() {
           element={
             <AdminRoute>
               <NotificationManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/tier'
+          element={
+            <AdminRoute>
+              <TierManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/tag'
+          element={
+            <AdminRoute>
+              <TagManagement />
             </AdminRoute>
           }
         />

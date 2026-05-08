@@ -13,6 +13,7 @@ type UserPoints struct {
 	TotalPoints     int   `json:"total_points" gorm:"default:0"`
 	ConsecutiveDays int   `json:"consecutive_days" gorm:"default:0"`
 	LastSigninDate  int64 `json:"last_signin_date" gorm:"bigint"`
+	TierLevel       int   `json:"tier_level" gorm:"default:1"`
 	CreatedTime     int64 `json:"created_time" gorm:"bigint"`
 	UpdatedTime     int64 `json:"updated_time" gorm:"bigint"`
 }

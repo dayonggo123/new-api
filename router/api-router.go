@@ -1,4 +1,4 @@
-package router
+﻿package router
 
 import (
 	"github.com/QuantumNous/new-api/controller"
@@ -335,7 +335,21 @@ func SetApiRouter(router *gin.Engine) {
 		// Admin Notification Routes
 		apiRouter.GET("/admin/notifications", middleware.AdminAuth(), controller.AdminGetNotifications)
 		apiRouter.POST("/admin/notifications", middleware.AdminAuth(), controller.AdminSendNotification)
+			// Admin Tier Routes
+			apiRouter.GET("/admin/tiers", middleware.AdminAuth(), controller.AdminGetTiers)
+			apiRouter.POST("/admin/tiers", middleware.AdminAuth(), controller.AdminCreateTier)
+			apiRouter.PUT("/admin/tiers", middleware.AdminAuth(), controller.AdminUpdateTier)
+			apiRouter.DELETE("/admin/tiers/:id", middleware.AdminAuth(), controller.AdminDeleteTier)
+			apiRouter.POST("/admin/users/:id/tier", middleware.AdminAuth(), controller.AdminSetUserTier)
 
+			// Admin Tag Routes
+			apiRouter.GET("/admin/tags", middleware.AdminAuth(), controller.AdminGetTags)
+			apiRouter.POST("/admin/tags", middleware.AdminAuth(), controller.AdminCreateTag)
+			apiRouter.DELETE("/admin/tags/:id", middleware.AdminAuth(), controller.AdminDeleteTag)
+			apiRouter.GET("/admin/users/:id/tags", middleware.AdminAuth(), controller.AdminGetUserTags)
+			apiRouter.POST("/admin/users/:id/tags", middleware.AdminAuth(), controller.AdminSetUserTags)
+			apiRouter.POST("/admin/users/:id/tags/:tag_id", middleware.AdminAuth(), controller.AdminAddUserTag)
+			apiRouter.DELETE("/admin/users/:id/tags/:tag_id", middleware.AdminAuth(), controller.AdminRemoveUserTag)
 		// Prompt Library Public Routes (no auth required)
 		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)

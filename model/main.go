@@ -287,6 +287,9 @@ func migrateDB() error {
 		&UserPointsTransaction{},
 		&Notification{},
 		&UserUnlockedPrompt{},
+		&UserTier{},
+		&Tag{},
+		&UserTag{},
 	)
 	if err != nil {
 		return err
