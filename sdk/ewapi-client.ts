@@ -117,9 +117,15 @@ export class EwapiClient {
     this.client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   }
 
+  /** 设置用户 ID（用于 New-Api-User Header） */
+  setUserId(userId: number) {
+    this.client.defaults.headers.common['New-Api-User'] = String(userId);
+  }
+
   /** 清除 Token */
   clearToken() {
     delete this.client.defaults.headers.common['Authorization'];
+    delete this.client.defaults.headers.common['New-Api-User'];
   }
 
   // ==================== 用户积分 & 签到 ====================
