@@ -105,6 +105,13 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
 				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
 
+				// Points & Signin routes (new points system)
+				selfRoute.GET("/points", controller.GetUserPoints)
+				selfRoute.POST("/signin", controller.DoSignin)
+				selfRoute.GET("/signin-history", controller.GetSigninHistory)
+				selfRoute.POST("/unlock-prompt", controller.UnlockPrompt)
+				selfRoute.GET("/unlocked-prompts", controller.GetUnlockedPrompts)
+
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
@@ -130,6 +137,11 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// Admin Points Management
+				adminRoute.POST("/points/adjust", controller.AdminAdjustUserPoints)
+				adminRoute.GET("/points/transactions", controller.AdminGetUserPointsTransactions)
+				adminRoute.GET("/signin/stats", controller.AdminGetSigninStats)
 			}
 		}
 
@@ -312,6 +324,24 @@ func SetApiRouter(router *gin.Engine) {
 			seoRoute.GET("/:id", controller.GetPromptSEODetail)
 			seoRoute.PUT("/:id", controller.UpdatePromptSEOFields)
 			seoRoute.POST("/:id/regenerate", controller.RegeneratePromptSEO)
+		}
+
+		// Notification Routes
+		notificationRoute := apiRouter.Group("/notifications")
+		notificationRoute.Use(middleware.UserAuth())
+		{
+			notificationRoute.GET("/", controller.GetNotifications)
+			notificationRoute.GET("/unread-count", controller.GetUnreadNotificationCount)
+			notificationRoute.POST("/:id/read", controller.MarkNotificationRead)
+			notificationRoute.POST("/read-all", controller.MarkAllNotificationsRead)
+		}
+
+		// Admin Notification Routes
+		adminNotificationRoute := apiRouter.Group("/admin/notifications")
+		adminNotificationRoute.Use(middleware.AdminAuth())
+		{
+			adminNotificationRoute.GET("/", controller.AdminGetNotifications)
+			adminNotificationRoute.POST("/", controller.AdminSendNotification)
 		}
 
 		// Prompt Library Public Routes (no auth required)

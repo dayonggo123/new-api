@@ -282,6 +282,11 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PromptCategory{},
 		&Prompt{},
+		&UserPoints{},
+		&UserSigninHistory{},
+		&UserPointsTransaction{},
+		&Notification{},
+		&UserUnlockedPrompt{},
 	)
 	if err != nil {
 		return err
