@@ -89,8 +89,56 @@ func Login(c *gin.Context) {
 	setupLogin(&user, c)
 }
 
+// validCallbackPrefixes 允许的回调 URL 前缀白名单
+var validCallbackPrefixes = []string{
+	"ewapi://",
+	"http://localhost",
+	"https://localhost",
+}
+
+func isValidCallback(callback string) bool {
+	for _, prefix := range validCallbackPrefixes {
+		if strings.HasPrefix(callback, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func generateAccessTokenForUser(user *model.User) (string, error) {
+	randI := common.GetRandomInt(4)
+	key, err := common.GenerateRandomKey(29 + randI)
+	if err != nil {
+		return "", err
+	}
+	user.SetAccessToken(key)
+	if err := user.Update(false); err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	// WebView callback login: if callback param exists, redirect with access token
+	if callback := c.Query("callback"); callback != "" {
+		if isValidCallback(callback) {
+			// Ensure user has access token
+			if user.AccessToken == nil || *user.AccessToken == "" {
+				token, err := generateAccessTokenForUser(user)
+				if err != nil {
+					common.ApiError(c, err)
+					return
+				}
+				user.AccessToken = &token
+			}
+			redirectURL := fmt.Sprintf("%s?token=%s&user_id=%d", callback, url.QueryEscape(*user.AccessToken), user.Id)
+			c.Redirect(http.StatusFound, redirectURL)
+			return
+		}
+	}
+
+	// Normal web login: setup session & cookies
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
