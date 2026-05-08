@@ -327,22 +327,14 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		// Notification Routes
-		notificationRoute := apiRouter.Group("/notifications")
-		notificationRoute.Use(middleware.UserAuth())
-		{
-			notificationRoute.GET("/", controller.GetNotifications)
-			notificationRoute.GET("/unread-count", controller.GetUnreadNotificationCount)
-			notificationRoute.POST("/:id/read", controller.MarkNotificationRead)
-			notificationRoute.POST("/read-all", controller.MarkAllNotificationsRead)
-		}
+		apiRouter.GET("/notifications", middleware.UserAuth(), controller.GetNotifications)
+		apiRouter.GET("/notifications/unread-count", middleware.UserAuth(), controller.GetUnreadNotificationCount)
+		apiRouter.POST("/notifications/:id/read", middleware.UserAuth(), controller.MarkNotificationRead)
+		apiRouter.POST("/notifications/read-all", middleware.UserAuth(), controller.MarkAllNotificationsRead)
 
 		// Admin Notification Routes
-		adminNotificationRoute := apiRouter.Group("/admin/notifications")
-		adminNotificationRoute.Use(middleware.AdminAuth())
-		{
-			adminNotificationRoute.GET("/", controller.AdminGetNotifications)
-			adminNotificationRoute.POST("/", controller.AdminSendNotification)
-		}
+		apiRouter.GET("/admin/notifications", middleware.AdminAuth(), controller.AdminGetNotifications)
+		apiRouter.POST("/admin/notifications", middleware.AdminAuth(), controller.AdminSendNotification)
 
 		// Prompt Library Public Routes (no auth required)
 		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
