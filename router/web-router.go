@@ -31,7 +31,7 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	// Custom static middleware: skip API paths so relay routes can handle them
 	router.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/uapi") || strings.HasPrefix(path, "/mj") || strings.HasPrefix(path, "/uploads") {
+		if strings.HasPrefix(path, "/uapi") || strings.HasPrefix(path, "/mj") || strings.HasPrefix(path, "/uploads") || path == "/sitemap.xml" || path == "/robots.txt" {
 			c.Next()
 			return
 		}
