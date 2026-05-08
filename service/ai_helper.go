@@ -45,7 +45,7 @@ func GenerateSEOForPrompt(prompt *model.Prompt) (*AISEOResult, error) {
 			{"role": "user", "content": userContent},
 		},
 		"temperature": 0.7,
-		"max_tokens":  800,
+		"max_tokens":  4000,
 	}
 
 	jsonData, err := common.Marshal(reqBody)
