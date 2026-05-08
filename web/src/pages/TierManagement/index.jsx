@@ -57,7 +57,14 @@ export default function TierManagement() {
   const handleSubmit = async (values) => {
     setSubmitting(true);
     try {
-      const payload = editingTier ? { ...values, id: editingTier.id } : values;
+      const payload = {
+        ...values,
+        level: parseInt(values.level, 10) || 0,
+        min_points: parseInt(values.min_points, 10) || 0,
+      };
+      if (editingTier) {
+        payload.id = editingTier.id;
+      }
       const url = '/api/admin/tiers';
       const method = editingTier ? 'put' : 'post';
       const res = await API[method](url, payload);
