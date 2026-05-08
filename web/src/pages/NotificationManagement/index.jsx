@@ -286,7 +286,7 @@ export default function NotificationManagement() {
   };
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '84px 20px 20px' }}>
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
