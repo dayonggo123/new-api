@@ -57,9 +57,14 @@ export default function SettingsSigninPoints(props) {
   }
 
   useEffect(() => {
+    const initialKeys = [
+      'signin_points_setting.enabled',
+      'signin_points_setting.base_points',
+      'signin_points_setting.consecutive_bonus',
+    ];
     const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+    for (let key of initialKeys) {
+      if (props.options.hasOwnProperty(key)) {
         currentInputs[key] = props.options[key];
       }
     }
