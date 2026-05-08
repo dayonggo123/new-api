@@ -126,7 +126,7 @@ export default function NotificationManagement() {
     try {
       const payload = {
         ...values,
-        use_template: useTemplate,
+        use_template: !!useTemplate,
       };
       // handle array values from multi-select
       if (values.target_tiers && !Array.isArray(values.target_tiers)) {
@@ -366,9 +366,8 @@ export default function NotificationManagement() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
             <Form.Checkbox
-              field='use_template'
               noLabel
-              onChange={(checked) => setUseTemplate(checked)}
+              onChange={(e) => setUseTemplate(e.target.checked)}
             >
               启用模板变量替换
             </Form.Checkbox>
