@@ -65,7 +65,13 @@ export default function SettingsSigninPoints(props) {
     const currentInputs = {};
     for (let key of initialKeys) {
       if (props.options.hasOwnProperty(key)) {
-        currentInputs[key] = props.options[key];
+        let val = props.options[key];
+        if (key === 'signin_points_setting.enabled') {
+          val = val === true || val === 'true' || val === '1' || val === 1;
+        } else if (key === 'signin_points_setting.base_points') {
+          val = Number(val) || 0;
+        }
+        currentInputs[key] = val;
       }
     }
     setInputs(currentInputs);
