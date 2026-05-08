@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Button,
   Card,
@@ -14,6 +14,7 @@ import {
   Empty,
   Tooltip,
   Banner,
+  Checkbox,
 } from '@douyinfe/semi-ui';
 import {
   IconPlus,
@@ -61,6 +62,7 @@ export default function NotificationManagement() {
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formApi, setFormApi] = useState(null);
+  const contentRef = useRef(null);
   const [targetType, setTargetType] = useState('all');
   const [useTemplate, setUseTemplate] = useState(false);
 
@@ -344,18 +346,43 @@ export default function NotificationManagement() {
             rules={[{ required: true, message: '请输入内容' }]}
             placeholder='请输入消息内容'
             rows={4}
+            ref={contentRef}
           />
 
           {useTemplate && (
             <Banner
               type='info'
               icon={<IconHelpCircle />}
-              title='模板变量可用'
+              title='模板变量可用（点击插入）'
               description={
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                   {templateVars.map((v) => (
                     <Tooltip content={v.desc} key={v.key}>
-                      <Tag color='blue' style={{ cursor: 'pointer' }}>{v.key}</Tag>
+                      <Tag
+                        color='blue'
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          const textarea = contentRef.current;
+                          const current = formApi?.getValue('content') || '';
+                          let start = current.length;
+                          let end = current.length;
+                          if (textarea) {
+                            start = textarea.selectionStart ?? start;
+                            end = textarea.selectionEnd ?? end;
+                          }
+                          const newValue = current.slice(0, start) + v.key + current.slice(end);
+                          formApi?.setValue('content', newValue);
+                          setTimeout(() => {
+                            if (textarea) {
+                              textarea.focus();
+                              const pos = start + v.key.length;
+                              textarea.setSelectionRange(pos, pos);
+                            }
+                          }, 0);
+                        }}
+                      >
+                        {v.key}
+                      </Tag>
                     </Tooltip>
                   ))}
                 </div>
@@ -365,12 +392,12 @@ export default function NotificationManagement() {
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-            <Form.Checkbox
-              noLabel
+            <Checkbox
+              checked={useTemplate}
               onChange={(e) => setUseTemplate(e.target.checked)}
             >
               启用模板变量替换
-            </Form.Checkbox>
+            </Checkbox>
             <Tooltip
               content={
                 <div>
