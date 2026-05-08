@@ -65,7 +65,6 @@ export default function SettingsSidebarModulesAdmin(props) {
       deployment: true,
       redemption: true,
       prompt: true,
-      seo: true,
       notification: true,
       tier: true,
       tag: true,
@@ -279,11 +278,6 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'prompt',
           title: t('提示词库'),
           description: t('提示词库管理'),
-        },
-        {
-          key: 'seo',
-          title: t('SEO 管理'),
-          description: t('SEO 配置管理'),
         },
         {
           key: 'notification',

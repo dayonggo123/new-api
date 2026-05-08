@@ -23,6 +23,7 @@ import { IconSave, IconClose, IconPlus, IconBookStroked } from '@douyinfe/semi-i
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import PromptsPage from '../../components/table/prompts';
+import SEOManagement from '../SEOManagement';
 
 const { Text, Title } = Typography;
 
@@ -312,6 +313,9 @@ const Prompt = () => {
         </Tabs.TabPane>
         <Tabs.TabPane tab={t('分类管理')} itemKey="categories">
           {renderCategoryTable()}
+        </Tabs.TabPane>
+        <Tabs.TabPane tab={t('SEO 管理')} itemKey="seo">
+          <SEOManagement />
         </Tabs.TabPane>
       </Tabs>
 
