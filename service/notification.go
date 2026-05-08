@@ -45,16 +45,7 @@ func SendNotification(req *SendNotificationRequest) error {
 		req.TargetType = "all"
 	}
 
-	// 1. 解析目标用户列表
-	userIds, err := resolveTargetUsers(req)
-	if err != nil {
-		return err
-	}
-	if len(userIds) == 0 {
-		return fmt.Errorf("没有符合条件的用户")
-	}
-
-	// 2. 广播消息直接插入一条 user_id=0 的记录
+	// 1. 广播消息直接插入一条 user_id=0 的记录
 	if req.TargetType == "all" {
 		notification := &model.Notification{
 			UserId:      0,
@@ -66,6 +57,15 @@ func SendNotification(req *SendNotificationRequest) error {
 			CreatedTime: time.Now().Unix(),
 		}
 		return model.CreateNotification(notification)
+	}
+
+	// 2. 解析目标用户列表
+	userIds, err := resolveTargetUsers(req)
+	if err != nil {
+		return err
+	}
+	if len(userIds) == 0 {
+		return fmt.Errorf("没有符合条件的用户")
 	}
 
 	// 3. 个性化消息：逐个渲染模板并批量插入
