@@ -3533,6 +3533,21 @@
     "FAQ (JSON 格式)": "FAQ (JSON Format)",
     "搜索提示词标题": "Search prompt title",
     "AI 重新生成已启动": "AI regeneration started",
-    "SEO 内容更新成功": "SEO content updated successfully"
+    "SEO 内容更新成功": "SEO content updated successfully",
+    "预设提示词管理": "Preset Prompt Management",
+    "预设提示词": "Preset Prompt",
+    "搜索名称/描述": "Search name/description",
+    "全部分类": "All categories",
+    "全部状态": "All statuses",
+    "确认删除": "Confirm Delete",
+    "确定要删除预设提示词": "Are you sure you want to delete the preset prompt",
+    "编辑预设提示词": "Edit Preset Prompt",
+    "新增预设提示词": "Add Preset Prompt",
+    "请输入预设提示词名称": "Please enter preset prompt name",
+    "请输入提示词内容": "Please enter prompt content",
+    "请输入描述（可选）": "Please enter description (optional)",
+    "请输入分类（可选）": "Please enter category (optional)",
+    "数字越大越靠前": "Larger number appears first",
+    "内容不能为空": "Content cannot be empty"
   }
 }

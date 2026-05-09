@@ -57,6 +57,15 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeVeo {
 		return string(constant.EndpointTypeOpenAIVideo)
 	}
+	// 图像生成模型自动检测
+	if strings.HasPrefix(modelName, "gpt-image") || strings.HasPrefix(modelName, "dall-e") ||
+		strings.Contains(modelName, "imagen") || strings.Contains(modelName, "nano-banana") {
+		return string(constant.EndpointTypeImageGeneration)
+	}
+	// Gemini 渠道自动检测
+	if channel != nil && channel.Type == constant.ChannelTypeGemini {
+		return string(constant.EndpointTypeGemini)
+	}
 	return normalized
 }
 

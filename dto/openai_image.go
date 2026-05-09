@@ -79,13 +79,12 @@ func (r ImageRequest) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	// 不能合并ExtraFields！！！！！！！！
-	// 合并 ExtraFields
-	//for k, v := range r.Extra {
-	//	if _, exists := baseMap[k]; !exists {
-	//		baseMap[k] = v
-	//	}
-	//}
+	// 合并 Extra 中的额外字段（如 file_urls 等上游扩展字段），确保透传到上游
+	for k, v := range r.Extra {
+		if _, exists := baseMap[k]; !exists {
+			baseMap[k] = v
+		}
+	}
 
 	return common.Marshal(baseMap)
 }

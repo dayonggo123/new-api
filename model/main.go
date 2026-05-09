@@ -282,6 +282,7 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PromptCategory{},
 		&Prompt{},
+		&PresetPrompt{},
 		&UserPoints{},
 		&UserSigninHistory{},
 		&UserPointsTransaction{},
@@ -340,6 +341,7 @@ func migrateDBFast() error {
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PromptCategory{}, "PromptCategory"},
 		{&Prompt{}, "Prompt"},
+		{&PresetPrompt{}, "PresetPrompt"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

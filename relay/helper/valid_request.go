@@ -145,17 +145,18 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 	switch relayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
-			_, err := c.MultipartForm()
+			mf, err := common.ParseMultipartFormReusable(c)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse image edit form request: %w", err)
 			}
-			formData := c.Request.PostForm
-			imageRequest.Prompt = formData.Get("prompt")
-			imageRequest.Model = formData.Get("model")
-			imageRequest.N = common.GetPointer(uint(common.String2Int(formData.Get("n"))))
-			imageRequest.Quality = formData.Get("quality")
-			imageRequest.Size = formData.Get("size")
-			if imageValue := formData.Get("image"); imageValue != "" {
+			defer mf.RemoveAll()
+
+			imageRequest.Prompt = getFirstFormValue(mf.Value, "prompt")
+			imageRequest.Model = getFirstFormValue(mf.Value, "model")
+			imageRequest.N = common.GetPointer(uint(common.String2Int(getFirstFormValue(mf.Value, "n"))))
+			imageRequest.Quality = getFirstFormValue(mf.Value, "quality")
+			imageRequest.Size = getFirstFormValue(mf.Value, "size")
+			if imageValue := getFirstFormValue(mf.Value, "image"); imageValue != "" {
 				imageRequest.Image, _ = json.Marshal(imageValue)
 			}
 
@@ -168,9 +169,8 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				imageRequest.N = common.GetPointer(uint(1))
 			}
 
-			hasWatermark := formData.Has("watermark")
-			if hasWatermark {
-				watermark := formData.Get("watermark") == "true"
+			if watermarkValues, exists := mf.Value["watermark"]; exists && len(watermarkValues) > 0 {
+				watermark := watermarkValues[0] == "true"
 				imageRequest.Watermark = &watermark
 			}
 			break
@@ -338,4 +338,11 @@ func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatch
 		return nil, err
 	}
 	return request, nil
+}
+
+func getFirstFormValue(values map[string][]string, key string) string {
+	if v, ok := values[key]; ok && len(v) > 0 {
+		return v[0]
+	}
+	return ""
 }

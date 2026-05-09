@@ -316,6 +316,18 @@ func SetApiRouter(router *gin.Engine) {
 			promptRoute.DELETE("/:id", controller.DeletePrompt)
 		}
 
+		// Preset Prompt Admin Routes
+		presetPromptRoute := apiRouter.Group("/preset-prompt")
+		presetPromptRoute.Use(middleware.AdminAuth())
+		{
+			presetPromptRoute.GET("/", controller.GetAllPresetPrompts)
+			presetPromptRoute.GET("/:id", controller.GetPresetPrompt)
+			presetPromptRoute.POST("/", controller.AddPresetPrompt)
+			presetPromptRoute.PUT("/", controller.UpdatePresetPrompt)
+			presetPromptRoute.DELETE("/:id", controller.DeletePresetPrompt)
+			presetPromptRoute.GET("/categories/all", controller.GetPresetPromptCategories)
+		}
+
 		// SEO Management Routes
 		seoRoute := apiRouter.Group("/prompt/seo")
 		seoRoute.Use(middleware.AdminAuth())
@@ -354,6 +366,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
 		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
+
+		// Preset Prompt Public Routes (no auth required)
+		apiRouter.GET("/public/preset-prompts", controller.GetPublicPresetPrompts)
 
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)

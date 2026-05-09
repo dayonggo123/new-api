@@ -39,6 +39,7 @@ import PromptGallery from './pages/PromptGallery';
 import PromptDetail from './pages/PromptDetail';
 import SEOManagement from './pages/SEOManagement';
 import NotificationManagement from './pages/NotificationManagement';
+import PresetPrompt from './pages/PresetPrompt';
 import TierManagement from './pages/TierManagement';
 import TagManagement from './pages/TagManagement';
 import TopUp from './pages/TopUp';
@@ -191,6 +192,14 @@ function App() {
           element={
             <AdminRoute>
               <NotificationManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/preset-prompt'
+          element={
+            <AdminRoute>
+              <PresetPrompt />
             </AdminRoute>
           }
         />

@@ -1,0 +1,352 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Button,
+  Card,
+  Form,
+  Input,
+  Table,
+  Tag,
+  Space,
+  Modal,
+  Pagination,
+  Select,
+  Typography,
+  Empty,
+} from '@douyinfe/semi-ui';
+import {
+  IconPlus,
+  IconRefresh,
+} from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
+import { API, showError, showSuccess } from '../../helpers';
+import { ITEMS_PER_PAGE } from '../../constants';
+
+const { Title, Text } = Typography;
+const { Option } = Select;
+
+const statusMap = {
+  1: { color: 'green', text: '启用' },
+  2: { color: 'red', text: '禁用' },
+};
+
+export default function PresetPrompt() {
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formApi, setFormApi] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchCategory, setSearchCategory] = useState('');
+  const [searchStatus, setSearchStatus] = useState('');
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const res = await API.get('/api/preset-prompt/categories/all');
+      const { success, data: cats } = res.data;
+      if (success) {
+        setCategories(cats || []);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {
+        p: page,
+        page_size: pageSize,
+      };
+      if (searchKeyword) params.keyword = searchKeyword;
+      if (searchCategory) params.category = searchCategory;
+      if (searchStatus) params.status = searchStatus;
+
+      const res = await API.get('/api/preset-prompt', { params });
+      const { success, message, data: result } = res.data;
+      if (success) {
+        setData(result.items || []);
+        setTotal(result.total || 0);
+      } else {
+        showError(message);
+      }
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, searchKeyword, searchCategory, searchStatus]);
+
+  useEffect(() => {
+    loadData();
+    loadCategories();
+  }, [loadData, loadCategories]);
+
+  const handleAdd = () => {
+    setEditingItem(null);
+    setModalVisible(true);
+    if (formApi) formApi.reset();
+  };
+
+  const handleEdit = (record) => {
+    setEditingItem(record);
+    setModalVisible(true);
+    if (formApi) {
+      formApi.setValues({
+        name: record.name,
+        content: record.content,
+        description: record.description,
+        category: record.category,
+        status: record.status,
+        sort_order: record.sort_order,
+      });
+    }
+  };
+
+  const handleDelete = (record) => {
+    Modal.confirm({
+      title: t('确认删除'),
+      content: `${t('确定要删除预设提示词')}「${record.name}」？`,
+      onOk: async () => {
+        try {
+          const res = await API.delete(`/api/preset-prompt/${record.id}`);
+          if (res.data.success) {
+            showSuccess(t('删除成功'));
+            loadData();
+          } else {
+            showError(res.data.message);
+          }
+        } catch (err) {
+          showError(err.message);
+        }
+      },
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!formApi) return;
+    const values = await formApi.validate();
+    setSubmitting(true);
+    try {
+      const payload = {
+        name: values.name,
+        content: values.content,
+        description: values.description || '',
+        category: values.category || '',
+        status: values.status || 1,
+        sort_order: values.sort_order || 0,
+      };
+
+      let res;
+      if (editingItem) {
+        res = await API.put('/api/preset-prompt', { ...payload, id: editingItem.id });
+      } else {
+        res = await API.post('/api/preset-prompt', payload);
+      }
+
+      if (res.data.success) {
+        showSuccess(editingItem ? t('更新成功') : t('创建成功'));
+        setModalVisible(false);
+        loadData();
+      } else {
+        showError(res.data.message);
+      }
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const columns = [
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      width: 80,
+    },
+    {
+      title: t('名称'),
+      dataIndex: 'name',
+      width: 200,
+      render: (text) => <Text strong>{text}</Text>,
+    },
+    {
+      title: t('分类'),
+      dataIndex: 'category',
+      width: 120,
+      render: (text) => text || '-',
+    },
+    {
+      title: t('描述'),
+      dataIndex: 'description',
+      ellipsis: true,
+      render: (text) => text || '-',
+    },
+    {
+      title: t('状态'),
+      dataIndex: 'status',
+      width: 100,
+      render: (status) => {
+        const s = statusMap[status];
+        return <Tag color={s?.color}>{t(s?.text)}</Tag>;
+      },
+    },
+    {
+      title: t('排序'),
+      dataIndex: 'sort_order',
+      width: 80,
+    },
+    {
+      title: t('操作'),
+      width: 160,
+      render: (_, record) => (
+        <Space>
+          <Button type='primary' size='small' onClick={() => handleEdit(record)}>
+            {t('编辑')}
+          </Button>
+          <Button type='danger' size='small' onClick={() => handleDelete(record)}>
+            {t('删除')}
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div className='mt-[60px] px-4 py-6'>
+      <Card
+        title={
+          <div className='flex items-center justify-between'>
+            <Title heading={4}>{t('预设提示词管理')}</Title>
+            <Space>
+              <Button icon={<IconRefresh />} onClick={loadData}>
+                {t('刷新')}
+              </Button>
+              <Button type='primary' icon={<IconPlus />} onClick={handleAdd}>
+                {t('新增')}
+              </Button>
+            </Space>
+          </div>
+        }
+      >
+        <div className='mb-4 flex flex-wrap gap-3'>
+          <Input
+            placeholder={t('搜索名称/描述')}
+            value={searchKeyword}
+            onChange={(v) => setSearchKeyword(v)}
+            onPressEnter={() => { setPage(1); loadData(); }}
+            style={{ width: 220 }}
+          />
+          <Select
+            placeholder={t('全部分类')}
+            value={searchCategory}
+            onChange={(v) => { setSearchCategory(v); setPage(1); }}
+            style={{ width: 160 }}
+            allowClear
+          >
+            {categories.map((cat) => (
+              <Option key={cat} value={cat}>{cat}</Option>
+            ))}
+          </Select>
+          <Select
+            placeholder={t('全部状态')}
+            value={searchStatus}
+            onChange={(v) => { setSearchStatus(v); setPage(1); }}
+            style={{ width: 140 }}
+            allowClear
+          >
+            <Option value={1}>{t('启用')}</Option>
+            <Option value={2}>{t('禁用')}</Option>
+          </Select>
+          <Button type='primary' onClick={() => { setPage(1); loadData(); }}>
+            {t('查询')}
+          </Button>
+        </div>
+
+        <Table
+          columns={columns}
+          dataSource={data}
+          loading={loading}
+          pagination={false}
+          rowKey='id'
+          empty={<Empty description={t('暂无数据')} />}
+        />
+
+        <div className='mt-4 flex justify-end'>
+          <Pagination
+            total={total}
+            currentPage={page}
+            pageSize={pageSize}
+            onPageChange={(p) => setPage(p)}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+            showSizeChanger
+          />
+        </div>
+      </Card>
+
+      <Modal
+        title={editingItem ? t('编辑预设提示词') : t('新增预设提示词')}
+        visible={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        onOk={handleSubmit}
+        confirmLoading={submitting}
+        centered
+        maskClosable={false}
+        style={{ width: 600 }}
+      >
+        <Form
+          getFormApi={(api) => setFormApi(api)}
+          initValues={{
+            status: 1,
+            sort_order: 0,
+          }}
+        >
+          <Form.Input
+            field='name'
+            label={t('名称')}
+            placeholder={t('请输入预设提示词名称')}
+            rules={[{ required: true, message: t('名称不能为空') }]}
+          />
+          <Form.TextArea
+            field='content'
+            label={t('提示词内容')}
+            placeholder={t('请输入提示词内容')}
+            rows={6}
+            rules={[{ required: true, message: t('内容不能为空') }]}
+          />
+          <Form.TextArea
+            field='description'
+            label={t('描述')}
+            placeholder={t('请输入描述（可选）')}
+            rows={2}
+          />
+          <Form.Input
+            field='category'
+            label={t('分类')}
+            placeholder={t('请输入分类（可选）')}
+          />
+          <Form.Select
+            field='status'
+            label={t('状态')}
+            rules={[{ required: true }]}
+          >
+            <Option value={1}>{t('启用')}</Option>
+            <Option value={2}>{t('禁用')}</Option>
+          </Form.Select>
+          <Form.InputNumber
+            field='sort_order'
+            label={t('排序')}
+            placeholder={t('数字越大越靠前')}
+            min={0}
+          />
+        </Form>
+      </Modal>
+    </div>
+  );
+}

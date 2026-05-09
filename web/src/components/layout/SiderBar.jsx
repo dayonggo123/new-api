@@ -36,6 +36,7 @@ const routerMap = {
   token: '/console/token',
   redemption: '/console/redemption',
   prompt: '/console/prompt',
+  preset_prompt: '/console/preset-prompt',
   topup: '/console/topup',
   user: '/console/user',
   subscription: '/console/subscription',
@@ -185,6 +186,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('提示词库'),
         itemKey: 'prompt',
         to: '/prompt',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('预设提示词'),
+        itemKey: 'preset_prompt',
+        to: '/preset-prompt',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
