@@ -132,18 +132,22 @@ export default function PresetPrompt() {
     }
     setI18nData(parsed);
     setModalVisible(true);
-    if (formApi) {
+  };
+
+  // 当 Modal 打开且 formApi 就绪时填充表单值
+  useEffect(() => {
+    if (modalVisible && editingItem && formApi) {
       formApi.setValues({
-        name: record.name,
-        system_prompt: record.system_prompt,
-        user_prompt: record.user_prompt,
-        description: record.description,
-        category: record.category,
-        status: record.status,
-        sort_order: record.sort_order,
+        name: editingItem.name,
+        system_prompt: editingItem.system_prompt,
+        user_prompt: editingItem.user_prompt,
+        description: editingItem.description,
+        category: editingItem.category,
+        status: editingItem.status,
+        sort_order: editingItem.sort_order,
       });
     }
-  };
+  }, [modalVisible, editingItem, formApi]);
 
   const handleDelete = (record) => {
     Modal.confirm({
