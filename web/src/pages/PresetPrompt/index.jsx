@@ -100,7 +100,8 @@ export default function PresetPrompt() {
     if (formApi) {
       formApi.setValues({
         name: record.name,
-        content: record.content,
+        system_prompt: record.system_prompt,
+        user_prompt: record.user_prompt,
         description: record.description,
         category: record.category,
         status: record.status,
@@ -136,7 +137,8 @@ export default function PresetPrompt() {
     try {
       const payload = {
         name: values.name,
-        content: values.content,
+        system_prompt: values.system_prompt || '',
+        user_prompt: values.user_prompt || '',
         description: values.description || '',
         category: values.category || '',
         status: values.status || 1,
@@ -181,6 +183,20 @@ export default function PresetPrompt() {
       dataIndex: 'category',
       width: 120,
       render: (text) => text || '-',
+    },
+    {
+      title: t('系统提示词'),
+      dataIndex: 'system_prompt',
+      ellipsis: true,
+      width: 200,
+      render: (text) => text ? text.slice(0, 30) + (text.length > 30 ? '...' : '') : '-',
+    },
+    {
+      title: t('用户提示词'),
+      dataIndex: 'user_prompt',
+      ellipsis: true,
+      width: 200,
+      render: (text) => text ? text.slice(0, 30) + (text.length > 30 ? '...' : '') : '-',
     },
     {
       title: t('描述'),
@@ -314,11 +330,16 @@ export default function PresetPrompt() {
             rules={[{ required: true, message: t('名称不能为空') }]}
           />
           <Form.TextArea
-            field='content'
-            label={t('提示词内容')}
-            placeholder={t('请输入提示词内容')}
-            rows={6}
-            rules={[{ required: true, message: t('内容不能为空') }]}
+            field='system_prompt'
+            label={t('系统提示词')}
+            placeholder={t('请输入系统提示词（可选）')}
+            rows={4}
+          />
+          <Form.TextArea
+            field='user_prompt'
+            label={t('用户提示词')}
+            placeholder={t('请输入用户提示词（可选）')}
+            rows={4}
           />
           <Form.TextArea
             field='description'

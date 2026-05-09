@@ -10,7 +10,8 @@ import (
 type PresetPrompt struct {
 	Id          int            `json:"id"`
 	Name        string         `json:"name" gorm:"index"`
-	Content     string         `json:"content" gorm:"type:text"`
+	SystemPrompt string        `json:"system_prompt" gorm:"type:text"`
+	UserPrompt  string         `json:"user_prompt" gorm:"type:text"`
 	Description string         `json:"description"`
 	Category    string         `json:"category"`
 	Status      int            `json:"status" gorm:"default:1"` // 1=enabled, 2=disabled
@@ -107,8 +108,8 @@ func (p *PresetPrompt) Validate() error {
 	if p.Name == "" {
 		return errors.New("name is required")
 	}
-	if p.Content == "" {
-		return errors.New("content is required")
+	if p.SystemPrompt == "" && p.UserPrompt == "" {
+		return errors.New("system_prompt or user_prompt is required")
 	}
 	return nil
 }
