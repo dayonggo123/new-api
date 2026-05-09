@@ -51,6 +51,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     deployment: true,
     redemption: true,
     prompt: true,
+    preset_prompt: true,
     notification: true,
     tier: true,
     tag: true,
