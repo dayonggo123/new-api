@@ -44,6 +44,9 @@ func GetPresetPrompt(c *gin.Context) {
 		return
 	}
 
+	lang := c.Query("lang")
+	prompt.ApplyLanguage(lang)
+
 	common.ApiSuccess(c, prompt)
 }
 
@@ -133,6 +136,13 @@ func GetPublicPresetPrompts(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+
+	lang := c.Query("lang")
+	for i := range prompts {
+		prompts[i].ApplyLanguage(lang)
+		// 对外隐藏 i18n 原始 JSON，减少响应体积
+		prompts[i].I18n = ""
 	}
 
 	common.ApiSuccess(c, prompts)

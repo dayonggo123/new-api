@@ -4,21 +4,59 @@ import (
 	"errors"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 )
 
+// PresetPromptI18n 多语言翻译项
+type PresetPromptI18n struct {
+	Name         string `json:"name,omitempty"`
+	SystemPrompt string `json:"system_prompt,omitempty"`
+	UserPrompt   string `json:"user_prompt,omitempty"`
+	Description  string `json:"description,omitempty"`
+}
+
 type PresetPrompt struct {
-	Id          int            `json:"id"`
-	Name        string         `json:"name" gorm:"index"`
-	SystemPrompt string        `json:"system_prompt" gorm:"type:text"`
-	UserPrompt  string         `json:"user_prompt" gorm:"type:text"`
-	Description string         `json:"description"`
-	Category    string         `json:"category"`
-	Status      int            `json:"status" gorm:"default:1"` // 1=enabled, 2=disabled
-	SortOrder   int            `json:"sort_order" gorm:"default:0"`
-	CreatedTime int64          `json:"created_time" gorm:"bigint"`
-	UpdatedTime int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt   gorm.DeletedAt `gorm:"index"`
+	Id           int            `json:"id"`
+	Name         string         `json:"name" gorm:"index"`
+	SystemPrompt string         `json:"system_prompt" gorm:"type:text"`
+	UserPrompt   string         `json:"user_prompt" gorm:"type:text"`
+	Description  string         `json:"description"`
+	I18n         string         `json:"i18n,omitempty" gorm:"type:text"` // JSON: {"en": {"name": "..."}, "fr": {...}}
+	Category     string         `json:"category"`
+	Status       int            `json:"status" gorm:"default:1"` // 1=enabled, 2=disabled
+	SortOrder    int            `json:"sort_order" gorm:"default:0"`
+	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
+	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
+	DeletedAt    gorm.DeletedAt `gorm:"index"`
+}
+
+// ApplyLanguage 根据语言代码替换字段内容（缺失则保持默认中文）
+func (p *PresetPrompt) ApplyLanguage(lang string) {
+	if lang == "" || lang == "zh" || lang == "zh-CN" || lang == "zh-TW" {
+		return
+	}
+	if p.I18n == "" {
+		return
+	}
+	var i18nMap map[string]PresetPromptI18n
+	if err := common.Unmarshal([]byte(p.I18n), &i18nMap); err != nil {
+		return
+	}
+	if t, ok := i18nMap[lang]; ok {
+		if t.Name != "" {
+			p.Name = t.Name
+		}
+		if t.SystemPrompt != "" {
+			p.SystemPrompt = t.SystemPrompt
+		}
+		if t.UserPrompt != "" {
+			p.UserPrompt = t.UserPrompt
+		}
+		if t.Description != "" {
+			p.Description = t.Description
+		}
+	}
 }
 
 func (p *PresetPrompt) BeforeCreate(tx *gorm.DB) (err error) {
