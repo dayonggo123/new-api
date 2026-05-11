@@ -614,24 +614,19 @@ const EditPromptModal = (props) => {
                         rules={[
                           { required: true, message: t('请选择分类') },
                         ]}
-                      >
-                        {props.categories?.map((cat) => (
-                          <Form.Select.Option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </Form.Select.Option>
-                        ))}
-                      </Form.Select>
+                        optionList={props.categories?.map((cat) => ({ value: cat.id, label: cat.name })) || []}
+                      />
                     </Col>
                     <Col span={12}>
-                      <Form.RadioGroup
+                      <Form.Select
                         field='media_type'
                         label={t('内容类型')}
-                        type='button'
-                        defaultValue='image'
-                      >
-                        <Form.Radio value='image'>{t('图片')}</Form.Radio>
-                        <Form.Radio value='video'>{t('视频')}</Form.Radio>
-                      </Form.RadioGroup>
+                        style={{ width: '100%' }}
+                        optionList={[
+                          { value: 'image', label: t('图片') },
+                          { value: 'video', label: t('视频') },
+                        ]}
+                      />
                     </Col>
                   </Row>
                 </Card>
@@ -678,11 +673,10 @@ const EditPromptModal = (props) => {
                       />
                     </Col>
                     <Col span={24}>
-                      <Form.TagInput
+                      <Form.Input
                         field='tags'
                         label={t('标签')}
-                        placeholder={t('输入标签按回车添加')}
-                        separator={','}
+                        placeholder={t('多个标签用英文逗号分隔')}
                         style={{ width: '100%' }}
                       />
                       <div className='flex flex-wrap gap-1 mt-2'>
