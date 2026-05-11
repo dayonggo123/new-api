@@ -110,6 +110,24 @@ type generatedImage struct {
 
 const maxVeoImageSize = 20 * 1024 * 1024 // 20 MB per image
 
+// sanitizeMediaURL fixes malformed URLs where an inner URL is incorrectly concatenated as a path segment,
+// e.g. https://proxy.com/https://actual.com/file.mp4 → https://actual.com/file.mp4
+func sanitizeMediaURL(url string) string {
+	if idx := strings.Index(url, "/https://"); idx > 0 {
+		inner := url[idx+1:]
+		if strings.HasPrefix(inner, "https://") {
+			return inner
+		}
+	}
+	if idx := strings.Index(url, "/http://"); idx > 0 {
+		inner := url[idx+1:]
+		if strings.HasPrefix(inner, "http://") {
+			return inner
+		}
+	}
+	return url
+}
+
 func extFromMime(mime string) string {
 	switch strings.ToLower(mime) {
 	case "image/png":
@@ -584,10 +602,10 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Progress = fmt.Sprintf("%d%%", h.StatusPercent)
 		// Some platforms (e.g. grok) may return video/image URLs even while status is still processing.
 		if len(h.GeneratedVideo) > 0 && h.GeneratedVideo[0].VideoURL != "" {
-			taskResult.Url = h.GeneratedVideo[0].VideoURL
+			taskResult.Url = sanitizeMediaURL(h.GeneratedVideo[0].VideoURL)
 		}
 		if len(h.GeneratedImage) > 0 && h.GeneratedImage[0].ImageURL != "" {
-			taskResult.Url = h.GeneratedImage[0].ImageURL
+			taskResult.Url = sanitizeMediaURL(h.GeneratedImage[0].ImageURL)
 		}
 		if len(h.ReferenceItem) > 0 {
 			refs := make([]interface{}, len(h.ReferenceItem))
@@ -601,11 +619,11 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Progress = "100%"
 		// Extract video URL from generated_video array
 		if len(h.GeneratedVideo) > 0 && h.GeneratedVideo[0].VideoURL != "" {
-			taskResult.Url = h.GeneratedVideo[0].VideoURL
+			taskResult.Url = sanitizeMediaURL(h.GeneratedVideo[0].VideoURL)
 		}
 		// Extract image URL from generated_image array
 		if len(h.GeneratedImage) > 0 && h.GeneratedImage[0].ImageURL != "" {
-			taskResult.Url = h.GeneratedImage[0].ImageURL
+			taskResult.Url = sanitizeMediaURL(h.GeneratedImage[0].ImageURL)
 		}
 		// Pass reference_item for downstream consumers
 		if len(h.ReferenceItem) > 0 {
