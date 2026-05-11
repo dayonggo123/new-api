@@ -568,29 +568,19 @@ func (a *TaskAdaptor) GetChannelName() string {
 
 // cleanMalformedURL 清洗上游偶发的 URL 拼接错误。
 // 例如：https://s3.us-east-1.idrivee2.com/https://edge-files.geminigen.ai/...
-// 提取后面那个真实的 URL。
+// 检测到这种拼接模式时返回空字符串，因为签名是为错误域名生成的，无法修复。
+// 缩略图/尾帧等使用 r3t3.c16.e2-3.dev 的链接不受影响。
 func cleanMalformedURL(input string) string {
 	if input == "" {
 		return ""
 	}
 	lower := strings.ToLower(input)
-	if idx := strings.Index(lower, "https://"); idx != -1 {
-		remainder := lower[idx+8:]
-		if next := strings.Index(remainder, "https://"); next != -1 {
-			return input[idx+8+next:]
-		}
-		if next := strings.Index(remainder, "http://"); next != -1 {
-			return input[idx+8+next:]
-		}
-	}
-	if idx := strings.Index(lower, "http://"); idx != -1 {
-		remainder := lower[idx+7:]
-		if next := strings.Index(remainder, "https://"); next != -1 {
-			return input[idx+7+next:]
-		}
-		if next := strings.Index(remainder, "http://"); next != -1 {
-			return input[idx+7+next:]
-		}
+
+	// 检测 https://domain1.com/https://domain2.com/path 这种拼接模式
+	if strings.Contains(lower, "/https://") || strings.Contains(lower, "/http://") {
+		// 上游返回了拼接错误的 S3 URL，签名与域名不匹配，无法修复。
+		// 返回空字符串，避免客户端访问一个必定失败的链接。
+		return ""
 	}
 	return input
 }
