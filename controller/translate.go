@@ -83,11 +83,12 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 
 	var promptBuilder strings.Builder
 	promptBuilder.WriteString(fmt.Sprintf(
-		"You are a professional translator. Translate the following items from %s to %s.\n",
-		sourceLang, targetLang,
+		"You are a professional translator. Translate ALL the following items from %s to %s. "+
+			"You MUST translate every item into %s. Do NOT return the original %s text under any circumstances.\n",
+		sourceLang, targetLang, targetLang, sourceLang,
 	))
 	promptBuilder.WriteString("Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text.\n")
-	promptBuilder.WriteString("Do not add any extra text, explanations, or blank lines.\n\n")
+	promptBuilder.WriteString("Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n")
 	for _, item := range items {
 		if item.Text != "" {
 			promptBuilder.WriteString(fmt.Sprintf("%s: %s\n", item.Key, item.Text))
@@ -103,11 +104,27 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		return result
 	}
 
+	// 去掉可能的 markdown 代码块
+	response = strings.TrimSpace(response)
+	if strings.HasPrefix(response, "```") {
+		start := strings.Index(response, "\n")
+		if start != -1 {
+			end := strings.LastIndex(response, "```")
+			if end > start {
+				response = strings.TrimSpace(response[start:end])
+			}
+		}
+	}
+
 	// 解析 "key: translated text" 格式
 	lines := strings.Split(response, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
+			continue
+		}
+		// 跳过没有冒号的行（说明文字、标题等）
+		if !strings.Contains(line, ":") {
 			continue
 		}
 		idx := strings.Index(line, ": ")
