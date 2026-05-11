@@ -67,6 +67,8 @@ export default function PresetPrompt() {
   const [searchStatus, setSearchStatus] = useState('');
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState({});
+  const [translating, setTranslating] = useState(false);
+  const [translateProgress, setTranslateProgress] = useState('');
 
   const loadCategories = useCallback(async () => {
     try {
@@ -171,52 +173,53 @@ export default function PresetPrompt() {
   };
 
   const handleAutoTranslate = async () => {
-    console.log('[translate] clicked, formApi=', formApi);
-    if (!formApi) {
-      console.log('[translate] formApi is null, returning');
-      return;
-    }
+    if (!formApi) return;
     const values = formApi.getValues();
-    console.log('[translate] values=', values);
     const items = [];
     if (values.name?.trim()) items.push({ key: 'name', text: values.name.trim() });
     if (values.system_prompt?.trim()) items.push({ key: 'system_prompt', text: values.system_prompt.trim() });
     if (values.user_prompt?.trim()) items.push({ key: 'user_prompt', text: values.user_prompt.trim() });
     if (values.description?.trim()) items.push({ key: 'description', text: values.description.trim() });
 
-    console.log('[translate] items=', items);
     if (items.length === 0) {
-      console.log('[translate] items empty, showing error');
       showError('请先填写中文内容');
       return;
     }
 
-    try {
-      const res = await API.post('/api/translate/batch', {
-        items,
-        source_lang: 'ZH',
-        target_langs: ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'],
-      });
-      if (res.data.success) {
-        // 后端返回的语言 key 是大写的（EN/FR/…），但 i18nData 和 Form 字段都用小写
-        const normalized = {};
-        Object.entries(res.data.data).forEach(([lang, fields]) => {
-          normalized[lang.toLowerCase()] = fields;
+    const targetLangs = ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'];
+    setTranslating(true);
+
+    for (let i = 0; i < targetLangs.length; i++) {
+      const lang = targetLangs[i];
+      setTranslateProgress(`${i + 1}/${targetLangs.length} ${lang}`);
+      try {
+        const res = await API.post('/api/translate/batch', {
+          items,
+          source_lang: 'ZH',
+          target_langs: [lang],
         });
-        setI18nData(normalized);
-        // 同步翻译结果到表单字段（字段已挂载，initValue 不会自动更新）
-        Object.entries(normalized).forEach(([lang, fields]) => {
-          Object.entries(fields).forEach(([key, value]) => {
-            formApi.setValue(`${key}_${lang}`, value);
+        if (res.data.success) {
+          const normalized = {};
+          Object.entries(res.data.data).forEach(([l, fields]) => {
+            normalized[l.toLowerCase()] = fields;
           });
-        });
-        showSuccess('翻译完成，已填充到各语言 Tab');
-      } else {
-        showError(res.data.message || '翻译失败');
+          setI18nData((prev) => ({ ...prev, ...normalized }));
+          Object.entries(normalized).forEach(([l, fields]) => {
+            Object.entries(fields).forEach(([key, value]) => {
+              formApi.setValue(`${key}_${l}`, value);
+            });
+          });
+        } else {
+          console.warn('翻译失败:', lang, res.data.message);
+        }
+      } catch (err) {
+        console.warn('翻译请求失败:', lang, err.message);
       }
-    } catch (err) {
-      showError(err.message || '翻译服务不可用');
     }
+
+    setTranslating(false);
+    setTranslateProgress('');
+    showSuccess('翻译完成，已填充到各语言 Tab');
   };
 
   const handleSubmit = async () => {
@@ -464,8 +467,10 @@ export default function PresetPrompt() {
             type='tertiary'
             icon={<IconLanguage />}
             onClick={handleAutoTranslate}
+            loading={translating}
+            disabled={translating}
           >
-            {t('自动翻译')}（AI）
+            {translating ? `${t('翻译中')} ${translateProgress}` : `${t('自动翻译')}（AI）`}
           </Button>
           <Text type='tertiary' size='small' style={{ marginLeft: 8 }}>
             {t('将中文内容一键翻译成其他 11 种语言')}

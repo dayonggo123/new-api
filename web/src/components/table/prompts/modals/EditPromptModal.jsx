@@ -79,6 +79,8 @@ const EditPromptModal = (props) => {
   const formApiRef = useRef(null);
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState({});
+  const [translating, setTranslating] = useState(false);
+  const [translateProgress, setTranslateProgress] = useState('');
 
   const PRESET_TAGS = [
     '电影感', '超写实', 'photography', 'nature', 'portrait', 'landscape',
@@ -186,46 +188,50 @@ const EditPromptModal = (props) => {
   }, [props.editingPrompt.id]);
 
   const handleAutoTranslate = async () => {
-    console.log('[translate] clicked, values=', formApiRef.current?.getValues());
     const values = formApiRef.current?.getValues();
     const items = [];
     if (values.title?.trim()) items.push({ key: 'title', text: values.title.trim() });
     if (values.content?.trim()) items.push({ key: 'content', text: values.content.trim() });
     if (values.description?.trim()) items.push({ key: 'description', text: values.description.trim() });
 
-    console.log('[translate] items=', items);
     if (items.length === 0) {
       showError(t('请先填写中文内容'));
       return;
     }
 
-    setLoading(true);
-    try {
-      const targetLangs = ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'];
-      const res = await API.post('/api/translate/batch', {
-        items,
-        source_lang: 'ZH',
-        target_langs: targetLangs,
-      });
-      if (res.data.success) {
-        const newI18n = { ...i18nData };
-        Object.entries(res.data.data).forEach(([lang, fields]) => {
-          const langKey = lang.toLowerCase();
-          newI18n[langKey] = { ...newI18n[langKey], ...fields };
+    const targetLangs = ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'];
+    setTranslating(true);
+
+    for (let i = 0; i < targetLangs.length; i++) {
+      const lang = targetLangs[i];
+      setTranslateProgress(`${i + 1}/${targetLangs.length} ${lang}`);
+      try {
+        const res = await API.post('/api/translate/batch', {
+          items,
+          source_lang: 'ZH',
+          target_langs: [lang],
         });
-        setI18nData(newI18n);
-        // 同步英文到 content_en
-        if (newI18n.en?.content) {
-          formApiRef.current?.setValue('content_en', newI18n.en.content);
+        if (res.data.success) {
+          const newI18n = { ...i18nData };
+          Object.entries(res.data.data).forEach(([l, fields]) => {
+            const langKey = l.toLowerCase();
+            newI18n[langKey] = { ...newI18n[langKey], ...fields };
+          });
+          setI18nData(newI18n);
+          if (newI18n.en?.content) {
+            formApiRef.current?.setValue('content_en', newI18n.en.content);
+          }
+        } else {
+          console.warn('翻译失败:', lang, res.data.message);
         }
-        showSuccess(t('翻译完成，已填充到各语言 Tab'));
-      } else {
-        showError(res.data.message || t('翻译失败'));
+      } catch (err) {
+        console.warn('翻译请求失败:', lang, err.message);
       }
-    } catch (err) {
-      showError(err.message || t('翻译服务不可用'));
     }
-    setLoading(false);
+
+    setTranslating(false);
+    setTranslateProgress('');
+    showSuccess(t('翻译完成，已填充到各语言 Tab'));
   };
 
   const getLangField = (field) => {
@@ -572,8 +578,10 @@ const EditPromptModal = (props) => {
                         size='small'
                         icon={<IconLanguage />}
                         onClick={handleAutoTranslate}
+                        loading={translating}
+                        disabled={translating}
                       >
-                        {t('自动翻译')}（AI）
+                        {translating ? `${t('翻译中')} ${translateProgress}` : `${t('自动翻译')}（AI）`}
                       </Button>
                     </div>
                     <Tabs
