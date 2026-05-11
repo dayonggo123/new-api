@@ -265,9 +265,11 @@ export const useSidebar = () => {
   }, [adminConfig, userConfig]);
 
   // 检查特定功能是否应该显示
+  // 新模块默认显示（向后兼容）：若配置中未定义该模块，则默认为 true
   const isModuleVisible = (sectionKey, moduleKey = null) => {
     if (moduleKey) {
-      return finalConfig[sectionKey]?.[moduleKey] === true;
+      const val = finalConfig[sectionKey]?.[moduleKey];
+      return val === undefined ? true : val === true;
     } else {
       return finalConfig[sectionKey]?.enabled === true;
     }
