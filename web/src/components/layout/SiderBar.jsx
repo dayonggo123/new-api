@@ -37,6 +37,7 @@ const routerMap = {
   redemption: '/console/redemption',
   prompt: '/console/prompt',
   preset_prompt: '/console/preset-prompt',
+  skills: '/console/skills',
   topup: '/console/topup',
   user: '/console/user',
   subscription: '/console/subscription',
@@ -192,6 +193,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('预设提示词'),
         itemKey: 'preset_prompt',
         to: '/preset-prompt',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('Skill 管理'),
+        itemKey: 'skills',
+        to: '/skills',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

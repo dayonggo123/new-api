@@ -40,6 +40,7 @@ import PromptDetail from './pages/PromptDetail';
 import SEOManagement from './pages/SEOManagement';
 import NotificationManagement from './pages/NotificationManagement';
 import PresetPrompt from './pages/PresetPrompt';
+import SkillManagement from './pages/SkillManagement';
 import TierManagement from './pages/TierManagement';
 import TagManagement from './pages/TagManagement';
 import TopUp from './pages/TopUp';
@@ -200,6 +201,14 @@ function App() {
           element={
             <AdminRoute>
               <PresetPrompt />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/skills'
+          element={
+            <AdminRoute>
+              <SkillManagement />
             </AdminRoute>
           }
         />
