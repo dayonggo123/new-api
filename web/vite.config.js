@@ -49,6 +49,14 @@ export default defineConfig({
         });
       },
     },
+    {
+      name: 'preserve-semi-ui-side-effects',
+      transform(code, id) {
+        if (id.includes('node_modules/@douyinfe/semi-ui') || id.includes('node_modules/@douyinfe/semi-icons')) {
+          return { code, map: null, moduleSideEffects: 'no-treeshake' };
+        }
+      },
+    },
     react(),
   ],
   optimizeDeps: {
