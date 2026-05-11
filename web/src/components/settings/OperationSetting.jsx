@@ -29,6 +29,7 @@ import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLim
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsSigninPoints from '../../pages/Setting/Operation/SettingsSigninPoints';
 import SettingsSEO from '../../pages/Setting/Operation/SettingsSEO';
+import SettingsTranslate from '../../pages/Setting/Operation/SettingsTranslate';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -151,6 +152,10 @@ const OperationSetting = () => {
         {/* 额度设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCreditLimit options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 翻译 AI 设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsTranslate options={inputs} refresh={onRefresh} />
         </Card>
         {/* SEO 设置 */}
         <Card style={{ marginTop: '10px' }}>
