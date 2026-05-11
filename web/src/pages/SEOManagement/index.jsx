@@ -277,22 +277,18 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
                     activeKey={activeLang}
                     onChange={setActiveLang}
                     style={{ marginBottom: 12 }}
-                  >
-                    {LANGUAGES.map((lang) => (
-                      <TabPane
-                        tab={
-                          <span>
-                            {lang.label}
-                            {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
-                              <span style={{ marginLeft: 4, color: 'var(--semi-color-success)' }}>●</span>
-                            )}
-                          </span>
-                        }
-                        itemKey={lang.code}
-                        key={lang.code}
-                      />
-                    ))}
-                  </Tabs>
+                    tabList={LANGUAGES.map((lang) => ({
+                      tab: (
+                        <span>
+                          {lang.label}
+                          {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
+                            <span style={{ marginLeft: 4, color: 'var(--semi-color-success)' }}>●</span>
+                          )}
+                        </span>
+                      ),
+                      itemKey: lang.code,
+                    }))}
+                  />
                 </div>
 
                 {/* 默认语言字段 - 始终渲染但可能隐藏 */}
