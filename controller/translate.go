@@ -44,8 +44,8 @@ func BatchTranslate(c *gin.Context) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	// 串行翻译，避免频率过高被封
-	semaphore := make(chan struct{}, 1)
+	// 并发翻译，提高速度避免网关超时
+	semaphore := make(chan struct{}, 10)
 
 	// 检查是否启用 AI 翻译
 	cfg := operation_setting.GetTranslateSetting()
@@ -65,8 +65,8 @@ func BatchTranslate(c *gin.Context) {
 				defer wg.Done()
 				defer func() { <-semaphore }()
 
-				// 请求间隔，降低频率
-				time.Sleep(500 * time.Millisecond)
+				// 短暂间隔，避免瞬间打满
+				time.Sleep(100 * time.Millisecond)
 
 				translated := translateSingleWithAI(cfg, text, req.SourceLang, targetLang)
 				if translated == "" {
@@ -112,7 +112,7 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 		return ""
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 15 * time.Second}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cfg.TranslateAIBaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		common.SysLog("AI translate request error: " + err.Error())
