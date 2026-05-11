@@ -203,11 +203,6 @@ export default function PresetPrompt() {
             normalized[l.toLowerCase()] = fields;
           });
           setI18nData((prev) => ({ ...prev, ...normalized }));
-          Object.entries(normalized).forEach(([l, fields]) => {
-            Object.entries(fields).forEach(([key, value]) => {
-              formApi.setValue(`${key}_${l}`, value);
-            });
-          });
         } else {
           console.warn('翻译失败:', lang, res.data.message);
         }
@@ -256,14 +251,6 @@ export default function PresetPrompt() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // 获取当前语言表单值
-  const getLangField = (field) => {
-    if (activeLang === DEFAULT_LANG) {
-      return formApi?.getValue(field) || '';
-    }
-    return i18nData[activeLang]?.[field] || '';
   };
 
   // 设置当前语言表单值
@@ -508,39 +495,48 @@ export default function PresetPrompt() {
 
           {LANGUAGES.filter(l => l.code !== DEFAULT_LANG).map((lang) => (
             <div key={lang.code} style={{ display: activeLang === lang.code ? 'block' : 'none' }}>
-              <Form.Section text={`${lang.label} ${t('翻译')}`}>
-                <Form.Input
-                  field={`name_${lang.code}`}
-                  label={t('名称')}
-                  placeholder={t('请输入翻译后的名称')}
-                  initValue={i18nData[lang.code]?.name || ''}
+              <div style={{ marginBottom: 16, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>
+                {lang.label} {t('翻译')}
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{t('名称')}</label>
+                <Input
+                  value={i18nData[lang.code]?.name || ''}
                   onChange={(v) => setLangField('name', v)}
+                  placeholder={t('请输入翻译后的名称')}
+                  style={{ width: '100%' }}
                 />
-                <Form.TextArea
-                  field={`system_prompt_${lang.code}`}
-                  label={t('系统提示词')}
-                  placeholder={t('请输入翻译后的系统提示词')}
-                  rows={4}
-                  initValue={i18nData[lang.code]?.system_prompt || ''}
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{t('系统提示词')}</label>
+                <Input.TextArea
+                  value={i18nData[lang.code]?.system_prompt || ''}
                   onChange={(v) => setLangField('system_prompt', v)}
-                />
-                <Form.TextArea
-                  field={`user_prompt_${lang.code}`}
-                  label={t('用户提示词')}
-                  placeholder={t('请输入翻译后的用户提示词')}
                   rows={4}
-                  initValue={i18nData[lang.code]?.user_prompt || ''}
+                  placeholder={t('请输入翻译后的系统提示词')}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{t('用户提示词')}</label>
+                <Input.TextArea
+                  value={i18nData[lang.code]?.user_prompt || ''}
                   onChange={(v) => setLangField('user_prompt', v)}
+                  rows={4}
+                  placeholder={t('请输入翻译后的用户提示词')}
+                  style={{ width: '100%' }}
                 />
-                <Form.TextArea
-                  field={`description_${lang.code}`}
-                  label={t('描述')}
-                  placeholder={t('请输入翻译后的描述')}
-                  rows={2}
-                  initValue={i18nData[lang.code]?.description || ''}
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{t('描述')}</label>
+                <Input.TextArea
+                  value={i18nData[lang.code]?.description || ''}
                   onChange={(v) => setLangField('description', v)}
+                  rows={2}
+                  placeholder={t('请输入翻译后的描述')}
+                  style={{ width: '100%' }}
                 />
-              </Form.Section>
+              </div>
             </div>
           ))}
 
@@ -557,11 +553,10 @@ export default function PresetPrompt() {
             <Option value={1}>{t('启用')}</Option>
             <Option value={2}>{t('禁用')}</Option>
           </Form.Select>
-          <Form.InputNumber
+          <Form.Input
             field='sort_order'
             label={t('排序')}
             placeholder={t('数字越大越靠前')}
-            min={0}
           />
         </Form>
       </Modal>
