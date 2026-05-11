@@ -2,7 +2,15 @@ package model
 
 import (
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
+
+// NotificationI18n 消息多语言翻译项
+type NotificationI18n struct {
+	Title   string `json:"title,omitempty"`
+	Content string `json:"content,omitempty"`
+}
 
 // Notification 消息通知表
 type Notification struct {
@@ -10,10 +18,33 @@ type Notification struct {
 	UserId      int    `json:"user_id" gorm:"index"`                 // 0 表示全员广播
 	Title       string `json:"title" gorm:"type:varchar(200);not null"`
 	Content     string `json:"content" gorm:"type:text;not null"`
+	I18n        string `json:"i18n,omitempty" gorm:"type:text"`     // JSON: {"en": {"title": "..."}, "fr": {...}}
 	Type        string `json:"type" gorm:"type:varchar(32)"`        // system / promotion / announcement / task_status
 	IsRead      bool   `json:"is_read" gorm:"default:false"`
 	ActionUrl   string `json:"action_url" gorm:"type:varchar(500)"`
 	CreatedTime int64  `json:"created_time" gorm:"bigint;index"`
+}
+
+// ApplyLanguage 根据语言代码替换标题和内容（缺失则保持默认中文）
+func (n *Notification) ApplyLanguage(lang string) {
+	if lang == "" || lang == "zh" || lang == "zh-CN" || lang == "zh-TW" {
+		return
+	}
+	if n.I18n == "" {
+		return
+	}
+	var i18nMap map[string]NotificationI18n
+	if err := common.Unmarshal([]byte(n.I18n), &i18nMap); err != nil {
+		return
+	}
+	if t, ok := i18nMap[lang]; ok {
+		if t.Title != "" {
+			n.Title = t.Title
+		}
+		if t.Content != "" {
+			n.Content = t.Content
+		}
+	}
 }
 
 func (n *Notification) TableName() string {

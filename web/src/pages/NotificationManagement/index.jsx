@@ -15,6 +15,7 @@ import {
   Tooltip,
   Banner,
   Checkbox,
+  Tabs,
 } from '@douyinfe/semi-ui';
 import {
   IconPlus,
@@ -27,6 +28,7 @@ import { ITEMS_PER_PAGE } from '../../constants';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+const { TabPane } = Tabs;
 
 const typeMap = {
   system: { color: 'blue', text: '系统' },
@@ -52,6 +54,24 @@ const templateVars = [
   { key: '{{consecutive_days}}', desc: '连续签到天数' },
 ];
 
+// 12 种支持语言（第一项为默认语言中文）
+const LANGUAGES = [
+  { code: 'zh-CN', label: '中文（默认）' },
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'Français' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'ja', label: '日本語' },
+  { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'zh-TW', label: '繁體中文' },
+  { code: 'es', label: 'Español' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'ko', label: '한국어' },
+  { code: 'pt', label: 'Português' },
+  { code: 'it', label: 'Italiano' },
+];
+
+const DEFAULT_LANG = 'zh-CN';
+
 export default function NotificationManagement() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -65,6 +85,8 @@ export default function NotificationManagement() {
   const contentRef = useRef(null);
   const [targetType, setTargetType] = useState('all');
   const [useTemplate, setUseTemplate] = useState(false);
+  const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
+  const [i18nData, setI18nData] = useState({});
 
   // tier / tag options
   const [tiers, setTiers] = useState([]);
@@ -123,12 +145,30 @@ export default function NotificationManagement() {
     loadTags();
   }, [loadTiers, loadTags]);
 
+  const handleOpenModal = () => {
+    setI18nData({});
+    setActiveLang(DEFAULT_LANG);
+    setTargetType('all');
+    setUseTemplate(false);
+    setModalVisible(true);
+    if (formApi) formApi.reset();
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setTargetType('all');
+    setUseTemplate(false);
+    setI18nData({});
+    setActiveLang(DEFAULT_LANG);
+  };
+
   const handleSubmit = async (values) => {
     setSubmitting(true);
     try {
       const payload = {
         ...values,
         use_template: !!useTemplate,
+        i18n: JSON.stringify(i18nData),
       };
       // handle array values from multi-select / tag-input, convert to int arrays
       if (values.target_users) {
@@ -150,10 +190,7 @@ export default function NotificationManagement() {
       const { success, message } = res.data;
       if (success) {
         showSuccess(message || '发送成功');
-        setModalVisible(false);
-        formApi?.reset();
-        setTargetType('all');
-        setUseTemplate(false);
+        handleCloseModal();
         loadData();
       } else {
         showError(message);
@@ -162,6 +199,52 @@ export default function NotificationManagement() {
       showError(error?.message || error);
     }
     setSubmitting(false);
+  };
+
+  // 设置当前语言表单值
+  const setLangField = (field, value) => {
+    if (activeLang === DEFAULT_LANG) {
+      formApi?.setValue(field, value);
+    } else {
+      setI18nData((prev) => ({
+        ...prev,
+        [activeLang]: {
+          ...prev[activeLang],
+          [field]: value,
+        },
+      }));
+    }
+  };
+
+  // 判断某语言是否有翻译
+  const hasTranslation = (code) => {
+    if (code === DEFAULT_LANG) return true;
+    const tr = i18nData[code];
+    return tr && (tr.title || tr.content);
+  };
+
+  // 插入模板变量到内容框
+  const insertTemplateVar = (varKey) => {
+    const textarea = contentRef.current;
+    const fieldName = activeLang === DEFAULT_LANG ? 'content' : `content_${activeLang}`;
+    const current = activeLang === DEFAULT_LANG
+      ? (formApi?.getValue('content') || '')
+      : (i18nData[activeLang]?.content || '');
+    let start = current.length;
+    let end = current.length;
+    if (textarea) {
+      start = textarea.selectionStart ?? start;
+      end = textarea.selectionEnd ?? end;
+    }
+    const newValue = current.slice(0, start) + varKey + current.slice(end);
+    setLangField('content', newValue);
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        const pos = start + varKey.length;
+        textarea.setSelectionRange(pos, pos);
+      }
+    }, 0);
   };
 
   const columns = [
@@ -305,7 +388,7 @@ export default function NotificationManagement() {
             <Button
               type='primary'
               icon={<IconPlus />}
-              onClick={() => setModalVisible(true)}
+              onClick={handleOpenModal}
             >
               发布消息
             </Button>
@@ -334,29 +417,74 @@ export default function NotificationManagement() {
       <Modal
         title='发布消息'
         visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setTargetType('all'); setUseTemplate(false); }}
+        onCancel={handleCloseModal}
         footer={null}
-        width={640}
+        width={720}
       >
+        <Tabs
+          activeKey={activeLang}
+          onChange={(key) => setActiveLang(key)}
+          type='button'
+          style={{ marginBottom: 16 }}
+        >
+          {LANGUAGES.map((lang) => (
+            <TabPane
+              tab={
+                <span>
+                  {lang.label}
+                  {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
+                    <span style={{ color: 'var(--semi-color-primary)', marginLeft: 4, fontSize: 8 }}>●</span>
+                  )}
+                </span>
+              }
+              itemKey={lang.code}
+              key={lang.code}
+            />
+          ))}
+        </Tabs>
+
         <Form
           getFormApi={(api) => setFormApi(api)}
           onSubmit={handleSubmit}
           layout='vertical'
         >
-          <Form.Input
-            field='title'
-            label='标题'
-            rules={[{ required: true, message: '请输入标题' }]}
-            placeholder='请输入消息标题'
-          />
-          <Form.TextArea
-            field='content'
-            label='内容'
-            rules={[{ required: true, message: '请输入内容' }]}
-            placeholder='请输入消息内容'
-            rows={4}
-            ref={contentRef}
-          />
+          {activeLang === DEFAULT_LANG ? (
+            <>
+              <Form.Input
+                field='title'
+                label='标题'
+                rules={[{ required: true, message: '请输入标题' }]}
+                placeholder='请输入消息标题'
+              />
+              <Form.TextArea
+                field='content'
+                label='内容'
+                rules={[{ required: true, message: '请输入内容' }]}
+                placeholder='请输入消息内容'
+                rows={4}
+                ref={contentRef}
+              />
+            </>
+          ) : (
+            <>
+              <Form.Input
+                field={`title_${activeLang}`}
+                label={`${LANGUAGES.find(l => l.code === activeLang)?.label} 标题`}
+                placeholder='请输入翻译后的标题'
+                initValue={i18nData[activeLang]?.title || ''}
+                onChange={(v) => setLangField('title', v)}
+              />
+              <Form.TextArea
+                field={`content_${activeLang}`}
+                label={`${LANGUAGES.find(l => l.code === activeLang)?.label} 内容`}
+                placeholder='请输入翻译后的内容'
+                rows={4}
+                initValue={i18nData[activeLang]?.content || ''}
+                onChange={(v) => setLangField('content', v)}
+                ref={contentRef}
+              />
+            </>
+          )}
 
           {useTemplate && (
             <Banner
@@ -370,25 +498,7 @@ export default function NotificationManagement() {
                       <Tag
                         color='blue'
                         style={{ cursor: 'pointer' }}
-                        onClick={() => {
-                          const textarea = contentRef.current;
-                          const current = formApi?.getValue('content') || '';
-                          let start = current.length;
-                          let end = current.length;
-                          if (textarea) {
-                            start = textarea.selectionStart ?? start;
-                            end = textarea.selectionEnd ?? end;
-                          }
-                          const newValue = current.slice(0, start) + v.key + current.slice(end);
-                          formApi?.setValue('content', newValue);
-                          setTimeout(() => {
-                            if (textarea) {
-                              textarea.focus();
-                              const pos = start + v.key.length;
-                              textarea.setSelectionRange(pos, pos);
-                            }
-                          }, 0);
-                        }}
+                        onClick={() => insertTemplateVar(v.key)}
                       >
                         {v.key}
                       </Tag>
@@ -457,7 +567,7 @@ export default function NotificationManagement() {
             placeholder='可选：点击消息后的跳转链接'
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 }}>
-            <Button onClick={() => { setModalVisible(false); setTargetType('all'); setUseTemplate(false); }}>取消</Button>
+            <Button onClick={handleCloseModal}>取消</Button>
             <Button type='primary' htmlType='submit' loading={submitting}>
               发布
             </Button>

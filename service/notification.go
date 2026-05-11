@@ -12,6 +12,7 @@ import (
 type SendNotificationRequest struct {
 	Title       string `json:"title" binding:"required"`
 	Content     string `json:"content" binding:"required"`
+	I18n        string `json:"i18n"`                    // JSON: {"en": {"title": "..."}}
 	Type        string `json:"type" binding:"required"` // system / promotion / announcement / task_status
 	TargetType  string `json:"target_type"`             // all / users / group / tier / tag
 	TargetUsers []int  `json:"target_users"`            // target_type=users 时有效
@@ -51,6 +52,7 @@ func SendNotification(req *SendNotificationRequest) error {
 			UserId:      0,
 			Title:       req.Title,
 			Content:     req.Content,
+			I18n:        req.I18n,
 			Type:        req.Type,
 			IsRead:      false,
 			ActionUrl:   req.ActionUrl,
@@ -90,6 +92,7 @@ func SendNotification(req *SendNotificationRequest) error {
 			UserId:      uc.UserId,
 			Title:       title,
 			Content:     content,
+			I18n:        req.I18n,
 			Type:        req.Type,
 			IsRead:      false,
 			ActionUrl:   req.ActionUrl,

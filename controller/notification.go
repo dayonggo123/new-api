@@ -27,6 +27,13 @@ func GetNotifications(c *gin.Context) {
 		return
 	}
 
+	// 根据用户语言偏好替换多语言内容
+	lang := model.GetUserLanguage(userId)
+	for i := range notifications {
+		notifications[i].ApplyLanguage(lang)
+		notifications[i].I18n = "" // 隐藏原始 JSON
+	}
+
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(notifications)
 	common.ApiSuccess(c, pageInfo)
@@ -130,6 +137,12 @@ func AdminGetNotifications(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+
+	lang := c.Query("lang")
+	for i := range notifications {
+		notifications[i].ApplyLanguage(lang)
+		notifications[i].I18n = "" // 隐藏原始 JSON
 	}
 
 	pageInfo.SetTotal(int(total))
