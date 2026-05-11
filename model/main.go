@@ -291,8 +291,12 @@ func migrateDB() error {
 		&UserTier{},
 		&Tag{},
 		&UserTag{},
+		&Skill{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := initDefaultSkills(); err != nil {
 		return err
 	}
 	if common.UsingSQLite {
