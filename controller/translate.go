@@ -30,11 +30,14 @@ type TranslateItem struct {
 
 // BatchTranslate 批量翻译接口（Admin 权限）
 func BatchTranslate(c *gin.Context) {
+	common.SysLog("BatchTranslate: received request")
 	var req BatchTranslateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		common.SysLog("BatchTranslate: bind error: " + err.Error())
 		common.ApiError(c, err)
 		return
 	}
+	common.SysLog(fmt.Sprintf("BatchTranslate: items=%d langs=%v", len(req.Items), req.TargetLangs))
 
 	// 结果: { "EN": { "key1": "translated", "key2": "translated" }, ... }
 	result := make(map[string]map[string]string)

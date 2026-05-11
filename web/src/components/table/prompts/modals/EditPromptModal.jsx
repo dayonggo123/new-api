@@ -186,12 +186,14 @@ const EditPromptModal = (props) => {
   }, [props.editingPrompt.id]);
 
   const handleAutoTranslate = async () => {
+    console.log('[translate] clicked, values=', formApiRef.current?.getValues());
     const values = formApiRef.current?.getValues();
     const items = [];
     if (values.title?.trim()) items.push({ key: 'title', text: values.title.trim() });
     if (values.content?.trim()) items.push({ key: 'content', text: values.content.trim() });
     if (values.description?.trim()) items.push({ key: 'description', text: values.description.trim() });
 
+    console.log('[translate] items=', items);
     if (items.length === 0) {
       showError(t('请先填写中文内容'));
       return;

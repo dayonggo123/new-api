@@ -171,15 +171,22 @@ export default function PresetPrompt() {
   };
 
   const handleAutoTranslate = async () => {
-    if (!formApi) return;
+    console.log('[translate] clicked, formApi=', formApi);
+    if (!formApi) {
+      console.log('[translate] formApi is null, returning');
+      return;
+    }
     const values = formApi.getValues();
+    console.log('[translate] values=', values);
     const items = [];
     if (values.name?.trim()) items.push({ key: 'name', text: values.name.trim() });
     if (values.system_prompt?.trim()) items.push({ key: 'system_prompt', text: values.system_prompt.trim() });
     if (values.user_prompt?.trim()) items.push({ key: 'user_prompt', text: values.user_prompt.trim() });
     if (values.description?.trim()) items.push({ key: 'description', text: values.description.trim() });
 
+    console.log('[translate] items=', items);
     if (items.length === 0) {
+      console.log('[translate] items empty, showing error');
       showError('请先填写中文内容');
       return;
     }
