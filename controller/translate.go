@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -81,31 +82,35 @@ func BatchTranslate(c *gin.Context) {
 func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []TranslateItem, sourceLang, targetLang string) map[string]string {
 	result := make(map[string]string)
 
-	// System Prompt：严格定义角色和约束
-	systemPrompt := fmt.Sprintf(
-		"You are a professional translator. Your ONLY task is to translate text. "+
-			"You MUST respond entirely in %s. "+
-			"Do NOT respond in %s or any other language. "+
-			"Do not add explanations, notes, or the original text — output ONLY the translated text in %s.",
-		targetLang, sourceLang, targetLang,
-	)
+	// 读取 batch-translate Skill 模板，不存在则使用硬编码默认值
+	systemPrompt := ""
+	userPromptTemplate := ""
+	if skill, err := model.GetSkillBySkillId("batch-translate"); err == nil && skill.SystemPromptTemplate != "" {
+		systemPrompt = skill.SystemPromptTemplate
+		userPromptTemplate = skill.UserPromptTemplate
+	}
+	if systemPrompt == "" {
+		systemPrompt = "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}."
+	}
+	if userPromptTemplate == "" {
+		userPromptTemplate = "Translate ALL the following items from {{sourceLang}} to {{targetLang}}. You MUST translate every item into {{targetLang}}. Do NOT return the original {{sourceLang}} text under any circumstances. Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text. Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n{{items}}"
+	}
 
-	// User Prompt：带格式的待翻译内容
-	var userBuilder strings.Builder
-	userBuilder.WriteString(fmt.Sprintf(
-		"Translate ALL the following items from %s to %s.\n"+
-			"You MUST translate every item into %s. Do NOT return the original %s text under any circumstances.\n"+
-			"Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text.\n"+
-			"Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n",
-		sourceLang, targetLang, targetLang, sourceLang,
-	))
+	// 构建 {{items}} 变量内容
+	var itemsBuilder strings.Builder
 	for _, item := range items {
 		if item.Text != "" {
-			userBuilder.WriteString(fmt.Sprintf("%s: %s\n", item.Key, item.Text))
+			itemsBuilder.WriteString(fmt.Sprintf("%s: %s\n", item.Key, item.Text))
 		}
 	}
 
-	response := callTranslateAI(cfg, systemPrompt, userBuilder.String())
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLang)
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLang)
+	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLang)
+	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLang)
+	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsBuilder.String())
+
+	response := callTranslateAI(cfg, systemPrompt, userPrompt)
 	if response == "" {
 		for _, item := range items {
 			result[item.Key] = item.Text
@@ -161,18 +166,26 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 
 // translateSingleWithAI 使用 AI 模型翻译单条文本
 func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
-	systemPrompt := fmt.Sprintf(
-		"You are a professional translator. Your ONLY task is to translate text. "+
-			"You MUST respond entirely in %s. "+
-			"Do NOT respond in %s or any other language. "+
-			"Do not add explanations, notes, or the original text — output ONLY the translated text in %s.",
-		targetLang, sourceLang, targetLang,
-	)
-	userPrompt := fmt.Sprintf(
-		"Translate the following text from %s to %s. "+
-			"Your response must be ONLY the translated text in %s, nothing else:\n\n\"\"\"\n%s\n\"\"\"",
-		sourceLang, targetLang, targetLang, text,
-	)
+	// 读取 prompt-translate Skill 模板
+	systemPrompt := ""
+	userPromptTemplate := ""
+	if skill, err := model.GetSkillBySkillId("prompt-translate"); err == nil && skill.SystemPromptTemplate != "" {
+		systemPrompt = skill.SystemPromptTemplate
+		userPromptTemplate = skill.UserPromptTemplate
+	}
+	if systemPrompt == "" {
+		systemPrompt = "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}."
+	}
+	if userPromptTemplate == "" {
+		userPromptTemplate = "Translate the following text from {{sourceLang}} to {{targetLang}}. Your response must be ONLY the translated text in {{targetLang}}, nothing else:\n\n\"\"\"\n{{prompt}}\n\"\"\""
+	}
+
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLang)
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLang)
+	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLang)
+	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLang)
+	userPrompt = strings.ReplaceAll(userPrompt, "{{prompt}}", text)
+
 	return callTranslateAI(cfg, systemPrompt, userPrompt)
 }
 

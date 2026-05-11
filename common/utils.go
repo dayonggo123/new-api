@@ -334,3 +334,56 @@ func BuildURL(base string, endpoint string) string {
 	}
 	return u.ResolveReference(ref).String()
 }
+
+// SanitizeMediaURL fixes malformed URLs where an inner URL is incorrectly concatenated as a path segment,
+// e.g. https://proxy.com/https://actual.com/file.mp4 → https://actual.com/file.mp4
+func SanitizeMediaURL(urlStr string) string {
+	if idx := strings.Index(urlStr, "/https://"); idx > 0 {
+		inner := urlStr[idx+1:]
+		if strings.HasPrefix(inner, "https://") {
+			return inner
+		}
+	}
+	if idx := strings.Index(urlStr, "/http://"); idx > 0 {
+		inner := urlStr[idx+1:]
+		if strings.HasPrefix(inner, "http://") {
+			return inner
+		}
+	}
+	return urlStr
+}
+
+// SanitizeMediaURLInJSON recursively cleans malformed media URLs inside a JSON object.
+func SanitizeMediaURLInJSON(body []byte) []byte {
+	var m map[string]any
+	if err := Unmarshal(body, &m); err != nil {
+		return body
+	}
+	sanitizeURLsInMap(m)
+	b, err := Marshal(m)
+	if err != nil {
+		return body
+	}
+	return b
+}
+
+func sanitizeURLsInMap(m map[string]any) {
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			if strings.HasPrefix(val, "http") {
+				m[k] = SanitizeMediaURL(val)
+			}
+		case map[string]any:
+			sanitizeURLsInMap(val)
+		case []any:
+			for i, item := range val {
+				if itemMap, ok := item.(map[string]any); ok {
+					sanitizeURLsInMap(itemMap)
+				} else if itemStr, ok := item.(string); ok && strings.HasPrefix(itemStr, "http") {
+					val[i] = SanitizeMediaURL(itemStr)
+				}
+			}
+		}
+	}
+}

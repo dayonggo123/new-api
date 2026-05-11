@@ -8,8 +8,7 @@ upload
 build
 *.db-journal
 logs
-# web/dist is needed for Docker builds on memory-constrained servers
-# web/dist
+web/dist
 .env
 one-api
 new-api
