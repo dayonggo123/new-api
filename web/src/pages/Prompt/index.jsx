@@ -139,10 +139,11 @@ const CategoryEditModal = ({ visible, onCancel, category, refresh }) => {
                     />
                   </Col>
                   <Col span={12}>
-                    <Form.Input
+                    <Form.InputNumber
                       field="sort_order"
                       label={t('排序')}
                       placeholder={t('请输入排序值')}
+                      min={0}
                       style={{ width: '100%' }}
                     />
                   </Col>
@@ -306,15 +307,17 @@ const Prompt = () => {
         type="line"
         activeKey={activeTab}
         onChange={(key) => setActiveTab(key)}
-        tabList={[
-          { tab: t('提示词管理'), itemKey: 'prompts' },
-          { tab: t('分类管理'), itemKey: 'categories' },
-          { tab: t('SEO 管理'), itemKey: 'seo' },
-        ]}
-      />
-      {activeTab === 'prompts' && <PromptsPage />}
-      {activeTab === 'categories' && renderCategoryTable()}
-      {activeTab === 'seo' && <SEOManagement />}
+      >
+        <Tabs.TabPane tab={t('提示词管理')} itemKey="prompts">
+          <PromptsPage />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab={t('分类管理')} itemKey="categories">
+          {renderCategoryTable()}
+        </Tabs.TabPane>
+        <Tabs.TabPane tab={t('SEO 管理')} itemKey="seo">
+          <SEOManagement />
+        </Tabs.TabPane>
+      </Tabs>
 
       <CategoryEditModal
         visible={showCatEdit}

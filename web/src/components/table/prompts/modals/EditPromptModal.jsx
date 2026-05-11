@@ -51,7 +51,7 @@ import {
 } from '@douyinfe/semi-icons';
 
 const { Text, Title } = Typography;
-
+const { TabPane } = Tabs;
 
 // 12 种支持语言（第一项为默认语言中文）
 const LANGUAGES = [
@@ -589,18 +589,22 @@ const EditPromptModal = (props) => {
                       activeKey={activeLang}
                       onChange={setActiveLang}
                       style={{ marginBottom: 12 }}
-                      tabList={LANGUAGES.map((lang) => ({
-                        tab: (
-                          <span>
-                            {lang.label}
-                            {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
-                              <span style={{ marginLeft: 4, color: 'var(--semi-color-success)' }}>●</span>
-                            )}
-                          </span>
-                        ),
-                        itemKey: lang.code,
-                      }))}
-                    />
+                    >
+                      {LANGUAGES.map((lang) => (
+                        <TabPane
+                          tab={
+                            <span>
+                              {lang.label}
+                              {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
+                                <span style={{ marginLeft: 4, color: 'var(--semi-color-success)' }}>●</span>
+                              )}
+                            </span>
+                          }
+                          itemKey={lang.code}
+                          key={lang.code}
+                        />
+                      ))}
+                    </Tabs>
                     {renderLangFields()}
                   </div>
 
@@ -614,19 +618,24 @@ const EditPromptModal = (props) => {
                         rules={[
                           { required: true, message: t('请选择分类') },
                         ]}
-                        optionList={props.categories?.map((cat) => ({ value: cat.id, label: cat.name })) || []}
-                      />
+                      >
+                        {props.categories?.map((cat) => (
+                          <Form.Select.Option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </Form.Select.Option>
+                        ))}
+                      </Form.Select>
                     </Col>
                     <Col span={12}>
-                      <Form.Select
+                      <Form.RadioGroup
                         field='media_type'
                         label={t('内容类型')}
-                        style={{ width: '100%' }}
-                        optionList={[
-                          { value: 'image', label: t('图片') },
-                          { value: 'video', label: t('视频') },
-                        ]}
-                      />
+                        type='button'
+                        defaultValue='image'
+                      >
+                        <Form.Radio value='image'>{t('图片')}</Form.Radio>
+                        <Form.Radio value='video'>{t('视频')}</Form.Radio>
+                      </Form.RadioGroup>
                     </Col>
                   </Row>
                 </Card>
@@ -673,10 +682,11 @@ const EditPromptModal = (props) => {
                       />
                     </Col>
                     <Col span={24}>
-                      <Form.Input
+                      <Form.TagInput
                         field='tags'
                         label={t('标签')}
-                        placeholder={t('多个标签用英文逗号分隔')}
+                        placeholder={t('输入标签按回车添加')}
+                        separator={','}
                         style={{ width: '100%' }}
                       />
                       <div className='flex flex-wrap gap-1 mt-2'>
@@ -702,10 +712,11 @@ const EditPromptModal = (props) => {
                       </div>
                     </Col>
                     <Col span={12}>
-                      <Form.Input
+                      <Form.InputNumber
                         field='sort_order'
                         label={t('排序')}
                         placeholder={t('请输入排序值')}
+                        min={0}
                         style={{ width: '100%' }}
                       />
                     </Col>
