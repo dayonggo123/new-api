@@ -6,7 +6,7 @@ import (
 
 type Skill struct {
 	Id                   int    `json:"-" gorm:"primaryKey"`
-	SkillId              string `json:"-" gorm:"column:skill_id;uniqueIndex"`
+	SkillId              string `json:"-" gorm:"column:skill_id;size:64;uniqueIndex"`
 	Name                 string `json:"name"`
 	NameEn               string `json:"nameEn" gorm:"column:name_en"`
 	Icon                 string `json:"icon"`
