@@ -51,7 +51,7 @@ import {
 } from '@douyinfe/semi-icons';
 
 const { Text, Title } = Typography;
-const { TabPane } = Tabs;
+
 
 // 12 种支持语言（第一项为默认语言中文）
 const LANGUAGES = [
@@ -589,22 +589,18 @@ const EditPromptModal = (props) => {
                       activeKey={activeLang}
                       onChange={setActiveLang}
                       style={{ marginBottom: 12 }}
-                    >
-                      {LANGUAGES.map((lang) => (
-                        <TabPane
-                          tab={
-                            <span>
-                              {lang.label}
-                              {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
-                                <span style={{ marginLeft: 4, color: 'var(--semi-color-success)' }}>●</span>
-                              )}
-                            </span>
-                          }
-                          itemKey={lang.code}
-                          key={lang.code}
-                        />
-                      ))}
-                    </Tabs>
+                      tabList={LANGUAGES.map((lang) => ({
+                        tab: (
+                          <span>
+                            {lang.label}
+                            {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
+                              <span style={{ marginLeft: 4, color: 'var(--semi-color-success)' }}>●</span>
+                            )}
+                          </span>
+                        ),
+                        itemKey: lang.code,
+                      }))}
+                    />
                     {renderLangFields()}
                   </div>
 
@@ -712,11 +708,10 @@ const EditPromptModal = (props) => {
                       </div>
                     </Col>
                     <Col span={12}>
-                      <Form.InputNumber
+                      <Form.Input
                         field='sort_order'
                         label={t('排序')}
                         placeholder={t('请输入排序值')}
-                        min={0}
                         style={{ width: '100%' }}
                       />
                     </Col>
