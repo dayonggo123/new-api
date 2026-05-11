@@ -19,18 +19,20 @@ import { API, showError, showSuccess } from '../../helpers';
 
 const { Text } = Typography;
 
-const NODE_TYPES = [
-  'uploadImageNode',
-  'imageEditNode',
-  'videoGenNode',
-  'exportImageNode',
-  'llmAgentNode',
-  'textAnnotationNode',
-  'storyboardGenNode',
-  'storyboardSplitNode',
-  'groupNode',
-  'productEditNode',
+const NODE_TYPE_OPTIONS = [
+  { value: 'uploadImageNode', label: '图片上传节点' },
+  { value: 'imageEditNode', label: '图片编辑节点' },
+  { value: 'videoGenNode', label: '视频生成节点' },
+  { value: 'exportImageNode', label: '图片导出节点' },
+  { value: 'llmAgentNode', label: 'LLM 代理节点' },
+  { value: 'textAnnotationNode', label: '文本标注节点' },
+  { value: 'storyboardGenNode', label: '故事板生成节点' },
+  { value: 'storyboardSplitNode', label: '故事板拆分节点' },
+  { value: 'groupNode', label: '分组节点' },
+  { value: 'productEditNode', label: '商品编辑节点' },
 ];
+
+const NODE_TYPE_MAP = Object.fromEntries(NODE_TYPE_OPTIONS.map((item) => [item.value, item.label]));
 
 export default function SkillManagement() {
   const { t } = useTranslation();
@@ -97,7 +99,7 @@ export default function SkillManagement() {
         cost: 0,
         status: 1,
         overrideLocal: false,
-        supportedNodeTypes: [],
+        supportedNodeTypes: NODE_TYPE_OPTIONS.map((item) => item.value),
       });
     }
   }, [modalVisible, editingItem, formApi]);
@@ -167,6 +169,13 @@ export default function SkillManagement() {
     { title: 'ID', dataIndex: 'id', key: 'id' },
     { title: t('名称'), dataIndex: 'name', key: 'name' },
     { title: t('图标'), dataIndex: 'icon', key: 'icon' },
+    {
+      title: t('支持节点'),
+      dataIndex: 'supportedNodeTypes',
+      key: 'supportedNodeTypes',
+      render: (arr) =>
+        (arr || []).map((v) => NODE_TYPE_MAP[v] || v).join('、') || '-',
+    },
     { title: t('消耗'), dataIndex: 'cost', key: 'cost' },
     {
       title: t('状态'),
@@ -264,11 +273,20 @@ export default function SkillManagement() {
             placeholder={t('0 = 免费')}
             min={0}
           />
-          <Form.TagInput
+          <Form.Select
             field='supportedNodeTypes'
             label={t('支持节点类型')}
             placeholder={t('选择支持的节点类型')}
-          />
+            multiple
+            maxTagCount={3}
+            style={{ width: '100%' }}
+          >
+            {NODE_TYPE_OPTIONS.map((item) => (
+              <Form.Select.Option key={item.value} value={item.value}>
+                {item.label}
+              </Form.Select.Option>
+            ))}
+          </Form.Select>
           <Form.TextArea
             field='description'
             label={t('描述')}
