@@ -32,7 +32,6 @@ services:
 
     depends_on:
       - redis
-      - deeplx
     networks:
       - new-api-network
     healthcheck:
@@ -48,15 +47,6 @@ services:
     networks:
       - new-api-network
 
-  deeplx:
-    image: ghcr.io/owo-network/deeplx:latest
-    container_name: deeplx
-    restart: always
-    environment:
-      - TOKEN=${DEEPLX_TOKEN:-changeme}
-    networks:
-      - new-api-network
-
 networks:
   new-api-network:
-    driver: bridge
+    external: true
