@@ -183,6 +183,12 @@ export default function NotificationManagement() {
       });
       if (res.data.success) {
         setI18nData(res.data.data);
+        // 同步翻译结果到表单字段
+        Object.entries(res.data.data).forEach(([lang, fields]) => {
+          Object.entries(fields).forEach(([key, value]) => {
+            formApi.setValue(`${key}_${lang}`, value);
+          });
+        });
         showSuccess('翻译完成，已填充到各语言 Tab');
       } else {
         showError(res.data.message || '翻译失败');
@@ -449,7 +455,8 @@ export default function NotificationManagement() {
         visible={modalVisible}
         onCancel={handleCloseModal}
         footer={null}
-        width={720}
+        width={800}
+        bodyStyle={{ maxHeight: '75vh', overflow: 'auto', paddingRight: 4 }}
       >
         <Tabs
           activeKey={activeLang}
@@ -491,43 +498,43 @@ export default function NotificationManagement() {
           onSubmit={handleSubmit}
           layout='vertical'
         >
-          {activeLang === DEFAULT_LANG ? (
-            <>
+          <div style={{ display: activeLang === DEFAULT_LANG ? 'block' : 'none' }}>
+            <Form.Input
+              field='title'
+              label='标题'
+              rules={[{ required: true, message: '请输入标题' }]}
+              placeholder='请输入消息标题'
+            />
+            <Form.TextArea
+              field='content'
+              label='内容'
+              rules={[{ required: true, message: '请输入内容' }]}
+              placeholder='请输入消息内容'
+              rows={4}
+              ref={contentRef}
+            />
+          </div>
+
+          {LANGUAGES.filter(l => l.code !== DEFAULT_LANG).map((lang) => (
+            <div key={lang.code} style={{ display: activeLang === lang.code ? 'block' : 'none' }}>
               <Form.Input
-                field='title'
-                label='标题'
-                rules={[{ required: true, message: '请输入标题' }]}
-                placeholder='请输入消息标题'
-              />
-              <Form.TextArea
-                field='content'
-                label='内容'
-                rules={[{ required: true, message: '请输入内容' }]}
-                placeholder='请输入消息内容'
-                rows={4}
-                ref={contentRef}
-              />
-            </>
-          ) : (
-            <>
-              <Form.Input
-                field={`title_${activeLang}`}
-                label={`${LANGUAGES.find(l => l.code === activeLang)?.label} 标题`}
+                field={`title_${lang.code}`}
+                label={`${lang.label} 标题`}
                 placeholder='请输入翻译后的标题'
-                initValue={i18nData[activeLang]?.title || ''}
+                initValue={i18nData[lang.code]?.title || ''}
                 onChange={(v) => setLangField('title', v)}
               />
               <Form.TextArea
-                field={`content_${activeLang}`}
-                label={`${LANGUAGES.find(l => l.code === activeLang)?.label} 内容`}
+                field={`content_${lang.code}`}
+                label={`${lang.label} 内容`}
                 placeholder='请输入翻译后的内容'
                 rows={4}
-                initValue={i18nData[activeLang]?.content || ''}
+                initValue={i18nData[lang.code]?.content || ''}
                 onChange={(v) => setLangField('content', v)}
                 ref={contentRef}
               />
-            </>
-          )}
+            </div>
+          ))}
 
           {useTemplate && (
             <Banner

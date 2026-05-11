@@ -65,7 +65,12 @@ func BatchTranslate(c *gin.Context) {
 				defer wg.Done()
 				defer func() { <-semaphore }()
 
-				translated := translateSingle(deeplxURL, deeplxToken, text, req.SourceLang, targetLang)
+				// DeepLX 不支持 ZH-TW，映射为 ZH
+				dlxTargetLang := targetLang
+				if dlxTargetLang == "ZH-TW" {
+					dlxTargetLang = "ZH"
+				}
+				translated := translateSingle(deeplxURL, deeplxToken, text, req.SourceLang, dlxTargetLang)
 
 				mu.Lock()
 				if result[targetLang] == nil {
@@ -110,9 +115,11 @@ func translateSingle(url, token, text, sourceLang, targetLang string) string {
 
 	var result DeepLXResponse
 	if err := common.DecodeJson(resp.Body, &result); err != nil {
+		common.SysLog("DeepLX decode error: " + err.Error())
 		return ""
 	}
 	if result.Code != 200 {
+		common.SysLog("DeepLX non-200 response: code=" + string(rune(result.Code)) + " msg=" + result.Message)
 		return ""
 	}
 
@@ -121,13 +128,16 @@ func translateSingle(url, token, text, sourceLang, targetLang string) string {
 	// 2. {"code":200,"data":{"text":"翻译文本","alternatives":[]}}
 	var strResult string
 	if err := common.Unmarshal(result.Data, &strResult); err == nil && strResult != "" {
+		common.SysLog("DeepLX translated: " + text + " -> " + strResult)
 		return strResult
 	}
 	var objResult struct {
 		Text string `json:"text"`
 	}
 	if err := common.Unmarshal(result.Data, &objResult); err == nil {
+		common.SysLog("DeepLX translated: " + text + " -> " + objResult.Text)
 		return objResult.Text
 	}
+	common.SysLog("DeepLX unknown data format: " + string(result.Data))
 	return ""
 }

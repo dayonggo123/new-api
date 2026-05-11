@@ -192,6 +192,12 @@ export default function PresetPrompt() {
       });
       if (res.data.success) {
         setI18nData(res.data.data);
+        // 同步翻译结果到表单字段（字段已挂载，initValue 不会自动更新）
+        Object.entries(res.data.data).forEach(([lang, fields]) => {
+          Object.entries(fields).forEach(([key, value]) => {
+            formApi.setValue(`${key}_${lang}`, value);
+          });
+        });
         showSuccess('翻译完成，已填充到各语言 Tab');
       } else {
         showError(res.data.message || '翻译失败');
@@ -416,7 +422,8 @@ export default function PresetPrompt() {
         confirmLoading={submitting}
         centered
         maskClosable={false}
-        style={{ width: 720 }}
+        width={800}
+        bodyStyle={{ maxHeight: '75vh', overflow: 'auto', paddingRight: 4 }}
       >
         <Tabs
           activeKey={activeLang}
@@ -460,70 +467,70 @@ export default function PresetPrompt() {
             sort_order: 0,
           }}
         >
-          {activeLang === DEFAULT_LANG ? (
-            <>
-              <Form.Input
-                field='name'
-                label={t('名称')}
-                placeholder={t('请输入预设提示词名称')}
-                rules={[{ required: true, message: t('名称不能为空') }]}
-              />
-              <Form.TextArea
-                field='system_prompt'
-                label={t('系统提示词')}
-                placeholder={t('请输入系统提示词（可选）')}
-                rows={4}
-              />
-              <Form.TextArea
-                field='user_prompt'
-                label={t('用户提示词')}
-                placeholder={t('请输入用户提示词（可选）')}
-                rows={4}
-              />
-              <Form.TextArea
-                field='description'
-                label={t('描述')}
-                placeholder={t('请输入描述（可选）')}
-                rows={2}
-              />
-            </>
-          ) : (
-            <>
-              <Form.Section text={`${LANGUAGES.find(l => l.code === activeLang)?.label} ${t('翻译')}`}>
+          <div style={{ display: activeLang === DEFAULT_LANG ? 'block' : 'none' }}>
+            <Form.Input
+              field='name'
+              label={t('名称')}
+              placeholder={t('请输入预设提示词名称')}
+              rules={[{ required: true, message: t('名称不能为空') }]}
+            />
+            <Form.TextArea
+              field='system_prompt'
+              label={t('系统提示词')}
+              placeholder={t('请输入系统提示词（可选）')}
+              rows={4}
+            />
+            <Form.TextArea
+              field='user_prompt'
+              label={t('用户提示词')}
+              placeholder={t('请输入用户提示词（可选）')}
+              rows={4}
+            />
+            <Form.TextArea
+              field='description'
+              label={t('描述')}
+              placeholder={t('请输入描述（可选）')}
+              rows={2}
+            />
+          </div>
+
+          {LANGUAGES.filter(l => l.code !== DEFAULT_LANG).map((lang) => (
+            <div key={lang.code} style={{ display: activeLang === lang.code ? 'block' : 'none' }}>
+              <Form.Section text={`${lang.label} ${t('翻译')}`}>
                 <Form.Input
-                  field={`name_${activeLang}`}
+                  field={`name_${lang.code}`}
                   label={t('名称')}
                   placeholder={t('请输入翻译后的名称')}
-                  initValue={i18nData[activeLang]?.name || ''}
+                  initValue={i18nData[lang.code]?.name || ''}
                   onChange={(v) => setLangField('name', v)}
                 />
                 <Form.TextArea
-                  field={`system_prompt_${activeLang}`}
+                  field={`system_prompt_${lang.code}`}
                   label={t('系统提示词')}
                   placeholder={t('请输入翻译后的系统提示词')}
                   rows={4}
-                  initValue={i18nData[activeLang]?.system_prompt || ''}
+                  initValue={i18nData[lang.code]?.system_prompt || ''}
                   onChange={(v) => setLangField('system_prompt', v)}
                 />
                 <Form.TextArea
-                  field={`user_prompt_${activeLang}`}
+                  field={`user_prompt_${lang.code}`}
                   label={t('用户提示词')}
                   placeholder={t('请输入翻译后的用户提示词')}
                   rows={4}
-                  initValue={i18nData[activeLang]?.user_prompt || ''}
+                  initValue={i18nData[lang.code]?.user_prompt || ''}
                   onChange={(v) => setLangField('user_prompt', v)}
                 />
                 <Form.TextArea
-                  field={`description_${activeLang}`}
+                  field={`description_${lang.code}`}
                   label={t('描述')}
                   placeholder={t('请输入翻译后的描述')}
                   rows={2}
-                  initValue={i18nData[activeLang]?.description || ''}
+                  initValue={i18nData[lang.code]?.description || ''}
                   onChange={(v) => setLangField('description', v)}
                 />
               </Form.Section>
-            </>
-          )}
+            </div>
+          ))}
 
           <Form.Input
             field='category'
