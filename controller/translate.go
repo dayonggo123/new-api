@@ -77,9 +77,9 @@ func BatchTranslate(c *gin.Context) {
 				}
 
 				var translated string
-				for attempt := 0; attempt < 3; attempt++ {
+				for attempt := 0; attempt < 2; attempt++ {
 					if attempt > 0 {
-						time.Sleep(3 * time.Second)
+						time.Sleep(1 * time.Second)
 					}
 					translated = translateSingle(deeplxURL, deeplxToken, text, req.SourceLang, dlxTargetLang)
 					if translated != "" && translated != text {
@@ -122,7 +122,7 @@ func translateSingle(url, token, text, sourceLang, targetLang string) string {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 8 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return ""
