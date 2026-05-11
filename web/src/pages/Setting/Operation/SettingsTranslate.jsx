@@ -133,7 +133,7 @@ export default function SettingsTranslate(props) {
               type='tertiary'
               style={{ marginBottom: 16, display: 'block' }}
             >
-              {t('启用后，批量翻译将优先调用 AI 模型；未启用或 AI 翻译失败时自动回退到 DeepLX')}
+              {t('启用后，批量翻译将调用 AI 模型进行翻译')}
             </Typography.Text>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>

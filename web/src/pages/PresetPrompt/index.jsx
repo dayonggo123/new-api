@@ -458,7 +458,7 @@ export default function PresetPrompt() {
             icon={<IconLanguage />}
             onClick={handleAutoTranslate}
           >
-            {t('自动翻译')}（DeepLX）
+            {t('自动翻译')}（AI）
           </Button>
           <Text type='tertiary' size='small' style={{ marginLeft: 8 }}>
             {t('将中文内容一键翻译成其他 11 种语言')}

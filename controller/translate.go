@@ -3,10 +3,8 @@ package controller
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,13 +28,6 @@ type TranslateItem struct {
 	Text string `json:"text" binding:"required"`
 }
 
-// DeepLXResponse DeepLX 返回结构
-type DeepLXResponse struct {
-	Code    int             `json:"code"`
-	Data    json.RawMessage `json:"data"`
-	Message string          `json:"message"`
-}
-
 // BatchTranslate 批量翻译接口（Admin 权限）
 func BatchTranslate(c *gin.Context) {
 	var req BatchTranslateRequest
@@ -55,7 +46,10 @@ func BatchTranslate(c *gin.Context) {
 
 	// 检查是否启用 AI 翻译
 	cfg := operation_setting.GetTranslateSetting()
-	useAI := cfg.TranslateAIEnabled && cfg.TranslateAIApiKey != "" && cfg.TranslateAIBaseURL != ""
+	if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+		common.ApiErrorMsg(c, "AI translation not configured")
+		return
+	}
 
 	for _, lang := range req.TargetLangs {
 		for _, item := range req.Items {
@@ -71,15 +65,9 @@ func BatchTranslate(c *gin.Context) {
 				// 请求间隔，降低频率
 				time.Sleep(500 * time.Millisecond)
 
-				var translated string
-
-				if useAI {
-					translated = translateSingleWithAI(cfg, text, req.SourceLang, targetLang)
-				}
-
-				// AI 翻译失败或未启用时，回退到 DeepLX
+				translated := translateSingleWithAI(cfg, text, req.SourceLang, targetLang)
 				if translated == "" {
-					translated = translateSingleWithDeepLX(text, req.SourceLang, targetLang)
+					translated = text // fallback to original text if AI fails
 				}
 
 				mu.Lock()
@@ -179,83 +167,3 @@ func extractPlainText(content string) string {
 	return strings.TrimSpace(content)
 }
 
-// translateSingleWithDeepLX 使用 DeepLX 翻译单条文本（回退方案）
-func translateSingleWithDeepLX(text, sourceLang, targetLang string) string {
-	deeplxURL := os.Getenv("DEEPLX_URL")
-	if deeplxURL == "" {
-		deeplxURL = "http://deeplx:1188/translate"
-	}
-	deeplxToken := os.Getenv("DEEPLX_TOKEN")
-
-	// DeepLX 不支持 ZH-TW，映射为 ZH
-	if targetLang == "ZH-TW" {
-		targetLang = "ZH"
-	}
-
-	for attempt := 0; attempt < 2; attempt++ {
-		if attempt > 0 {
-			time.Sleep(1 * time.Second)
-		}
-		translated := translateSingle(deeplxURL, deeplxToken, text, sourceLang, targetLang)
-		if translated != "" && translated != text {
-			return translated
-		}
-	}
-	return ""
-}
-
-func translateSingle(url, token, text, sourceLang, targetLang string) string {
-	payload := map[string]string{
-		"text":        text,
-		"source_lang": sourceLang,
-		"target_lang": targetLang,
-	}
-	jsonBody, err := common.Marshal(payload)
-	if err != nil {
-		return ""
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return ""
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	client := &http.Client{Timeout: 8 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return ""
-	}
-	defer resp.Body.Close()
-
-	var result DeepLXResponse
-	if err := common.DecodeJson(resp.Body, &result); err != nil {
-		common.SysLog("DeepLX decode error: " + err.Error())
-		return ""
-	}
-	if result.Code != 200 {
-		common.SysLog("DeepLX non-200 response: code=" + strconv.Itoa(result.Code) + " msg=" + result.Message)
-		return ""
-	}
-
-	// 处理两种返回格式:
-	// 1. {"code":200,"data":"翻译文本"}
-	// 2. {"code":200,"data":{"text":"翻译文本","alternatives":[]}}
-	var strResult string
-	if err := common.Unmarshal(result.Data, &strResult); err == nil && strResult != "" {
-		common.SysLog("DeepLX translated: [" + sourceLang + "->" + targetLang + "] " + text + " -> " + strResult)
-		return strResult
-	}
-	var objResult struct {
-		Text string `json:"text"`
-	}
-	if err := common.Unmarshal(result.Data, &objResult); err == nil {
-		common.SysLog("DeepLX translated: [" + sourceLang + "->" + targetLang + "] " + text + " -> " + objResult.Text)
-		return objResult.Text
-	}
-	common.SysLog("DeepLX unknown data format: [" + sourceLang + "->" + targetLang + "] " + string(result.Data))
-	return ""
-}

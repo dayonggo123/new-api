@@ -571,7 +571,7 @@ const EditPromptModal = (props) => {
                         icon={<IconLanguage />}
                         onClick={handleAutoTranslate}
                       >
-                        {t('自动翻译')}（DeepLX / AI）
+                        {t('自动翻译')}（AI）
                       </Button>
                     </div>
                     <Tabs

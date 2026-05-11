@@ -491,7 +491,7 @@ export default function NotificationManagement() {
             icon={<IconLanguage />}
             onClick={handleAutoTranslate}
           >
-            自动翻译（DeepLX）
+            自动翻译（AI）
           </Button>
           <Text type='tertiary' size='small' style={{ marginLeft: 8 }}>
             将中文内容一键翻译成其他 11 种语言
