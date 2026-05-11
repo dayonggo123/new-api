@@ -14,6 +14,7 @@ services:
     volumes:
       - ./data:/data
       - ./logs:/app/logs
+      - ./uploads:/app/uploads
     environment:
       - SQL_DSN=root:rAFZtETi3jebacKC@tcp(172.17.0.1:13306)/newapi
       - REDIS_CONN_STRING=redis://redis
