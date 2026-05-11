@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -166,7 +167,7 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 
 // extractPlainText 去除 AI 返回内容中可能的引号、markdown 等格式
 func extractPlainText(content string) string {
-	content = bytes.TrimSpace([]byte(content))
+	content = strings.TrimSpace(content)
 	// 去除首尾的双引号
 	if len(content) >= 2 && content[0] == '"' && content[len(content)-1] == '"' {
 		content = content[1 : len(content)-1]
@@ -175,7 +176,7 @@ func extractPlainText(content string) string {
 	if len(content) >= 3 && content[0] == '`' && content[len(content)-1] == '`' {
 		content = content[1 : len(content)-1]
 	}
-	return string(bytes.TrimSpace(content))
+	return strings.TrimSpace(content)
 }
 
 // translateSingleWithDeepLX 使用 DeepLX 翻译单条文本（回退方案）

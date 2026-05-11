@@ -27,6 +27,8 @@ type Prompt struct {
 	MediaType     string         `json:"media_type" gorm:"default:'image'"` // 内容类型: image / video
 	IsPremium     bool           `json:"is_premium" gorm:"default:false"`
 	UnlockCost    int            `json:"unlock_cost" gorm:"default:0"`
+	I18n          string         `json:"i18n" gorm:"type:text"`         // 多语言 JSON
+	SeoI18n       string         `json:"seo_i18n" gorm:"type:text"`     // SEO 多语言 JSON
 	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime   int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt     gorm.DeletedAt `gorm:"index"`

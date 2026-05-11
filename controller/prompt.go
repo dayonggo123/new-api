@@ -211,6 +211,7 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.Tags = prompt.Tags
 	cleanPrompt.SortOrder = prompt.SortOrder
 	cleanPrompt.Status = prompt.Status
+	cleanPrompt.I18n = prompt.I18n
 	cleanPrompt.UpdatedTime = common.GetTimestamp()
 	err = cleanPrompt.Update()
 	if err != nil {
@@ -315,6 +316,7 @@ func GetPromptSEOList(c *gin.Context) {
 		SeoKeywords   string `json:"seo_keywords"`
 		Intro         string `json:"intro"`
 		Faq           string `json:"faq"`
+		SeoI18n       string `json:"seo_i18n"`
 		Status        int    `json:"status"`
 		CreatedTime   int64  `json:"created_time"`
 		UpdatedTime   int64  `json:"updated_time"`
@@ -329,6 +331,7 @@ func GetPromptSEOList(c *gin.Context) {
 			SeoKeywords:  p.SeoKeywords,
 			Intro:        p.Intro,
 			Faq:          p.Faq,
+			SeoI18n:      p.SeoI18n,
 			Status:       p.Status,
 			CreatedTime:  p.CreatedTime,
 			UpdatedTime:  p.UpdatedTime,
@@ -364,6 +367,7 @@ func UpdatePromptSEOFields(c *gin.Context) {
 		SeoKeywords string `json:"seo_keywords"`
 		Intro       string `json:"intro"`
 		Faq         string `json:"faq"`
+		SeoI18n     string `json:"seo_i18n"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
@@ -374,6 +378,7 @@ func UpdatePromptSEOFields(c *gin.Context) {
 		"seo_keywords": req.SeoKeywords,
 		"intro":        req.Intro,
 		"faq":          req.Faq,
+		"seo_i18n":     req.SeoI18n,
 	}
 	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", req.Id).Updates(updates).Error; err != nil {
 		common.ApiError(c, err)

@@ -33,6 +33,7 @@ import {
   Pagination,
   Avatar,
   Empty,
+  Tabs,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -41,12 +42,32 @@ import {
   IconRefresh,
   IconEdit,
   IconBookStroked,
+  IconLanguage,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 
 const { Text, Title } = Typography;
+const { TabPane } = Tabs;
+
+// 12 种支持语言（第一项为默认语言中文）
+const LANGUAGES = [
+  { code: 'zh-CN', label: '中文（默认）' },
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'Français' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'ja', label: '日本語' },
+  { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'zh-TW', label: '繁體中文' },
+  { code: 'es', label: 'Español' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'ko', label: '한국어' },
+  { code: 'pt', label: 'Português' },
+  { code: 'it', label: 'Italiano' },
+];
+
+const DEFAULT_LANG = 'zh-CN';
 
 const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
   const { t } = useTranslation();
@@ -56,10 +77,13 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
   const [data, setData] = useState({
     title: '',
     category_name: '',
+    media_type: 'image',
     seo_keywords: '',
     intro: '',
     faq: '',
   });
+  const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
+  const [seoI18nData, setSeoI18nData] = useState({});
 
   const loadDetail = async () => {
     if (!promptId) return;
@@ -72,6 +96,16 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
           ...data,
           faq: data.faq || '',
         };
+        // 解析 seo_i18n
+        let parsedSeoI18n = {};
+        if (data.seo_i18n) {
+          try {
+            parsedSeoI18n = JSON.parse(data.seo_i18n);
+          } catch {
+            parsedSeoI18n = {};
+          }
+        }
+        setSeoI18nData(parsedSeoI18n);
         setData(values);
         formApiRef.current?.setValues(values);
       } else {
@@ -85,9 +119,53 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
 
   useEffect(() => {
     if (visible && promptId) {
+      setActiveLang(DEFAULT_LANG);
       loadDetail();
     }
   }, [visible, promptId]);
+
+  const handleAutoTranslate = async () => {
+    const values = formApiRef.current?.getValues();
+    const items = [];
+    if (values.seo_keywords?.trim()) items.push({ key: 'seo_keywords', text: values.seo_keywords.trim() });
+    if (values.intro?.trim()) items.push({ key: 'intro', text: values.intro.trim() });
+    if (values.faq?.trim()) items.push({ key: 'faq', text: values.faq.trim() });
+
+    if (items.length === 0) {
+      showError(t('请先填写中文 SEO 内容'));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const targetLangs = ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'];
+      const res = await API.post('/api/translate/batch', {
+        items,
+        source_lang: 'ZH',
+        target_langs: targetLangs,
+      });
+      if (res.data.success) {
+        const newI18n = { ...seoI18nData };
+        Object.entries(res.data.data).forEach(([lang, fields]) => {
+          const langKey = lang.toLowerCase();
+          newI18n[langKey] = { ...newI18n[langKey], ...fields };
+        });
+        setSeoI18nData(newI18n);
+        showSuccess(t('翻译完成，已填充到各语言 Tab'));
+      } else {
+        showError(res.data.message || t('翻译失败'));
+      }
+    } catch (err) {
+      showError(err.message || t('翻译服务不可用'));
+    }
+    setLoading(false);
+  };
+
+  const hasTranslation = (code) => {
+    if (code === DEFAULT_LANG) return true;
+    const d = seoI18nData[code];
+    return d && (d.seo_keywords || d.intro || d.faq);
+  };
 
   const submit = async (values) => {
     setSaving(true);
@@ -97,6 +175,7 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
         seo_keywords: values.seo_keywords || '',
         intro: values.intro || '',
         faq: values.faq || '',
+        seo_i18n: JSON.stringify(seoI18nData),
       });
       const { success, message } = res.data;
       if (success) {
@@ -126,7 +205,7 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
       }
       bodyStyle={{ padding: '0' }}
       visible={visible}
-      width={600}
+      width={720}
       footer={
         <div className='flex justify-end bg-white'>
           <Space>
@@ -179,35 +258,176 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
                     </div>
                   </div>
                 </div>
-                <Row gutter={12}>
-                  <Col span={24}>
-                    <Form.TextArea
-                      field='seo_keywords'
-                      label={t('SEO 关键词')}
-                      placeholder={t('输入 SEO 关键词，用逗号分隔')}
-                      rows={2}
-                      showClear
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.TextArea
-                      field='intro'
-                      label={t('介绍文案')}
-                      placeholder={t('输入介绍文案，300字以内')}
-                      rows={4}
-                      showClear
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.TextArea
-                      field='faq'
-                      label={t('FAQ (JSON 格式)')}
-                      placeholder={t('[{"question":"...","answer":"..."}]')}
-                      rows={6}
-                      showClear
-                    />
-                  </Col>
-                </Row>
+
+                {/* 多语言 Tabs */}
+                <div style={{ marginBottom: 16 }}>
+                  <div className='flex justify-between items-center mb-2'>
+                    <Text strong>{t('多语言 SEO 内容')}</Text>
+                    <Button
+                      type='tertiary'
+                      size='small'
+                      icon={<IconLanguage />}
+                      onClick={handleAutoTranslate}
+                    >
+                      {t('自动翻译')}（DeepLX / AI）
+                    </Button>
+                  </div>
+                  <Tabs
+                    type='card'
+                    activeKey={activeLang}
+                    onChange={setActiveLang}
+                    style={{ marginBottom: 12 }}
+                  >
+                    {LANGUAGES.map((lang) => (
+                      <TabPane
+                        tab={
+                          <span>
+                            {lang.label}
+                            {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
+                              <span style={{ marginLeft: 4, color: 'var(--semi-color-success)' }}>●</span>
+                            )}
+                          </span>
+                        }
+                        itemKey={lang.code}
+                        key={lang.code}
+                      />
+                    ))}
+                  </Tabs>
+                </div>
+
+                {/* 默认语言字段 - 始终渲染但可能隐藏 */}
+                <div style={{ display: activeLang === DEFAULT_LANG ? 'block' : 'none' }}>
+                  <Row gutter={12}>
+                    <Col span={24}>
+                      <Form.TextArea
+                        field='seo_keywords'
+                        label={t('SEO 关键词')}
+                        placeholder={t('输入 SEO 关键词，用逗号分隔')}
+                        rows={2}
+                        showClear
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.TextArea
+                        field='intro'
+                        label={t('介绍文案')}
+                        placeholder={t('输入介绍文案，300字以内')}
+                        rows={4}
+                        showClear
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.TextArea
+                        field='faq'
+                        label={t('FAQ (JSON 格式)')}
+                        placeholder={t('[{"question":"...","answer":"..."}]')}
+                        rows={6}
+                        showClear
+                      />
+                    </Col>
+                  </Row>
+                </div>
+
+                {/* 非默认语言 - 受控组件 */}
+                {LANGUAGES.filter(l => l.code !== DEFAULT_LANG).map((lang) => (
+                  <div
+                    key={lang.code}
+                    style={{ display: activeLang === lang.code ? 'block' : 'none' }}
+                  >
+                    <Row gutter={12}>
+                      <Col span={24}>
+                        <div style={{ marginBottom: 16 }}>
+                          <label
+                            style={{
+                              display: 'block',
+                              marginBottom: 4,
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: 'var(--semi-color-text-0)',
+                            }}
+                          >
+                            {t('SEO 关键词')}
+                          </label>
+                          <Input.TextArea
+                            value={seoI18nData[lang.code]?.seo_keywords || ''}
+                            onChange={(v) => {
+                              setSeoI18nData((prev) => ({
+                                ...prev,
+                                [lang.code]: {
+                                  ...prev[lang.code],
+                                  seo_keywords: v,
+                                },
+                              }));
+                            }}
+                            rows={2}
+                            placeholder={t('输入 SEO 关键词，用逗号分隔')}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      </Col>
+                      <Col span={24}>
+                        <div style={{ marginBottom: 16 }}>
+                          <label
+                            style={{
+                              display: 'block',
+                              marginBottom: 4,
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: 'var(--semi-color-text-0)',
+                            }}
+                          >
+                            {t('介绍文案')}
+                          </label>
+                          <Input.TextArea
+                            value={seoI18nData[lang.code]?.intro || ''}
+                            onChange={(v) => {
+                              setSeoI18nData((prev) => ({
+                                ...prev,
+                                [lang.code]: {
+                                  ...prev[lang.code],
+                                  intro: v,
+                                },
+                              }));
+                            }}
+                            rows={4}
+                            placeholder={t('输入介绍文案，300字以内')}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      </Col>
+                      <Col span={24}>
+                        <div style={{ marginBottom: 16 }}>
+                          <label
+                            style={{
+                              display: 'block',
+                              marginBottom: 4,
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: 'var(--semi-color-text-0)',
+                            }}
+                          >
+                            {t('FAQ (JSON 格式)')}
+                          </label>
+                          <Input.TextArea
+                            value={seoI18nData[lang.code]?.faq || ''}
+                            onChange={(v) => {
+                              setSeoI18nData((prev) => ({
+                                ...prev,
+                                [lang.code]: {
+                                  ...prev[lang.code],
+                                  faq: v,
+                                },
+                              }));
+                            }}
+                            rows={6}
+                            placeholder={t('[{"question":"...","answer":"..."}]')}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      </Col>
+                    </Row>
+                  </div>
+                ))}
               </Card>
             </div>
           )}
