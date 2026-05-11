@@ -81,23 +81,32 @@ func BatchTranslate(c *gin.Context) {
 func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []TranslateItem, sourceLang, targetLang string) map[string]string {
 	result := make(map[string]string)
 
-	var promptBuilder strings.Builder
-	promptBuilder.WriteString(fmt.Sprintf(
-		"You are a professional translator. Translate ALL the following items from %s to %s. "+
-			"You MUST translate every item into %s. Do NOT return the original %s text under any circumstances.\n",
+	// System Prompt：严格定义角色和约束
+	systemPrompt := fmt.Sprintf(
+		"You are a professional translator. Your ONLY task is to translate text. "+
+			"You MUST respond entirely in %s. "+
+			"Do NOT respond in %s or any other language. "+
+			"Do not add explanations, notes, or the original text — output ONLY the translated text in %s.",
+		targetLang, sourceLang, targetLang,
+	)
+
+	// User Prompt：带格式的待翻译内容
+	var userBuilder strings.Builder
+	userBuilder.WriteString(fmt.Sprintf(
+		"Translate ALL the following items from %s to %s.\n"+
+			"You MUST translate every item into %s. Do NOT return the original %s text under any circumstances.\n"+
+			"Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text.\n"+
+			"Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n",
 		sourceLang, targetLang, targetLang, sourceLang,
 	))
-	promptBuilder.WriteString("Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text.\n")
-	promptBuilder.WriteString("Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n")
 	for _, item := range items {
 		if item.Text != "" {
-			promptBuilder.WriteString(fmt.Sprintf("%s: %s\n", item.Key, item.Text))
+			userBuilder.WriteString(fmt.Sprintf("%s: %s\n", item.Key, item.Text))
 		}
 	}
 
-	response := callTranslateAI(cfg, promptBuilder.String())
+	response := callTranslateAI(cfg, systemPrompt, userBuilder.String())
 	if response == "" {
-		// AI 调用失败，所有字段 fallback 到原文
 		for _, item := range items {
 			result[item.Key] = item.Text
 		}
@@ -123,7 +132,6 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		if line == "" {
 			continue
 		}
-		// 跳过没有冒号的行（说明文字、标题等）
 		if !strings.Contains(line, ":") {
 			continue
 		}
@@ -141,7 +149,6 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		}
 	}
 
-	// fallback：未翻译成功的字段使用原文
 	for _, item := range items {
 		if result[item.Key] == "" {
 			result[item.Key] = item.Text
@@ -154,21 +161,28 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 
 // translateSingleWithAI 使用 AI 模型翻译单条文本
 func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
-	prompt := fmt.Sprintf(
-		"You are a professional translator. Translate the following text from %s to %s. "+
-			"Return ONLY the translated text, without any explanation, quotes, or markdown formatting.\n\n"+
-			"Text to translate:\n%s",
-		sourceLang, targetLang, text,
+	systemPrompt := fmt.Sprintf(
+		"You are a professional translator. Your ONLY task is to translate text. "+
+			"You MUST respond entirely in %s. "+
+			"Do NOT respond in %s or any other language. "+
+			"Do not add explanations, notes, or the original text — output ONLY the translated text in %s.",
+		targetLang, sourceLang, targetLang,
 	)
-	return callTranslateAI(cfg, prompt)
+	userPrompt := fmt.Sprintf(
+		"Translate the following text from %s to %s. "+
+			"Your response must be ONLY the translated text in %s, nothing else:\n\n\"\"\"\n%s\n\"\"\"",
+		sourceLang, targetLang, targetLang, text,
+	)
+	return callTranslateAI(cfg, systemPrompt, userPrompt)
 }
 
 // callTranslateAI 调用 AI 模型获取文本响应
-func callTranslateAI(cfg *operation_setting.TranslateSetting, prompt string) string {
+func callTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, userPrompt string) string {
 	reqBody := map[string]interface{}{
 		"model": cfg.TranslateAIModel,
 		"messages": []map[string]string{
-			{"role": "user", "content": prompt},
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": userPrompt},
 		},
 		"temperature": 0.3,
 		"max_tokens":  4096,
