@@ -48,6 +48,33 @@ func GetAllActiveSkills() ([]Skill, error) {
 	return skills, err
 }
 
+func GetAllSkills() ([]Skill, error) {
+	var skills []Skill
+	err := DB.Order("id ASC").Find(&skills).Error
+	return skills, err
+}
+
+func GetSkillBySkillId(skillId string) (*Skill, error) {
+	var skill Skill
+	err := DB.Where("skill_id = ?", skillId).First(&skill).Error
+	if err != nil {
+		return nil, err
+	}
+	return &skill, nil
+}
+
+func CreateSkill(skill *Skill) error {
+	return DB.Create(skill).Error
+}
+
+func UpdateSkill(skill *Skill) error {
+	return DB.Model(skill).Updates(skill).Error
+}
+
+func DeleteSkillBySkillId(skillId string) error {
+	return DB.Where("skill_id = ?", skillId).Delete(&Skill{}).Error
+}
+
 func initDefaultSkills() error {
 	var count int64
 	if err := DB.Model(&Skill{}).Count(&count).Error; err != nil {

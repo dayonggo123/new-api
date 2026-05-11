@@ -46,6 +46,14 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 		apiRouter.GET("/skills", middleware.TryUserAuth(), controller.GetSkills)
+		skillAdminRoute := apiRouter.Group("/skills")
+		skillAdminRoute.Use(middleware.AdminAuth())
+		{
+			skillAdminRoute.GET("/all", controller.AdminListSkills)
+			skillAdminRoute.POST("/", controller.AdminCreateSkill)
+			skillAdminRoute.PUT("/:id", controller.AdminUpdateSkill)
+			skillAdminRoute.DELETE("/:id", controller.AdminDeleteSkill)
+		}
 
 		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", controller.CreemWebhook)
