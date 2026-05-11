@@ -25,7 +25,6 @@ import { ITEMS_PER_PAGE } from '../../constants';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { TabPane } = Tabs;
 
 const statusMap = {
   1: { color: 'green', text: '启用' },
@@ -445,22 +444,18 @@ export default function PresetPrompt() {
           onChange={(key) => setActiveLang(key)}
           type='button'
           style={{ marginBottom: 8 }}
-        >
-          {LANGUAGES.map((lang) => (
-            <TabPane
-              tab={
-                <span>
-                  {lang.label}
-                  {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
-                    <span style={{ color: 'var(--semi-color-primary)', marginLeft: 4, fontSize: 8 }}>●</span>
-                  )}
-                </span>
-              }
-              itemKey={lang.code}
-              key={lang.code}
-            />
-          ))}
-        </Tabs>
+          tabList={LANGUAGES.map((lang) => ({
+            tab: (
+              <span>
+                {lang.label}
+                {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
+                  <span style={{ color: 'var(--semi-color-primary)', marginLeft: 4, fontSize: 8 }}>●</span>
+                )}
+              </span>
+            ),
+            itemKey: lang.code,
+          }))}
+        />
 
         <div style={{ marginBottom: 16 }}>
           <Button
