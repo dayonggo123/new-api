@@ -191,9 +191,14 @@ export default function PresetPrompt() {
         target_langs: ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'],
       });
       if (res.data.success) {
-        setI18nData(res.data.data);
-        // 同步翻译结果到表单字段（字段已挂载，initValue 不会自动更新）
+        // 后端返回的语言 key 是大写的（EN/FR/…），但 i18nData 和 Form 字段都用小写
+        const normalized = {};
         Object.entries(res.data.data).forEach(([lang, fields]) => {
+          normalized[lang.toLowerCase()] = fields;
+        });
+        setI18nData(normalized);
+        // 同步翻译结果到表单字段（字段已挂载，initValue 不会自动更新）
+        Object.entries(normalized).forEach(([lang, fields]) => {
           Object.entries(fields).forEach(([key, value]) => {
             formApi.setValue(`${key}_${lang}`, value);
           });
