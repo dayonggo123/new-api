@@ -45,6 +45,7 @@ import {
   IconClose,
   IconBookStroked,
   IconUpload,
+  IconLanguage,
 } from '@douyinfe/semi-icons';
 
 const { Text, Title } = Typography;
@@ -144,6 +145,31 @@ const EditPromptModal = (props) => {
       }
     }
   }, [props.editingPrompt.id]);
+
+  const handleAutoTranslate = async () => {
+    const currentContent = formApiRef.current?.getValue('content');
+    if (!currentContent || currentContent.trim() === '') {
+      showError(t('请先填写中文内容'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await API.post('/api/translate/batch', {
+        items: [{ key: 'content_en', text: currentContent.trim() }],
+        source_lang: 'ZH',
+        target_langs: ['EN'],
+      });
+      if (res.data.success && res.data.data?.EN?.content_en) {
+        formApiRef.current?.setValue('content_en', res.data.data.EN.content_en);
+        showSuccess(t('翻译完成'));
+      } else {
+        showError(t('翻译失败'));
+      }
+    } catch (err) {
+      showError(err.message || t('翻译服务不可用'));
+    }
+    setLoading(false);
+  };
 
   const submit = async (values) => {
     setLoading(true);
@@ -342,6 +368,16 @@ const EditPromptModal = (props) => {
                       />
                     </Col>
                     <Col span={24}>
+                      <div style={{ marginBottom: 8 }}>
+                        <Button
+                          type='tertiary'
+                          size='small'
+                          icon={<IconLanguage />}
+                          onClick={handleAutoTranslate}
+                        >
+                          {t('自动翻译为英文')}（DeepLX）
+                        </Button>
+                      </div>
                       <Form.TextArea
                         field='content_en'
                         label={t('内容（英文）')}

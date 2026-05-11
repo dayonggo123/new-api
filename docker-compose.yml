@@ -24,11 +24,14 @@ services:
 #      - SESSION_SECRET=random_string
 #      - SYNC_FREQUENCY=60
       - GOOGLE_ANALYTICS_ID=G-PG3KCCKN33
+      - DEEPLX_URL=http://deeplx:1188/translate
+      - DEEPLX_TOKEN=${DEEPLX_TOKEN:-changeme}
 #      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js
 
     depends_on:
       - redis
+      - deeplx
     networks:
       - new-api-network
     healthcheck:
@@ -41,6 +44,15 @@ services:
     image: redis:latest
     container_name: redis
     restart: always
+    networks:
+      - new-api-network
+
+  deeplx:
+    image: ghcr.io/owo-network/deeplx:latest
+    container_name: deeplx
+    restart: always
+    environment:
+      - TOKEN=${DEEPLX_TOKEN:-changeme}
     networks:
       - new-api-network
 

@@ -17,6 +17,7 @@ import {
 import {
   IconPlus,
   IconRefresh,
+  IconLanguage,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -167,6 +168,37 @@ export default function PresetPrompt() {
         }
       },
     });
+  };
+
+  const handleAutoTranslate = async () => {
+    if (!formApi) return;
+    const values = formApi.getValues();
+    const items = [];
+    if (values.name?.trim()) items.push({ key: 'name', text: values.name.trim() });
+    if (values.system_prompt?.trim()) items.push({ key: 'system_prompt', text: values.system_prompt.trim() });
+    if (values.user_prompt?.trim()) items.push({ key: 'user_prompt', text: values.user_prompt.trim() });
+    if (values.description?.trim()) items.push({ key: 'description', text: values.description.trim() });
+
+    if (items.length === 0) {
+      showError('请先填写中文内容');
+      return;
+    }
+
+    try {
+      const res = await API.post('/api/translate/batch', {
+        items,
+        source_lang: 'ZH',
+        target_langs: ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'],
+      });
+      if (res.data.success) {
+        setI18nData(res.data.data);
+        showSuccess('翻译完成，已填充到各语言 Tab');
+      } else {
+        showError(res.data.message || '翻译失败');
+      }
+    } catch (err) {
+      showError(err.message || '翻译服务不可用');
+    }
   };
 
   const handleSubmit = async () => {
@@ -390,7 +422,7 @@ export default function PresetPrompt() {
           activeKey={activeLang}
           onChange={(key) => setActiveLang(key)}
           type='button'
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 8 }}
         >
           {LANGUAGES.map((lang) => (
             <TabPane
@@ -407,6 +439,19 @@ export default function PresetPrompt() {
             />
           ))}
         </Tabs>
+
+        <div style={{ marginBottom: 16 }}>
+          <Button
+            type='tertiary'
+            icon={<IconLanguage />}
+            onClick={handleAutoTranslate}
+          >
+            {t('自动翻译')}（DeepLX）
+          </Button>
+          <Text type='tertiary' size='small' style={{ marginLeft: 8 }}>
+            {t('将中文内容一键翻译成其他 11 种语言')}
+          </Text>
+        </div>
 
         <Form
           getFormApi={(api) => setFormApi(api)}

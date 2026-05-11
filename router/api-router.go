@@ -347,6 +347,9 @@ func SetApiRouter(router *gin.Engine) {
 		// Admin Notification Routes
 		apiRouter.GET("/admin/notifications", middleware.AdminAuth(), controller.AdminGetNotifications)
 		apiRouter.POST("/admin/notifications", middleware.AdminAuth(), controller.AdminSendNotification)
+
+		// Translate Routes (Admin only)
+		apiRouter.POST("/translate/batch", middleware.AdminAuth(), controller.BatchTranslate)
 			// Admin Tier Routes
 			apiRouter.GET("/admin/tiers", middleware.AdminAuth(), controller.AdminGetTiers)
 			apiRouter.POST("/admin/tiers", middleware.AdminAuth(), controller.AdminCreateTier)

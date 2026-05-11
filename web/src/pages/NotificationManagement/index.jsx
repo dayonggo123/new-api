@@ -21,6 +21,7 @@ import {
   IconPlus,
   IconRefresh,
   IconHelpCircle,
+  IconLanguage,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -160,6 +161,35 @@ export default function NotificationManagement() {
     setUseTemplate(false);
     setI18nData({});
     setActiveLang(DEFAULT_LANG);
+  };
+
+  const handleAutoTranslate = async () => {
+    if (!formApi) return;
+    const values = formApi.getValues();
+    const items = [];
+    if (values.title?.trim()) items.push({ key: 'title', text: values.title.trim() });
+    if (values.content?.trim()) items.push({ key: 'content', text: values.content.trim() });
+
+    if (items.length === 0) {
+      showError('请先填写中文标题和内容');
+      return;
+    }
+
+    try {
+      const res = await API.post('/api/translate/batch', {
+        items,
+        source_lang: 'ZH',
+        target_langs: ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'],
+      });
+      if (res.data.success) {
+        setI18nData(res.data.data);
+        showSuccess('翻译完成，已填充到各语言 Tab');
+      } else {
+        showError(res.data.message || '翻译失败');
+      }
+    } catch (err) {
+      showError(err.message || '翻译服务不可用');
+    }
   };
 
   const handleSubmit = async (values) => {
@@ -425,7 +455,7 @@ export default function NotificationManagement() {
           activeKey={activeLang}
           onChange={(key) => setActiveLang(key)}
           type='button'
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 8 }}
         >
           {LANGUAGES.map((lang) => (
             <TabPane
@@ -442,6 +472,19 @@ export default function NotificationManagement() {
             />
           ))}
         </Tabs>
+
+        <div style={{ marginBottom: 16 }}>
+          <Button
+            type='tertiary'
+            icon={<IconLanguage />}
+            onClick={handleAutoTranslate}
+          >
+            自动翻译（DeepLX）
+          </Button>
+          <Text type='tertiary' size='small' style={{ marginLeft: 8 }}>
+            将中文内容一键翻译成其他 11 种语言
+          </Text>
+        </div>
 
         <Form
           getFormApi={(api) => setFormApi(api)}
