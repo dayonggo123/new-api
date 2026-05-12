@@ -39,8 +39,6 @@ import {
   Row,
   Col,
   Upload,
-  Tabs,
-  Input,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -52,78 +50,12 @@ import {
 
 const { Text, Title } = Typography;
 
-// 12 种支持语言（第一项为默认语言中文）
-const LANGUAGES = [
-  { code: 'zh-CN', label: '中文（默认）' },
-  { code: 'en', label: 'English' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'ja', label: '日本語' },
-  { code: 'vi', label: 'Tiếng Việt' },
-  { code: 'zh-TW', label: '繁體中文' },
-  { code: 'es', label: 'Español' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'ko', label: '한국어' },
-  { code: 'pt', label: 'Português' },
-  { code: 'it', label: 'Italiano' },
-];
-
-const DEFAULT_LANG = 'zh-CN';
-
 const EditPromptModal = (props) => {
   const { t } = useTranslation();
-
-  // DEFENSIVE: check every Semi UI sub-component we rely on
-  const requiredComponents = {
-    Button,
-    SideSheet,
-    Space,
-    Spin,
-    Typography,
-    Card,
-    Tag,
-    Form,
-    'Form.Input': Form?.Input,
-    'Form.TextArea': Form?.TextArea,
-    'Form.Select': Form?.Select,
-    'Form.RadioGroup': Form?.RadioGroup,
-    'Form.InputNumber': Form?.InputNumber,
-    'Form.Switch': Form?.Switch,
-    'Form.TagInput': Form?.TagInput,
-    Avatar,
-    Row,
-    Col,
-    Upload,
-    Tabs,
-    Input,
-  };
-  const missing = Object.entries(requiredComponents)
-    .filter(([_, v]) => v === undefined)
-    .map(([k]) => k);
-  if (missing.length > 0) {
-    return (
-      <SideSheet visible={props.visiable} width={400} onCancel={props.handleClose}>
-        <div style={{ padding: 24 }}>
-          <Title heading={4} type='danger'>组件加载异常</Title>
-          <Text>以下 Semi UI 子组件在生产构建中丢失：</Text>
-          <ul>
-            {missing.map((m) => (
-              <li key={m}><Tag color='red'>{m}</Tag></li>
-            ))}
-          </ul>
-          <Text type='tertiary'>请复制此列表发给开发者。</Text>
-        </div>
-      </SideSheet>
-    );
-  }
   const isEdit = props.editingPrompt.id !== undefined;
   const [loading, setLoading] = useState(isEdit);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
-  const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
-  const [i18nData, setI18nData] = useState({});
-  const [translating, setTranslating] = useState(false);
-  const [translateProgress, setTranslateProgress] = useState('');
 
   const PRESET_TAGS = [
     '电影感', '超写实', 'photography', 'nature', 'portrait', 'landscape',
@@ -194,20 +126,6 @@ const EditPromptModal = (props) => {
           variables: data.variables || '',
           tags: data.tags ? JSON.parse(data.tags) : [],
         };
-        // 解析 i18n
-        let parsedI18n = {};
-        if (data.i18n) {
-          try {
-            parsedI18n = JSON.parse(data.i18n);
-          } catch {
-            parsedI18n = {};
-          }
-        }
-        // 兼容旧数据：如果 content_en 有值但 i18n.en 没有，同步到 i18n
-        if (data.content_en && !parsedI18n.en?.content) {
-          parsedI18n.en = { ...parsedI18n.en, content: data.content_en };
-        }
-        setI18nData(parsedI18n);
         formApiRef.current?.setValues({ ...getInitValues(), ...values });
       } else {
         showError(message);
@@ -223,85 +141,34 @@ const EditPromptModal = (props) => {
       if (isEdit) {
         loadPrompt();
       } else {
-        setI18nData({});
-        setActiveLang(DEFAULT_LANG);
         formApiRef.current.setValues(getInitValues());
       }
     }
   }, [props.editingPrompt.id]);
 
   const handleAutoTranslate = async () => {
-    const values = formApiRef.current?.getValues();
-    const items = [];
-    if (values.title?.trim()) items.push({ key: 'title', text: values.title.trim() });
-    if (values.content?.trim()) items.push({ key: 'content', text: values.content.trim() });
-    if (values.description?.trim()) items.push({ key: 'description', text: values.description.trim() });
-
-    if (items.length === 0) {
+    const currentContent = formApiRef.current?.getValue('content');
+    if (!currentContent || currentContent.trim() === '') {
       showError(t('请先填写中文内容'));
       return;
     }
-
-    const targetLangs = ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'];
-    setTranslating(true);
-
-    for (let i = 0; i < targetLangs.length; i++) {
-      const lang = targetLangs[i];
-      setTranslateProgress(`${i + 1}/${targetLangs.length} ${lang}`);
-      try {
-        const res = await API.post('/api/translate/batch', {
-          items,
-          source_lang: 'ZH',
-          target_langs: [lang],
-        });
-        if (res.data.success) {
-          const newI18n = { ...i18nData };
-          Object.entries(res.data.data).forEach(([l, fields]) => {
-            const langKey = l.toLowerCase();
-            newI18n[langKey] = { ...newI18n[langKey], ...fields };
-          });
-          setI18nData(newI18n);
-          if (newI18n.en?.content) {
-            formApiRef.current?.setValue('content_en', newI18n.en.content);
-          }
-        } else {
-          console.warn('翻译失败:', lang, res.data.message);
-        }
-      } catch (err) {
-        console.warn('翻译请求失败:', lang, err.message);
+    setLoading(true);
+    try {
+      const res = await API.post('/api/translate/batch', {
+        items: [{ key: 'content_en', text: currentContent.trim() }],
+        source_lang: 'ZH',
+        target_langs: ['EN'],
+      });
+      if (res.data.success && res.data.data?.EN?.content_en) {
+        formApiRef.current?.setValue('content_en', res.data.data.EN.content_en);
+        showSuccess(t('翻译完成'));
+      } else {
+        showError(t('翻译失败'));
       }
+    } catch (err) {
+      showError(err.message || t('翻译服务不可用'));
     }
-
-    setTranslating(false);
-    setTranslateProgress('');
-    showSuccess(t('翻译完成，已填充到各语言 Tab'));
-  };
-
-  const getLangField = (field) => {
-    if (activeLang === DEFAULT_LANG) {
-      return formApiRef.current?.getValue(field) || '';
-    }
-    return i18nData[activeLang]?.[field] || '';
-  };
-
-  const setLangField = (field, value) => {
-    if (activeLang === DEFAULT_LANG) {
-      formApiRef.current?.setValue(field, value);
-    } else {
-      setI18nData((prev) => ({
-        ...prev,
-        [activeLang]: {
-          ...prev[activeLang],
-          [field]: value,
-        },
-      }));
-    }
-  };
-
-  const hasTranslation = (code) => {
-    if (code === DEFAULT_LANG) return true;
-    const d = i18nData[code];
-    return d && (d.title || d.content || d.description);
+    setLoading(false);
   };
 
   const submit = async (values) => {
@@ -328,13 +195,6 @@ const EditPromptModal = (props) => {
     localInputs.tags = JSON.stringify(localInputs.tags || []);
 
     localInputs.sort_order = parseInt(localInputs.sort_order) || 0;
-
-    // 同步 i18n：en.content 同步到 content_en
-    const finalI18n = { ...i18nData };
-    if (finalI18n.en?.content) {
-      localInputs.content_en = finalI18n.en.content;
-    }
-    localInputs.i18n = JSON.stringify(finalI18n);
 
     let res;
     try {
@@ -366,130 +226,6 @@ const EditPromptModal = (props) => {
     setLoading(false);
   };
 
-  const renderLangFields = () => {
-    return (
-      <>
-        {/* 默认语言字段 - 始终渲染但可能隐藏，避免 Form 状态丢失 */}
-        <div style={{ display: activeLang === DEFAULT_LANG ? 'block' : 'none' }}>
-          <Form.Input
-            field='title'
-            label={t('标题')}
-            placeholder={t('请输入标题')}
-            style={{ width: '100%' }}
-            rules={[{ required: true, message: t('请输入标题') }]}
-            showClear
-          />
-          <Form.TextArea
-            field='content'
-            label={t('内容')}
-            placeholder={t('请输入提示词内容')}
-            rows={4}
-            style={{ width: '100%' }}
-          />
-          <Form.TextArea
-            field='description'
-            label={t('描述')}
-            placeholder={t('请输入描述')}
-            rows={2}
-            style={{ width: '100%' }}
-          />
-        </div>
-
-        {/* 非默认语言 - 受控组件，不注册到 Form */}
-        {LANGUAGES.filter(l => l.code !== DEFAULT_LANG).map((lang) => (
-          <div
-            key={lang.code}
-            style={{ display: activeLang === lang.code ? 'block' : 'none' }}
-          >
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: 'block',
-                  marginBottom: 4,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: 'var(--semi-color-text-0)',
-                }}
-              >
-                {t('标题')}
-              </label>
-              <Input
-                value={i18nData[lang.code]?.title || ''}
-                onChange={(v) => {
-                  setI18nData((prev) => ({
-                    ...prev,
-                    [lang.code]: {
-                      ...prev[lang.code],
-                      title: v,
-                    },
-                  }));
-                }}
-                placeholder={t('请输入标题')}
-                style={{ width: '100%' }}
-              />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: 'block',
-                  marginBottom: 4,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: 'var(--semi-color-text-0)',
-                }}
-              >
-                {t('内容')}
-              </label>
-              <Input.TextArea
-                value={i18nData[lang.code]?.content || ''}
-                onChange={(v) => {
-                  setI18nData((prev) => ({
-                    ...prev,
-                    [lang.code]: {
-                      ...prev[lang.code],
-                      content: v,
-                    },
-                  }));
-                }}
-                rows={4}
-                placeholder={t('请输入提示词内容')}
-                style={{ width: '100%' }}
-              />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: 'block',
-                  marginBottom: 4,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: 'var(--semi-color-text-0)',
-                }}
-              >
-                {t('描述')}
-              </label>
-              <Input.TextArea
-                value={i18nData[lang.code]?.description || ''}
-                onChange={(v) => {
-                  setI18nData((prev) => ({
-                    ...prev,
-                    [lang.code]: {
-                      ...prev[lang.code],
-                      description: v,
-                    },
-                  }));
-                }}
-                rows={2}
-                placeholder={t('请输入描述')}
-                style={{ width: '100%' }}
-              />
-            </div>
-          </div>
-        ))}
-      </>
-    );
-  };
-
   return (
     <>
       <SideSheet
@@ -512,7 +248,7 @@ const EditPromptModal = (props) => {
         }
         bodyStyle={{ padding: '0' }}
         visible={props.visiable}
-        width={isMobile ? '100%' : 720}
+        width={isMobile ? '100%' : 600}
         footer={
           <div className='flex justify-end bg-white'>
             <Space>
@@ -592,6 +328,18 @@ const EditPromptModal = (props) => {
                         }
                       />
                     </Col>
+                    <Col span={24}>
+                      <Form.Input
+                        field='title'
+                        label={t('标题')}
+                        placeholder={t('请输入标题')}
+                        style={{ width: '100%' }}
+                        rules={[
+                          { required: true, message: t('请输入标题') },
+                        ]}
+                        showClear
+                      />
+                    </Col>
                     <Col span={12}>
                       <Form.Input
                         field='author'
@@ -610,44 +358,46 @@ const EditPromptModal = (props) => {
                         showClear
                       />
                     </Col>
-                  </Row>
-
-                  {/* 多语言 Tabs */}
-                  <div style={{ marginTop: 16 }}>
-                    <div className='flex justify-between items-center mb-2'>
-                      <Text strong>{t('多语言内容')}</Text>
-                      <Button
-                        type='tertiary'
-                        size='small'
-                        icon={<IconLanguage />}
-                        onClick={handleAutoTranslate}
-                        loading={translating}
-                        disabled={translating}
-                      >
-                        {translating ? `${t('翻译中')} ${translateProgress}` : `${t('自动翻译')}（AI）`}
-                      </Button>
-                    </div>
-                    <Tabs
-                      type='card'
-                      activeKey={activeLang}
-                      onChange={setActiveLang}
-                      style={{ marginBottom: 12 }}
-                      tabList={LANGUAGES.map((lang) => ({
-                        tab: (
-                          <span>
-                            {lang.label}
-                            {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
-                              <span style={{ marginLeft: 4, color: 'var(--semi-color-success)' }}>●</span>
-                            )}
-                          </span>
-                        ),
-                        itemKey: lang.code,
-                      }))}
-                    />
-                    {renderLangFields()}
-                  </div>
-
-                  <Row gutter={12}>
+                    <Col span={24}>
+                      <Form.TextArea
+                        field='content'
+                        label={t('内容（中文）')}
+                        placeholder={t('请输入中文提示词内容')}
+                        rows={4}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <div style={{ marginBottom: 8 }}>
+                        <Button
+                          type='tertiary'
+                          size='small'
+                          icon={<IconLanguage />}
+                          onClick={handleAutoTranslate}
+                        >
+                          {t('自动翻译为英文')}（DeepLX）
+                        </Button>
+                      </div>
+                      <Form.TextArea
+                        field='content_en'
+                        label={t('内容（英文）')}
+                        placeholder={t('请输入英文提示词内容')}
+                        rows={4}
+                        style={{ width: '100%' }}
+                        rules={[
+                          { required: true, message: t('请输入英文内容') },
+                        ]}
+                      />
+                    </Col>
+                    <Col span={24}>
+                      <Form.TextArea
+                        field='description'
+                        label={t('描述')}
+                        placeholder={t('请输入描述')}
+                        rows={2}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
                     <Col span={12}>
                       <Form.Select
                         field='category_id'
@@ -657,13 +407,13 @@ const EditPromptModal = (props) => {
                         rules={[
                           { required: true, message: t('请选择分类') },
                         ]}
-                        optionList={
-                          props.categories?.map((cat) => ({
-                            value: cat.id,
-                            label: cat.name,
-                          })) || []
-                        }
-                      />
+                      >
+                        {props.categories?.map((cat) => (
+                          <Form.Select.Option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </Form.Select.Option>
+                        ))}
+                      </Form.Select>
                     </Col>
                     <Col span={12}>
                       <Form.RadioGroup
@@ -671,11 +421,10 @@ const EditPromptModal = (props) => {
                         label={t('内容类型')}
                         type='button'
                         defaultValue='image'
-                        options={[
-                          { label: t('图片'), value: 'image' },
-                          { label: t('视频'), value: 'video' },
-                        ]}
-                      />
+                      >
+                        <Form.Radio value='image'>{t('图片')}</Form.Radio>
+                        <Form.Radio value='video'>{t('视频')}</Form.Radio>
+                      </Form.RadioGroup>
                     </Col>
                   </Row>
                 </Card>
@@ -722,22 +471,13 @@ const EditPromptModal = (props) => {
                       />
                     </Col>
                     <Col span={24}>
-                      {typeof Form.TagInput !== 'undefined' ? (
-                        <Form.TagInput
-                          field='tags'
-                          label={t('标签')}
-                          placeholder={t('输入标签按回车添加')}
-                          separator={','}
-                          style={{ width: '100%' }}
-                        />
-                      ) : (
-                        <Form.Input
-                          field='tags'
-                          label={t('标签')}
-                          placeholder={t('输入标签，用逗号分隔')}
-                          style={{ width: '100%' }}
-                        />
-                      )}
+                      <Form.TagInput
+                        field='tags'
+                        label={t('标签')}
+                        placeholder={t('输入标签按回车添加')}
+                        separator={','}
+                        style={{ width: '100%' }}
+                      />
                       <div className='flex flex-wrap gap-1 mt-2'>
                         {PRESET_TAGS.map((tag) => (
                           <Tag
