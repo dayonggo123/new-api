@@ -175,7 +175,7 @@ const EditPromptModal = (props) => {
   const handleAutoTranslate = async () => {
     const currentContent = formApiRef.current?.getValue('content');
     if (!currentContent || currentContent.trim() === '') {
-      showError(t('请先填写中文内容'));
+      showError(t('请先填写内容'));
       return;
     }
     setTranslating(true);
@@ -211,7 +211,7 @@ const EditPromptModal = (props) => {
   const handleRetranslate = async (targetLang) => {
     const currentContent = formApiRef.current?.getValue('content');
     if (!currentContent || currentContent.trim() === '') {
-      showError(t('请先填写中文内容'));
+      showError(t('请先填写内容'));
       return;
     }
     setTranslating(true);
@@ -468,72 +468,70 @@ const EditPromptModal = (props) => {
                         })}
                       </div>
 
-                      {/* 中文 — 使用 Form 字段 */}
-                      {activeLang === 'zh' && (
+                      {/* 中文 — 始终保留在 DOM 中 */}
+                      <div style={{ display: activeLang === 'zh' ? 'block' : 'none' }}>
                         <Form.TextArea
                           field='content'
-                          label={t('内容（中文）')}
-                          placeholder={t('请输入中文提示词内容')}
+                          label={t('内容')}
+                          placeholder={t('请输入提示词内容')}
                           rows={4}
                           style={{ width: '100%' }}
                         />
-                      )}
+                      </div>
 
-                      {/* 英文 — 使用 Form 字段 */}
-                      {activeLang === 'en' && (
-                        <>
+                      {/* 英文 — 始终保留在 DOM 中 */}
+                      <div style={{ display: activeLang === 'en' ? 'block' : 'none' }}>
+                        <div style={{ marginBottom: 8 }}>
+                          <Button
+                            type='tertiary'
+                            size='small'
+                            icon={<IconLanguage />}
+                            loading={translating}
+                            onClick={handleAutoTranslate}
+                          >
+                            {t('自动翻译全部语言')}
+                          </Button>
+                        </div>
+                        <Form.TextArea
+                          field='content_en'
+                          label={t('内容（英文）')}
+                          placeholder={t('请输入英文提示词内容')}
+                          rows={4}
+                          style={{ width: '100%' }}
+                          rules={[
+                            { required: true, message: t('请输入英文内容') },
+                          ]}
+                        />
+                      </div>
+
+                      {/* 其他语言 — 始终保留在 DOM 中 */}
+                      {LANGUAGES.filter(l => l.code !== 'zh' && l.code !== 'en').map((lang) => (
+                        <div key={lang.code} style={{ display: activeLang === lang.code ? 'block' : 'none' }}>
                           <div style={{ marginBottom: 8 }}>
                             <Button
                               type='tertiary'
                               size='small'
                               icon={<IconLanguage />}
                               loading={translating}
-                              onClick={handleAutoTranslate}
-                            >
-                              {t('自动翻译全部语言')}
-                            </Button>
-                          </div>
-                          <Form.TextArea
-                            field='content_en'
-                            label={t('内容（英文）')}
-                            placeholder={t('请输入英文提示词内容')}
-                            rows={4}
-                            style={{ width: '100%' }}
-                            rules={[
-                              { required: true, message: t('请输入英文内容') },
-                            ]}
-                          />
-                        </>
-                      )}
-
-                      {/* 其他语言 */}
-                      {activeLang !== 'zh' && activeLang !== 'en' && (
-                        <>
-                          <div style={{ marginBottom: 8 }}>
-                            <Button
-                              type='tertiary'
-                              size='small'
-                              icon={<IconLanguage />}
-                              loading={translating}
-                              onClick={() => handleRetranslate(activeLang)}
+                              onClick={() => handleRetranslate(lang.code)}
                             >
                               {t('重新翻译')}
                             </Button>
                           </div>
                           <div style={{ marginBottom: 12 }}>
                             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
-                              {t('内容')} ({LANGUAGES.find(l => l.code === activeLang)?.label})
+                              {t('内容')} ({lang.label})
                             </label>
                             <TextArea
-                              value={i18nData[activeLang] || ''}
-                              onChange={(v) => setI18nData((prev) => ({ ...prev, [activeLang]: v }))}
+                              value={i18nData[lang.code] || ''}
+                              onChange={(v) => setI18nData((prev) => ({ ...prev, [lang.code]: v }))}
                               placeholder={t('请输入翻译后的提示词内容')}
                               rows={4}
                               style={{ width: '100%' }}
                             />
                           </div>
-                        </>
-                      )}
+                        </div>
+                      ))}
                     </Col>
                     <Col span={24}>
                       <Form.TextArea
