@@ -123,9 +123,6 @@ export default function PresetPrompt() {
     setActiveLang(DEFAULT_LANG);
     setI18nData(emptyI18n());
     setModalVisible(true);
-    if (formApi) {
-      formApi.reset();
-    }
   };
 
   const handleEdit = (record) => {
@@ -147,18 +144,25 @@ export default function PresetPrompt() {
     });
     setI18nData(merged);
     setModalVisible(true);
-    if (formApi) {
-      formApi.setValues({
-        name: record.name,
-        system_prompt: record.system_prompt,
-        user_prompt: record.user_prompt,
-        description: record.description,
-        category: record.category,
-        status: record.status,
-        sort_order: record.sort_order,
-      });
-    }
   };
+
+  // Modal 打开且 Form 挂载完成后，再设置表单值
+  useEffect(() => {
+    if (!modalVisible || !formApi) return;
+    if (editingItem) {
+      formApi.setValues({
+        name: editingItem.name,
+        system_prompt: editingItem.system_prompt,
+        user_prompt: editingItem.user_prompt,
+        description: editingItem.description,
+        category: editingItem.category,
+        status: editingItem.status,
+        sort_order: editingItem.sort_order,
+      });
+    } else {
+      formApi.reset();
+    }
+  }, [modalVisible, formApi, editingItem]);
 
   const handleDelete = (record) => {
     Modal.confirm({
