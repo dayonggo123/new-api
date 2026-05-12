@@ -347,6 +347,7 @@ func SetApiRouter(router *gin.Engine) {
 			seoRoute.GET("/:id", controller.GetPromptSEODetail)
 			seoRoute.PUT("/:id", controller.UpdatePromptSEOFields)
 			seoRoute.POST("/:id/regenerate", controller.RegeneratePromptSEO)
+			seoRoute.POST("/:id/audit", controller.AuditPromptSEOHandler)
 		}
 
 		// Notification Routes

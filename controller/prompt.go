@@ -407,3 +407,25 @@ func RegeneratePromptSEO(c *gin.Context) {
 		"message": "AI 生成任务已启动，请稍后刷新查看结果",
 	})
 }
+
+// AuditPromptSEOHandler 调用 AI 审计 Prompt 的 SEO 内容
+func AuditPromptSEOHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	prompt, err := model.GetPromptById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result, err := service.AuditPromptSEO(prompt.Prompt)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	common.ApiSuccess(c, result)
+}

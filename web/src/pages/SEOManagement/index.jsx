@@ -34,6 +34,8 @@ import {
   Avatar,
   Empty,
   TextArea,
+  Progress,
+  Collapse,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -43,6 +45,9 @@ import {
   IconEdit,
   IconBookStroked,
   IconLanguage,
+  IconTickCircle,
+  IconAlertTriangle,
+  IconBolt,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -457,6 +462,10 @@ const SEOManagement = () => {
   const [editingId, setEditingId] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [regenerating, setRegenerating] = useState({});
+  const [auditing, setAuditing] = useState({});
+  const [auditResult, setAuditResult] = useState(null);
+  const [showAudit, setShowAudit] = useState(false);
+  const [auditId, setAuditId] = useState(null);
 
   const loadData = useCallback(
     async (page = activePage, size = pageSize, search = keyword) => {
@@ -525,6 +534,35 @@ const SEOManagement = () => {
   const closeEdit = () => {
     setShowEdit(false);
     setEditingId(null);
+  };
+
+  const openAudit = (id) => {
+    setAuditId(id);
+    setShowAudit(true);
+  };
+
+  const closeAudit = () => {
+    setShowAudit(false);
+    setAuditResult(null);
+    setAuditId(null);
+  };
+
+  const handleAudit = async (id) => {
+    setAuditing((prev) => ({ ...prev, [id]: true }));
+    setAuditResult(null);
+    try {
+      const res = await API.post(`/api/prompt/seo/${id}/audit`);
+      const { success, data, message } = res.data;
+      if (success) {
+        setAuditResult(data);
+        openAudit(id);
+      } else {
+        showError(message || t('审计失败'));
+      }
+    } catch (error) {
+      showError(error.message);
+    }
+    setAuditing((prev) => ({ ...prev, [id]: false }));
   };
 
   const truncate = (text, maxLen = 60) => {
@@ -685,6 +723,15 @@ const SEOManagement = () => {
                         >
                           {t('重新生成')}
                         </Button>
+                        <Button
+                          type='tertiary'
+                          size='small'
+                          icon={<IconSearch />}
+                          loading={auditing[item.id]}
+                          onClick={() => handleAudit(item.id)}
+                        >
+                          {t('审计')}
+                        </Button>
                       </Space>
                     </td>
                   </tr>
@@ -728,6 +775,173 @@ const SEOManagement = () => {
         promptId={editingId}
         refresh={() => loadData(activePage, pageSize, keyword)}
       />
+
+      {/* SEO 审计报告面板 */}
+      <SideSheet
+        title={
+          <Space>
+            <Tag color='blue' shape='circle'>{t('审计')}</Tag>
+            <Title heading={4} className='m-0'>
+              {t('SEO 审计报告')}
+            </Title>
+          </Space>
+        }
+        visible={showAudit}
+        width={600}
+        onCancel={closeAudit}
+        closeIcon={null}
+      >
+        {auditResult ? (
+          <div className='p-2'>
+            {/* 总分 */}
+            <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
+              <div className='flex items-center gap-4'>
+                <div className='relative w-20 h-20 flex items-center justify-center'>
+                  <Progress
+                    percent={auditResult.overall_score}
+                    type='circle'
+                    size='small'
+                    stroke={auditResult.overall_score >= 80 ? '#52c41a' : auditResult.overall_score >= 60 ? '#faad14' : '#f5222d'}
+                  />
+                </div>
+                <div>
+                  <div className='text-2xl font-bold' style={{ color: auditResult.overall_score >= 80 ? '#52c41a' : auditResult.overall_score >= 60 ? '#faad14' : '#f5222d' }}>
+                    {auditResult.overall_score} / 100
+                  </div>
+                  <div className='text-sm text-gray-500'>
+                    {auditResult.overall_score >= 80 ? t('优秀') : auditResult.overall_score >= 60 ? t('良好') : t('需改进')}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* 各维度分数 */}
+            <Card className='!rounded-2xl shadow-sm border-0 mb-4' title={t('维度评分')}>
+              <div className='space-y-3'>
+                {Object.entries(auditResult.categories || {}).map(([key, cat]) => {
+                  const labelMap = {
+                    completeness: t('完整性'),
+                    keyword_quality: t('关键词质量'),
+                    intro_quality: t('介绍文案'),
+                    faq_quality: t('FAQ 质量'),
+                    structured_data: t('结构化数据'),
+                  };
+                  return (
+                    <div key={key}>
+                      <div className='flex justify-between text-sm mb-1'>
+                        <span>{labelMap[key] || key}</span>
+                        <span className='font-medium'>{cat.score}</span>
+                      </div>
+                      <Progress
+                        percent={cat.score}
+                        stroke={cat.score >= 80 ? '#52c41a' : cat.score >= 60 ? '#faad14' : '#f5222d'}
+                        showInfo={false}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+
+            {/* 关键问题 & 快速改进 */}
+            {(auditResult.critical_issues?.length > 0 || auditResult.quick_wins?.length > 0) && (
+              <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
+                {auditResult.critical_issues?.length > 0 && (
+                  <div className='mb-4'>
+                    <div className='flex items-center gap-2 mb-2'>
+                      <IconAlertTriangle size={16} style={{ color: '#f5222d' }} />
+                      <Text strong>{t('关键问题')}</Text>
+                    </div>
+                    <div className='space-y-2'>
+                      {auditResult.critical_issues.map((issue, idx) => (
+                        <div key={idx} className='flex items-start gap-2 text-sm'>
+                          <span className='text-red-500 mt-0.5'>•</span>
+                          <span>{issue}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {auditResult.quick_wins?.length > 0 && (
+                  <div>
+                    <div className='flex items-center gap-2 mb-2'>
+                      <IconBolt size={16} style={{ color: '#52c41a' }} />
+                      <Text strong>{t('快速改进')}</Text>
+                    </div>
+                    <div className='space-y-2'>
+                      {auditResult.quick_wins.map((win, idx) => (
+                        <div key={idx} className='flex items-start gap-2 text-sm'>
+                          <span className='text-green-500 mt-0.5'>•</span>
+                          <span>{win}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* 各维度详情 */}
+            <Card className='!rounded-2xl shadow-sm border-0 mb-4' title={t('详细建议')}>
+              <Collapse accordion>
+                {Object.entries(auditResult.categories || {}).map(([key, cat]) => {
+                  const labelMap = {
+                    completeness: t('完整性'),
+                    keyword_quality: t('关键词质量'),
+                    intro_quality: t('介绍文案'),
+                    faq_quality: t('FAQ 质量'),
+                    structured_data: t('结构化数据'),
+                  };
+                  const hasContent = (cat.issues?.length > 0) || (cat.suggestions?.length > 0);
+                  if (!hasContent) return null;
+                  return (
+                    <Collapse.Panel
+                      key={key}
+                      header={
+                        <span>
+                          {labelMap[key] || key}
+                          <Tag
+                            size='small'
+                            color={cat.score >= 80 ? 'green' : cat.score >= 60 ? 'orange' : 'red'}
+                            style={{ marginLeft: 8 }}
+                          >
+                            {cat.score}
+                          </Tag>
+                        </span>
+                      }
+                    >
+                      {cat.issues?.length > 0 && (
+                        <div className='mb-3'>
+                          <Text strong type='danger'>{t('问题')}</Text>
+                          <ul className='list-disc pl-5 mt-1 space-y-1 text-sm'>
+                            {cat.issues.map((issue, idx) => (
+                              <li key={idx}>{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {cat.suggestions?.length > 0 && (
+                        <div>
+                          <Text strong type='success'>{t('建议')}</Text>
+                          <ul className='list-disc pl-5 mt-1 space-y-1 text-sm'>
+                            {cat.suggestions.map((s, idx) => (
+                              <li key={idx}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </Collapse.Panel>
+                  );
+                })}
+              </Collapse>
+            </Card>
+          </div>
+        ) : (
+          <div className='flex items-center justify-center h-64'>
+            <Spin size='large' tip={t('AI 审计中...')} />
+          </div>
+        )}
+      </SideSheet>
     </div>
   );
 };

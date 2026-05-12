@@ -78,6 +78,20 @@ func DeleteSkillBySkillId(skillId string) error {
 func initDefaultSkills() error {
 	defaultSkills := []Skill{
 		{
+			SkillId:              "seo-audit",
+			Name:                 "SEO 审计",
+			NameEn:               "SEO Audit",
+			Icon:                 "search",
+			Cost:                 0,
+			SupportedNodeTypes:   `[]`,
+			Description:          "AI 驱动的单页面 SEO 内容审计，覆盖完整性、关键词质量、介绍文案、FAQ 和结构化数据",
+			ExecutionType:        "llm",
+			SystemPromptTemplate: "You are an expert SEO auditor specializing in AI prompt marketplace SEO. Audit a single prompt page's SEO content across 5 dimensions.\n\nReturn ONLY valid JSON, no markdown, no explanation.",
+			UserPromptTemplate:   "Audit the following SEO content for this AI prompt page:\n\n## Prompt Information\nTitle: {{title}}\nContent: {{content}}\nDescription: {{description}}\nModel: {{model}}\nTags: {{tags}}\n\n## Current SEO Content\nSEO Keywords: {{seo_keywords}}\nIntro: {{intro}}\nFAQ: {{faq}}\n\n## Audit Rules\n\n### 1. Completeness (0-100)\n- All 3 fields (keywords, intro, faq) must be present and non-empty\n- Each missing/empty field deducts 33 points\n\n### 2. Keyword Quality (0-100)\n- Relevance: keywords must match the prompt's topic and content\n- Quantity: 5-12 keywords is optimal; too few (<3) or too many (>20) deducts points\n- Specificity: avoid overly generic words like \"AI\", \"tool\", \"best\"\n- Long-tail keywords score higher\n\n### 3. Intro Quality (0-100)\n- Length: 80-300 characters is optimal\n- Keyword inclusion: intro should naturally include at least 2 keywords\n- Value proposition: should clearly explain what the prompt does and why users should try it\n- Call-to-action: ideally includes a soft CTA\n\n### 4. FAQ Quality (0-100)\n- Must be valid JSON array with question/answer objects\n- 3-5 Q&A pairs is optimal\n- Questions must be relevant to the prompt topic\n- Answers should be concise (50-200 chars) and helpful\n- Include questions that AI search engines would ask\n\n### 5. Structured Data (0-100)\n- FAQ must be valid JSON\n- Each item must have \"question\" and \"answer\" fields\n- Compatible with Schema.org FAQPage format\n- No nested objects or invalid types\n\nReturn ONLY valid JSON in this exact format:\n{\"overall_score\":0-100,\"categories\":{\"completeness\":{\"score\":0-100,\"issues\":[\"...\"],\"suggestions\":[\"...\"]},\"keyword_quality\":{\"score\":0-100,\"issues\":[\"...\"],\"suggestions\":[\"...\"]},\"intro_quality\":{\"score\":0-100,\"issues\":[\"...\"],\"suggestions\":[\"...\"]},\"faq_quality\":{\"score\":0-100,\"issues\":[\"...\"],\"suggestions\":[\"...\"]},\"structured_data\":{\"score\":0-100,\"issues\":[\"...\"],\"suggestions\":[\"...\"]}},\"critical_issues\":[\"...\"],\"quick_wins\":[\"...\"]}",
+			OverrideLocal:        false,
+			Status:               1,
+		},
+		{
 			SkillId:              "prompt-translate",
 			Name:                 "翻译提示词",
 			NameEn:               "Translate Prompt",
