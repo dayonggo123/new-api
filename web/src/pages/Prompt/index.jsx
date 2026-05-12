@@ -301,13 +301,6 @@ const Prompt = () => {
     );
   };
 
-  // DEBUG: check for undefined Semi UI components
-  const debugComponents = { Tabs, 'Tabs.TabPane': Tabs?.TabPane, Button, Card, Form, Row, Col, Tag, Space, Spin, Typography, Avatar, Popconfirm, SideSheet };
-  const undefinedComponents = Object.entries(debugComponents).filter(([k, v]) => v === undefined).map(([k]) => k);
-  if (undefinedComponents.length > 0) {
-    console.error('>>> DEBUG: Undefined Semi UI components in Prompt/index.jsx:', undefinedComponents);
-  }
-
   return (
     <div className="mt-[60px] px-2">
       <Tabs

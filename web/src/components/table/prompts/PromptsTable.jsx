@@ -72,6 +72,7 @@ const PromptsTable = (promptsData) => {
       <CardTable
         columns={tableColumns}
         dataSource={prompts}
+        rowKey='id'
         scroll={compactMode ? undefined : { x: 'max-content' }}
         pagination={{
           currentPage: activePage,
