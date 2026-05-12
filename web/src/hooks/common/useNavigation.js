@@ -61,11 +61,6 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         itemKey: 'articleGallery',
         to: '/article-gallery',
       },
-      {
-        text: t('AI 绘画'),
-        itemKey: 'imageStudio',
-        to: '/image-studio',
-      },
       ...(docsLink
         ? [
             {
@@ -94,8 +89,8 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
           ? modules.pricing.enabled
           : modules.pricing;
       }
-      // promptGallery / articleGallery / imageStudio: 始终固定显示，不受后台配置开关影响
-      if (link.itemKey === 'promptGallery' || link.itemKey === 'articleGallery' || link.itemKey === 'imageStudio') {
+      // promptGallery / articleGallery: 始终固定显示，不受后台配置开关影响
+      if (link.itemKey === 'promptGallery' || link.itemKey === 'articleGallery') {
         return true;
       }
       return modules[link.itemKey] === true;
