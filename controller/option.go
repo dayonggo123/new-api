@@ -72,8 +72,8 @@ func GetOptions(c *gin.Context) {
 			strings.HasSuffix(k, "secret") ||
 			strings.HasSuffix(k, "api_key")
 		if isSensitive {
-			// 对 seo_setting 的敏感字段保留 key，用占位符表示已设置
-			if strings.HasPrefix(k, "seo_setting.") {
+			// 对 seo_setting / translate_setting 的敏感字段保留 key，用占位符表示已设置
+			if strings.HasPrefix(k, "seo_setting.") || strings.HasPrefix(k, "translate_setting.") {
 				displayValue := ""
 				if v != "" {
 					displayValue = "******"
