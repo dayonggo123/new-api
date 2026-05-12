@@ -210,7 +210,7 @@ func (prompt *Prompt) Insert() error {
 }
 
 func (prompt *Prompt) Update() error {
-	return DB.Model(prompt).Select("category_id", "title", "content", "content_en", "description", "cover_image_url", "author", "model", "variables", "tags", "sort_order", "status", "media_type").Updates(prompt).Error
+	return DB.Model(prompt).Select("category_id", "title", "content", "content_en", "description", "cover_image_url", "author", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n").Updates(prompt).Error
 }
 
 func (prompt *Prompt) Delete() error {

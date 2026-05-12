@@ -39,6 +39,7 @@ import {
   Row,
   Col,
   Upload,
+  TextArea,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -50,10 +51,29 @@ import {
 
 const { Text, Title } = Typography;
 
+const LANGUAGES = [
+  { code: 'zh', label: '中文' },
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'Français' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'ja', label: '日本語' },
+  { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'ko', label: '한국어' },
+  { code: 'es', label: 'Español' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'pt', label: 'Português' },
+  { code: 'ar', label: 'العربية' },
+];
+const DEFAULT_LANG = 'zh';
+
 const EditPromptModal = (props) => {
   const { t } = useTranslation();
   const isEdit = props.editingPrompt.id !== undefined;
   const [loading, setLoading] = useState(isEdit);
+  const [translating, setTranslating] = useState(false);
+  const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
+  const [i18nData, setI18nData] = useState({});
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
 
@@ -126,6 +146,10 @@ const EditPromptModal = (props) => {
           variables: data.variables || '',
           tags: data.tags ? JSON.parse(data.tags) : [],
         };
+        let parsed = {};
+        try { if (data.i18n) parsed = JSON.parse(data.i18n); } catch (e) {}
+        setI18nData(parsed);
+        setActiveLang(DEFAULT_LANG);
         formApiRef.current?.setValues({ ...getInitValues(), ...values });
       } else {
         showError(message);
@@ -142,6 +166,8 @@ const EditPromptModal = (props) => {
         loadPrompt();
       } else {
         formApiRef.current.setValues(getInitValues());
+        setI18nData({});
+        setActiveLang(DEFAULT_LANG);
       }
     }
   }, [props.editingPrompt.id]);
@@ -152,15 +178,26 @@ const EditPromptModal = (props) => {
       showError(t('请先填写中文内容'));
       return;
     }
-    setLoading(true);
+    setTranslating(true);
     try {
+      const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
       const res = await API.post('/api/translate/batch', {
-        items: [{ key: 'content_en', text: currentContent.trim() }],
-        source_lang: 'ZH',
-        target_langs: ['EN'],
+        items: [{ key: 'content', text: currentContent.trim() }],
+        source_lang: DEFAULT_LANG,
+        target_langs: targetLangs,
       });
-      if (res.data.success && res.data.data?.EN?.content_en) {
-        formApiRef.current?.setValue('content_en', res.data.data.EN.content_en);
+      if (res.data.success && res.data.data) {
+        const updated = { ...i18nData };
+        Object.keys(res.data.data).forEach((langCode) => {
+          if (res.data.data[langCode]?.content) {
+            updated[langCode] = res.data.data[langCode].content;
+          }
+        });
+        // 英文同步到 content_en 字段
+        if (updated.en) {
+          formApiRef.current?.setValue('content_en', updated.en);
+        }
+        setI18nData(updated);
         showSuccess(t('翻译完成'));
       } else {
         showError(t('翻译失败'));
@@ -168,7 +205,36 @@ const EditPromptModal = (props) => {
     } catch (err) {
       showError(err.message || t('翻译服务不可用'));
     }
-    setLoading(false);
+    setTranslating(false);
+  };
+
+  const handleRetranslate = async (targetLang) => {
+    const currentContent = formApiRef.current?.getValue('content');
+    if (!currentContent || currentContent.trim() === '') {
+      showError(t('请先填写中文内容'));
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await API.post('/api/translate/batch', {
+        items: [{ key: 'content', text: currentContent.trim() }],
+        source_lang: DEFAULT_LANG,
+        target_langs: [targetLang],
+      });
+      if (res.data.success && res.data.data && res.data.data[targetLang]?.content) {
+        const translated = res.data.data[targetLang].content;
+        setI18nData((prev) => ({ ...prev, [targetLang]: translated }));
+        if (targetLang === 'en') {
+          formApiRef.current?.setValue('content_en', translated);
+        }
+        showSuccess(t('翻译完成'));
+      } else {
+        showError(t('翻译失败'));
+      }
+    } catch (err) {
+      showError(err.message || t('翻译服务不可用'));
+    }
+    setTranslating(false);
   };
 
   const submit = async (values) => {
@@ -195,6 +261,12 @@ const EditPromptModal = (props) => {
     localInputs.tags = JSON.stringify(localInputs.tags || []);
 
     localInputs.sort_order = parseInt(localInputs.sort_order) || 0;
+
+    // 多语言内容：content_en 从 i18nData 同步，i18n 排除英文（由 content_en 存储）
+    const i18nForSave = { ...i18nData };
+    delete i18nForSave.en; // 英文存 content_en
+    delete i18nForSave.zh; // 中文存 content
+    localInputs.i18n = JSON.stringify(i18nForSave);
 
     let res;
     try {
@@ -359,35 +431,109 @@ const EditPromptModal = (props) => {
                       />
                     </Col>
                     <Col span={24}>
-                      <Form.TextArea
-                        field='content'
-                        label={t('内容（中文）')}
-                        placeholder={t('请输入中文提示词内容')}
-                        rows={4}
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-                    <Col span={24}>
-                      <div style={{ marginBottom: 8 }}>
-                        <Button
-                          type='tertiary'
-                          size='small'
-                          icon={<IconLanguage />}
-                          onClick={handleAutoTranslate}
-                        >
-                          {t('自动翻译为英文')}（DeepLX）
-                        </Button>
+                      <div className='mb-2'>
+                        <Text className='text-base font-medium'>{t('提示词内容')}</Text>
                       </div>
-                      <Form.TextArea
-                        field='content_en'
-                        label={t('内容（英文）')}
-                        placeholder={t('请输入英文提示词内容')}
-                        rows={4}
-                        style={{ width: '100%' }}
-                        rules={[
-                          { required: true, message: t('请输入英文内容') },
-                        ]}
-                      />
+                      {/* 语言 Tab */}
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 2,
+                        borderBottom: '1px solid var(--semi-color-border)',
+                        marginBottom: 12,
+                      }}>
+                        {LANGUAGES.map((lang) => {
+                          const active = activeLang === lang.code;
+                          return (
+                            <button
+                              key={lang.code}
+                              type='button'
+                              onClick={() => setActiveLang(lang.code)}
+                              style={{
+                                padding: '6px 12px',
+                                border: 'none',
+                                background: 'none',
+                                cursor: 'pointer',
+                                borderBottom: active ? '2px solid var(--semi-color-primary)' : '2px solid transparent',
+                                color: active ? 'var(--semi-color-primary)' : 'var(--semi-color-text-2)',
+                                fontWeight: active ? 600 : 400,
+                                fontSize: 13,
+                                transition: 'all 0.2s',
+                                marginBottom: -1,
+                              }}
+                            >
+                              {lang.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* 中文 — 使用 Form 字段 */}
+                      {activeLang === 'zh' && (
+                        <Form.TextArea
+                          field='content'
+                          label={t('内容（中文）')}
+                          placeholder={t('请输入中文提示词内容')}
+                          rows={4}
+                          style={{ width: '100%' }}
+                        />
+                      )}
+
+                      {/* 英文 — 使用 Form 字段 */}
+                      {activeLang === 'en' && (
+                        <>
+                          <div style={{ marginBottom: 8 }}>
+                            <Button
+                              type='tertiary'
+                              size='small'
+                              icon={<IconLanguage />}
+                              loading={translating}
+                              onClick={handleAutoTranslate}
+                            >
+                              {t('自动翻译全部语言')}
+                            </Button>
+                          </div>
+                          <Form.TextArea
+                            field='content_en'
+                            label={t('内容（英文）')}
+                            placeholder={t('请输入英文提示词内容')}
+                            rows={4}
+                            style={{ width: '100%' }}
+                            rules={[
+                              { required: true, message: t('请输入英文内容') },
+                            ]}
+                          />
+                        </>
+                      )}
+
+                      {/* 其他语言 */}
+                      {activeLang !== 'zh' && activeLang !== 'en' && (
+                        <>
+                          <div style={{ marginBottom: 8 }}>
+                            <Button
+                              type='tertiary'
+                              size='small'
+                              icon={<IconLanguage />}
+                              loading={translating}
+                              onClick={() => handleRetranslate(activeLang)}
+                            >
+                              {t('重新翻译')}
+                            </Button>
+                          </div>
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
+                              {t('内容')} ({LANGUAGES.find(l => l.code === activeLang)?.label})
+                            </label>
+                            <TextArea
+                              value={i18nData[activeLang] || ''}
+                              onChange={(v) => setI18nData((prev) => ({ ...prev, [activeLang]: v }))}
+                              placeholder={t('请输入翻译后的提示词内容')}
+                              rows={4}
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                        </>
+                      )}
                     </Col>
                     <Col span={24}>
                       <Form.TextArea
@@ -407,13 +553,8 @@ const EditPromptModal = (props) => {
                         rules={[
                           { required: true, message: t('请选择分类') },
                         ]}
-                      >
-                        {props.categories?.map((cat) => (
-                          <Form.Select.Option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </Form.Select.Option>
-                        ))}
-                      </Form.Select>
+                        optionList={props.categories?.map((cat) => ({ label: cat.name, value: cat.id })) || []}
+                      />
                     </Col>
                     <Col span={12}>
                       <Form.RadioGroup
@@ -421,10 +562,11 @@ const EditPromptModal = (props) => {
                         label={t('内容类型')}
                         type='button'
                         defaultValue='image'
-                      >
-                        <Form.Radio value='image'>{t('图片')}</Form.Radio>
-                        <Form.Radio value='video'>{t('视频')}</Form.Radio>
-                      </Form.RadioGroup>
+                        options={[
+                          { label: t('图片'), value: 'image' },
+                          { label: t('视频'), value: 'video' },
+                        ]}
+                      />
                     </Col>
                   </Row>
                 </Card>

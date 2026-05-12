@@ -83,6 +83,16 @@ export default function PromptDetail() {
     });
   };
 
+  // useMemo 必须在所有条件分支之前调用
+  const seoI18n = useMemo(() => {
+    if (!prompt) return {};
+    try {
+      return JSON.parse(prompt.seo_i18n || '{}');
+    } catch {
+      return {};
+    }
+  }, [prompt?.seo_i18n]);
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -103,13 +113,6 @@ export default function PromptDetail() {
   }
 
   const tags = parseTags(prompt.tags);
-  const seoI18n = useMemo(() => {
-    try {
-      return JSON.parse(prompt.seo_i18n || '{}');
-    } catch {
-      return {};
-    }
-  }, [prompt.seo_i18n]);
 
   const currentIntro = activeLang === 'zh'
     ? prompt.intro
