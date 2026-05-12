@@ -154,6 +154,20 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   }, [t, isModuleVisible]);
 
   const adminItems = useMemo(() => {
+    // 运营子菜单项
+    const operationSubItems = [
+      { text: t('提示词库'), itemKey: 'prompt', to: '/prompt' },
+      { text: t('SEO 趋势'), itemKey: 'seo_trends', to: '/seo-trends' },
+      { text: t('预设提示词'), itemKey: 'preset_prompt', to: '/preset-prompt' },
+      { text: t('Skill 管理'), itemKey: 'skills', to: '/skills' },
+      { text: t('文章管理'), itemKey: 'article', to: '/article' },
+      { text: t('消息管理'), itemKey: 'notification', to: '/notification' },
+      { text: t('用户管理'), itemKey: 'user', to: '/user' },
+    ].filter((item) => {
+      const configVisible = isModuleVisible('admin', item.itemKey);
+      return configVisible;
+    });
+
     const items = [
       {
         text: t('渠道管理'),
@@ -185,49 +199,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/redemption',
         className: isAdmin() ? '' : 'tableHiddle',
       },
-      {
-        text: t('提示词库'),
-        itemKey: 'prompt',
-        to: '/prompt',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: t('SEO 趋势'),
-        itemKey: 'seo_trends',
-        to: '/seo-trends',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: t('预设提示词'),
-        itemKey: 'preset_prompt',
-        to: '/preset-prompt',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: t('Skill 管理'),
-        itemKey: 'skills',
-        to: '/skills',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: t('文章管理'),
-        itemKey: 'article',
-        to: '/article',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: t('消息管理'),
-        itemKey: 'notification',
-        to: '/notification',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-
-      {
-        text: t('用户管理'),
-        itemKey: 'user',
-        to: '/user',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
+      ...(operationSubItems.length > 0
+        ? [
+            {
+              text: t('运营'),
+              itemKey: 'operation',
+              className: isAdmin() ? '' : 'tableHiddle',
+              items: operationSubItems,
+            },
+          ]
+        : []),
       {
         text: t('系统设置'),
         itemKey: 'setting',
@@ -383,6 +364,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
   // 渲染子菜单项
   const renderSubItem = (item) => {
+    if (item.className === 'tableHiddle') return null;
     if (item.items && item.items.length > 0) {
       const isSelected = selectedKeys.includes(item.itemKey);
       const textColor = isSelected ? SELECTED_COLOR : 'inherit';
@@ -528,7 +510,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
                 {!collapsed && (
                   <div className='sidebar-group-label'>{t('管理员')}</div>
                 )}
-                {adminItems.map((item) => renderNavItem(item))}
+                {adminItems.map((item) => renderSubItem(item))}
               </div>
             </>
           )}
