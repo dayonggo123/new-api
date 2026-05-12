@@ -308,6 +308,13 @@ func GetPromptSEOList(c *gin.Context) {
 		return
 	}
 
+	// 批量获取最新审计分数
+	promptIds := make([]int, len(prompts))
+	for i, p := range prompts {
+		promptIds[i] = p.Id
+	}
+	auditScores, _ := model.GetLatestPromptSEOAuditScores(promptIds)
+
 	// 只返回 SEO 相关字段
 	type SEOItem struct {
 		Id            int    `json:"id"`
@@ -317,6 +324,7 @@ func GetPromptSEOList(c *gin.Context) {
 		Intro         string `json:"intro"`
 		Faq           string `json:"faq"`
 		SeoI18n       string `json:"seo_i18n"`
+		AuditScore    int    `json:"audit_score"`
 		Status        int    `json:"status"`
 		CreatedTime   int64  `json:"created_time"`
 		UpdatedTime   int64  `json:"updated_time"`
@@ -332,6 +340,7 @@ func GetPromptSEOList(c *gin.Context) {
 			Intro:        p.Intro,
 			Faq:          p.Faq,
 			SeoI18n:      p.SeoI18n,
+			AuditScore:   auditScores[p.Id],
 			Status:       p.Status,
 			CreatedTime:  p.CreatedTime,
 			UpdatedTime:  p.UpdatedTime,

@@ -617,6 +617,16 @@ const SEOManagement = () => {
     }
   };
 
+  const renderAuditScore = (score) => {
+    if (!score || score <= 0) return <Tag size='small'>{t('未审计')}</Tag>;
+    const color = score >= 80 ? 'green' : score >= 60 ? 'orange' : 'red';
+    return (
+      <Tag color={color} size='small' shape='circle'>
+        {score}
+      </Tag>
+    );
+  };
+
   const hasSEO = (item) => {
     return !!(item.seo_keywords || item.intro);
   };
@@ -745,6 +755,9 @@ const SEOManagement = () => {
                     {t('FAQ')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
+                    {t('审计评分')}
+                  </th>
+                  <th className='text-left py-2 px-3 font-medium w-24'>
                     {t('状态')}
                   </th>
                   <th className='text-right py-2 px-3 font-medium w-40'>
@@ -786,6 +799,9 @@ const SEOManagement = () => {
                     </td>
                     <td className='py-2 px-3'>
                       {renderFaqCount(item.faq)}
+                    </td>
+                    <td className='py-2 px-3'>
+                      {renderAuditScore(item.audit_score)}
                     </td>
                     <td className='py-2 px-3'>
                       <Tag
@@ -831,7 +847,7 @@ const SEOManagement = () => {
                 {items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className='py-8 text-center text-gray-400'
                     >
                       <Empty description={t('暂无数据')} />

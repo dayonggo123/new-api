@@ -92,6 +92,47 @@ func GetPromptSEOAuditStats() (map[string]interface{}, error) {
 	}, nil
 }
 
+// GetLatestPromptSEOAuditScores 批量获取多个 prompt 的最新审计分数
+func GetLatestPromptSEOAuditScores(promptIds []int) (map[int]int, error) {
+	result := make(map[int]int)
+	if len(promptIds) == 0 {
+		return result, nil
+	}
+	var audits []PromptSEOAudit
+	if common.UsingSQLite {
+		// SQLite 下用子查询获取每个 prompt 最新记录
+		err := DB.Raw(`
+			SELECT a.* FROM prompt_seo_audit a
+			INNER JOIN (
+				SELECT prompt_id, MAX(id) as max_id
+				FROM prompt_seo_audit
+				WHERE prompt_id IN ?
+				GROUP BY prompt_id
+			) b ON a.prompt_id = b.prompt_id AND a.id = b.max_id
+		`, promptIds).Scan(&audits).Error
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := DB.Raw(`
+			SELECT a.* FROM prompt_seo_audit a
+			INNER JOIN (
+				SELECT prompt_id, MAX(id) as max_id
+				FROM prompt_seo_audit
+				WHERE prompt_id IN ?
+				GROUP BY prompt_id
+			) b ON a.prompt_id = b.prompt_id AND a.id = b.max_id
+		`, promptIds).Scan(&audits).Error
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, a := range audits {
+		result[a.PromptId] = a.OverallScore
+	}
+	return result, nil
+}
+
 // DeleteOldPromptSEOAudits 清理旧的审计记录，每个 prompt 保留最近 N 条
 func DeleteOldPromptSEOAudits(keep int) error {
 	if common.UsingSQLite {
