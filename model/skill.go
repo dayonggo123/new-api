@@ -86,7 +86,7 @@ func initDefaultSkills() error {
 			SupportedNodeTypes:   `["imageEditNode","videoGenNode","llmAgentNode","textAnnotationNode"]`,
 			Description:          "将提示词翻译成目标语言，提升 AI 生成效果",
 			ExecutionType:        "llm",
-			SystemPromptTemplate: "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}.",
+			SystemPromptTemplate: "You are a professional AI prompt translator specialized in maintaining prompt engineering integrity. Your task is to translate prompt fields into {{targetLang}} while preserving:\n1. All variable placeholders like {{variableName}} — DO NOT translate text inside {{}}\n2. Markdown formatting, lists, and special syntax\n3. Prompt structure and technical intent\n4. Commonly accepted {{targetLang}} terms for AI/ML concepts\n\nYou must return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON.",
 			UserPromptTemplate:   "Translate the following text from {{sourceLang}} to {{targetLang}}. Your response must be ONLY the translated text in {{targetLang}}, nothing else:\n\n\"\"\"\n{{prompt}}\n\"\"\"",
 			OverrideLocal:        false,
 			Status:               1,

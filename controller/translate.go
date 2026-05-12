@@ -90,7 +90,7 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		userPromptTemplate = skill.UserPromptTemplate
 	}
 	if systemPrompt == "" {
-		systemPrompt = "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}."
+		systemPrompt = "You are a professional AI prompt translator specialized in maintaining prompt engineering integrity. Your task is to translate prompt fields into {{targetLang}} while preserving:\n1. All variable placeholders like {{variableName}} — DO NOT translate text inside {{}}\n2. Markdown formatting, lists, and special syntax\n3. Prompt structure and technical intent\n4. Commonly accepted {{targetLang}} terms for AI/ML concepts\n\nYou must return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON."
 	}
 	if userPromptTemplate == "" {
 		userPromptTemplate = "Translate the following prompt fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n\nOutput format example:\n{\"title\":\"Translated Title\",\"content\":\"Translated content...\"}"
