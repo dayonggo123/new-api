@@ -49,7 +49,6 @@ import {
   IconLanguage,
   IconSearch,
   IconRefresh,
-  IconPen,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -958,7 +957,7 @@ const ArticleManagement = () => {
                 }}>
                   {t('新增文章')}
                 </Button>
-                <Button type='secondary' size='small' icon={<IconPen />} onClick={() => {
+                <Button type='secondary' size='small' icon={<IconEdit />} onClick={() => {
                   setShowAIGenerate(true);
                 }}>
                   {t('AI 写文章')}
