@@ -107,7 +107,7 @@ type Article struct {
 	Id             int            `json:"id"`
 	CategoryId     int            `json:"category_id" gorm:"index"`
 	Title          string         `json:"title" gorm:"index"`
-	Slug           string         `json:"slug" gorm:"uniqueIndex"`
+	Slug           string         `json:"slug" gorm:"uniqueIndex;size:255"`
 	Content        string         `json:"content" gorm:"type:text"`
 	Summary        string         `json:"summary" gorm:"type:text"`
 	CoverImageUrl  string         `json:"cover_image_url"`
