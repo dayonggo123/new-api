@@ -87,6 +87,7 @@ export default function NotificationManagement() {
   const [useTemplate, setUseTemplate] = useState(false);
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState({});
+  const [translating, setTranslating] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
   // tier / tag options
@@ -193,6 +194,7 @@ export default function NotificationManagement() {
       return;
     }
 
+    setTranslating(true);
     try {
       const res = await API.post('/api/translate/batch', {
         items,
@@ -218,6 +220,8 @@ export default function NotificationManagement() {
       }
     } catch (err) {
       showError(err.message || '翻译服务不可用');
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -233,6 +237,7 @@ export default function NotificationManagement() {
       return;
     }
 
+    setTranslating(true);
     try {
       const res = await API.post('/api/translate/batch', {
         items,
@@ -256,6 +261,8 @@ export default function NotificationManagement() {
       }
     } catch (err) {
       showError(err.message || '翻译服务不可用');
+    } finally {
+      setTranslating(false);
     }
   };
 

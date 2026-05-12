@@ -383,37 +383,6 @@ export default function PresetPrompt() {
   ];
 
   const renderLangFields = (langCode) => {
-    const isDefault = langCode === DEFAULT_LANG;
-    if (isDefault) {
-      return (
-        <>
-          <Form.Input
-            field='name'
-            label={t('名称')}
-            placeholder={t('请输入预设提示词名称')}
-            rules={[{ required: true, message: t('名称不能为空') }]}
-          />
-          <Form.TextArea
-            field='system_prompt'
-            label={t('系统提示词')}
-            placeholder={t('请输入系统提示词（可选）')}
-            rows={4}
-          />
-          <Form.TextArea
-            field='user_prompt'
-            label={t('用户提示词')}
-            placeholder={t('请输入用户提示词（可选）')}
-            rows={4}
-          />
-          <Form.TextArea
-            field='description'
-            label={t('描述')}
-            placeholder={t('请输入描述（可选）')}
-            rows={2}
-          />
-        </>
-      );
-    }
     const data = i18nData[langCode] || {};
     const langLabel = LANGUAGES.find((l) => l.code === langCode)?.label || langCode;
     return (
@@ -642,10 +611,40 @@ export default function PresetPrompt() {
             })}
           </div>
 
-          {/* 语言字段 */}
-          <div style={{ paddingTop: 4, paddingBottom: 8 }}>
-            {renderLangFields(activeLang)}
+          {/* 默认语言字段 — 始终在 Form 中注册，CSS 控制显示 */}
+          <div style={{ display: activeLang === DEFAULT_LANG ? 'block' : 'none', paddingTop: 4, paddingBottom: 8 }}>
+            <Form.Input
+              field='name'
+              label={t('名称')}
+              placeholder={t('请输入预设提示词名称')}
+              rules={[{ required: true, message: t('名称不能为空') }]}
+            />
+            <Form.TextArea
+              field='system_prompt'
+              label={t('系统提示词')}
+              placeholder={t('请输入系统提示词（可选）')}
+              rows={4}
+            />
+            <Form.TextArea
+              field='user_prompt'
+              label={t('用户提示词')}
+              placeholder={t('请输入用户提示词（可选）')}
+              rows={4}
+            />
+            <Form.TextArea
+              field='description'
+              label={t('描述')}
+              placeholder={t('请输入描述（可选）')}
+              rows={2}
+            />
           </div>
+
+          {/* 非默认语言字段 */}
+          {activeLang !== DEFAULT_LANG && (
+            <div style={{ paddingTop: 4, paddingBottom: 8 }}>
+              {renderLangFields(activeLang)}
+            </div>
+          )}
 
           <Form.Input
             field='category'
