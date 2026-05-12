@@ -33,7 +33,7 @@ import {
   IconDownload,
   IconRefresh,
   IconImage,
-  IconWand,
+  IconAIWandLevel1,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -266,7 +266,7 @@ const ImageStudio = () => {
                 <Button
                   theme='solid'
                   type='primary'
-                  icon={<IconWand />}
+                  icon={<IconAIWandLevel1 />}
                   loading={generating}
                   onClick={handleGenerate}
                   size='large'
