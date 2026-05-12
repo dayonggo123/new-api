@@ -113,6 +113,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className:
           localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
       },
+      {
+        text: t('AI 绘画'),
+        itemKey: 'image_studio',
+        to: '/image-studio',
+      },
     ];
 
     // 根据配置过滤项目

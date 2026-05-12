@@ -273,6 +273,14 @@ function App() {
           }
         />
         <Route
+          path='/image-studio'
+          element={
+            <PrivateRoute>
+              <ImageStudio />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/user'
           element={
             <AdminRoute>
