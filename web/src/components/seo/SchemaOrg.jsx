@@ -144,6 +144,36 @@ export function WebPageSchema({ pageTitle, pageDescription, pathname = '' }) {
 }
 
 /**
+ * 文章结构化数据（Schema.org Article）
+ */
+export function ArticleSchema({ headline, description, author, datePublished, image }) {
+  const schema = useMemo(() => {
+    const result = {
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: headline || '',
+      description: description || '',
+      author: {
+        '@type': 'Person',
+        name: author || 'Unknown',
+      },
+      datePublished: datePublished || new Date().toISOString(),
+      publisher: {
+        '@type': 'Organization',
+        name: 'QuantumNous',
+        url: 'https://github.com/QuantumNous',
+      },
+    };
+    if (image) {
+      result.image = image;
+    }
+    return result;
+  }, [headline, description, author, datePublished, image]);
+
+  return <script type='application/ld+json'>{JSON.stringify(schema)}</script>;
+}
+
+/**
  * 定价页面结构化数据
  */
 export function ProductSchema({ name, description, price, priceCurrency = 'USD' }) {

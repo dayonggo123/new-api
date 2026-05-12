@@ -37,8 +37,11 @@ import Redemption from './pages/Redemption';
 import Prompt from './pages/Prompt';
 import PromptGallery from './pages/PromptGallery';
 import PromptDetail from './pages/PromptDetail';
+import ArticleGallery from './pages/ArticleGallery';
+import ArticleDetail from './pages/ArticleDetail';
 import SEOManagement from './pages/SEOManagement';
 import SEOTrends from './pages/SEOTrends';
+import ArticleManagement from './pages/ArticleManagement';
 import NotificationManagement from './pages/NotificationManagement';
 import PresetPrompt from './pages/PresetPrompt';
 import SkillManagement from './pages/SkillManagement';
@@ -190,6 +193,14 @@ function App() {
           }
         />
         <Route
+          path='/console/article'
+          element={
+            <AdminRoute>
+              <ArticleManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
           path='/console/seo-trends'
           element={
             <AdminRoute>
@@ -247,6 +258,18 @@ function App() {
           path='/prompt/:id'
           element={
             <PromptDetail />
+          }
+        />
+        <Route
+          path='/article-gallery'
+          element={
+            <ArticleGallery />
+          }
+        />
+        <Route
+          path='/article/:id'
+          element={
+            <ArticleDetail />
           }
         />
         <Route

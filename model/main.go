@@ -293,6 +293,8 @@ func migrateDB() error {
 		&UserTag{},
 		&Skill{},
 		&PromptSEOAudit{},
+		&ArticleCategory{},
+		&Article{},
 	)
 	if err != nil {
 		return err

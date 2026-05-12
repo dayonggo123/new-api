@@ -27,6 +27,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       console: true,
       pricing: true,
       promptGallery: true,
+      articleGallery: true,
       docs: true,
       about: true,
     };
@@ -54,6 +55,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('提示词库'),
         itemKey: 'promptGallery',
         to: '/prompt-gallery',
+      },
+      {
+        text: t('文章'),
+        itemKey: 'articleGallery',
+        to: '/article-gallery',
       },
       ...(docsLink
         ? [
@@ -83,8 +89,8 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
           ? modules.pricing.enabled
           : modules.pricing;
       }
-      // promptGallery: 始终固定显示，不受后台配置开关影响
-      if (link.itemKey === 'promptGallery') {
+      // promptGallery / articleGallery: 始终固定显示，不受后台配置开关影响
+      if (link.itemKey === 'promptGallery' || link.itemKey === 'articleGallery') {
         return true;
       }
       return modules[link.itemKey] === true;

@@ -357,6 +357,28 @@ func SetApiRouter(router *gin.Engine) {
 			seoRoute.POST("/audit-batch", controller.BatchAuditPromptSEO)
 		}
 
+		// Article Admin Routes
+		apiRouter.GET("/admin/articles", middleware.AdminAuth(), controller.GetArticles)
+		apiRouter.POST("/admin/articles", middleware.AdminAuth(), controller.CreateArticle)
+		apiRouter.GET("/admin/articles/:id", middleware.AdminAuth(), controller.GetArticle)
+		apiRouter.PUT("/admin/articles/:id", middleware.AdminAuth(), controller.UpdateArticle)
+		apiRouter.DELETE("/admin/articles/:id", middleware.AdminAuth(), controller.DeleteArticle)
+
+		apiRouter.GET("/admin/article-categories", middleware.AdminAuth(), controller.GetAllArticleCategories)
+		apiRouter.POST("/admin/article-categories", middleware.AdminAuth(), controller.AddArticleCategory)
+		apiRouter.GET("/admin/article-categories/:id", middleware.AdminAuth(), controller.GetArticleCategory)
+		apiRouter.PUT("/admin/article-categories/:id", middleware.AdminAuth(), controller.UpdateArticleCategory)
+		apiRouter.DELETE("/admin/article-categories/:id", middleware.AdminAuth(), controller.DeleteArticleCategory)
+
+		// Article SEO Admin Routes
+		articleSEORoute := apiRouter.Group("/article/seo")
+		articleSEORoute.Use(middleware.AdminAuth())
+		{
+			articleSEORoute.GET("/:id", controller.GetArticleSEO)
+			articleSEORoute.PUT("/:id", controller.UpdateArticleSEOFields)
+			articleSEORoute.POST("/:id/regenerate", controller.RegenerateArticleSEO)
+		}
+
 		// Notification Routes
 		apiRouter.GET("/notifications", middleware.UserAuth(), controller.GetNotifications)
 		apiRouter.GET("/notifications/unread-count", middleware.UserAuth(), controller.GetUnreadNotificationCount)
@@ -389,6 +411,12 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
 		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
+
+		// Article Public Routes (no auth required)
+		apiRouter.GET("/public/articles", controller.GetPublicArticles)
+		apiRouter.GET("/public/articles/:id", controller.GetPublicArticle)
+		apiRouter.GET("/public/articles/slug/:slug", controller.GetPublicArticleBySlug)
+		apiRouter.GET("/public/article-categories", controller.GetPublicArticleCategories)
 
 		// Preset Prompt Public Routes (optional auth for auto language detection)
 		apiRouter.GET("/public/preset-prompts", middleware.TryUserAuth(), controller.GetPublicPresetPrompts)

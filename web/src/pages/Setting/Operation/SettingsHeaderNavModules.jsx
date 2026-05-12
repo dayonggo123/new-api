@@ -47,6 +47,7 @@ export default function SettingsHeaderNavModules(props) {
       requireAuth: false, // 默认不需要登录鉴权
     },
     promptGallery: true,
+    articleGallery: true,
     docs: true,
     about: true,
   });
@@ -88,6 +89,7 @@ export default function SettingsHeaderNavModules(props) {
         requireAuth: false,
       },
       promptGallery: true,
+      articleGallery: true,
       docs: true,
       about: true,
     };
@@ -155,6 +157,7 @@ export default function SettingsHeaderNavModules(props) {
             requireAuth: false,
           },
           promptGallery: true,
+          articleGallery: true,
           docs: true,
           about: true,
         };
@@ -185,6 +188,11 @@ export default function SettingsHeaderNavModules(props) {
       key: 'promptGallery',
       title: t('提示词库'),
       description: t('提示词库画廊，无需登录'),
+    },
+    {
+      key: 'articleGallery',
+      title: t('文章'),
+      description: t('文章列表，无需登录'),
     },
     {
       key: 'docs',

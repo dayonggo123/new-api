@@ -1,0 +1,258 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Button, Tag, Spin, Typography, Breadcrumb, Divider } from '@douyinfe/semi-ui';
+import { IconArrowLeft } from '@douyinfe/semi-icons';
+import { API, showError } from '../../helpers';
+import SEO from '../../components/seo/SEO';
+import { WebPageSchema, ArticleSchema } from '../../components/seo/SchemaOrg';
+import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
+
+const { Title, Text } = Typography;
+
+const FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%23f0f0f0%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22%3E%E6%9A%82%E6%97%A0%E5%9B%BE%E7%89%87%3C/text%3E%3C/svg%3E';
+
+const SEO_LANGS = [
+  { code: 'zh', label: '中文' },
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'Français' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'ja', label: '日本語' },
+  { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'ko', label: '한국어' },
+  { code: 'es', label: 'Español' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'pt', label: 'Português' },
+  { code: 'ar', label: 'العربية' },
+];
+
+function parseTags(tagsStr) {
+  if (!tagsStr) return [];
+  try {
+    return JSON.parse(tagsStr);
+  } catch {
+    return [];
+  }
+}
+
+function applyLanguage(article, lang) {
+  if (!article || lang === 'zh' || lang === 'zh-CN' || lang === 'zh-TW') return article;
+  const result = { ...article };
+  if (article.seo_i18n) {
+    try {
+      const seoMap = JSON.parse(article.seo_i18n);
+      if (seoMap[lang]) {
+        if (seoMap[lang].seo_title) result.seo_title = seoMap[lang].seo_title;
+        if (seoMap[lang].seo_description) result.seo_description = seoMap[lang].seo_description;
+        if (seoMap[lang].seo_keywords) result.seo_keywords = seoMap[lang].seo_keywords;
+      }
+    } catch (e) {}
+  }
+  if (article.i18n) {
+    try {
+      const contentMap = JSON.parse(article.i18n);
+      if (contentMap[lang]) {
+        if (contentMap[lang].title) result.title = contentMap[lang].title;
+        if (contentMap[lang].summary) result.summary = contentMap[lang].summary;
+        if (contentMap[lang].content) result.content = contentMap[lang].content;
+      }
+    } catch (e) {}
+  }
+  return result;
+}
+
+export default function ArticleDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
+  const [article, setArticle] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeLang, setActiveLang] = useState('zh');
+
+  useEffect(() => {
+    const urlLang = searchParams.get('lang');
+    if (urlLang && SEO_LANGS.some((l) => l.code === urlLang)) {
+      setActiveLang(urlLang);
+    }
+    loadArticle();
+  }, [id]);
+
+  const loadArticle = async () => {
+    setLoading(true);
+    try {
+      const res = await API.get(`/api/public/articles/${id}`);
+      const { success, data, message } = res.data;
+      if (success) {
+        setArticle(data);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(error?.message || error);
+    }
+    setLoading(false);
+  };
+
+  // useMemo must be before all conditionals
+  const currentArticle = useMemo(() => {
+    if (!article) return null;
+    return applyLanguage(article, activeLang);
+  }, [article, activeLang]);
+
+  const seoI18n = useMemo(() => {
+    if (!article) return {};
+    try {
+      return JSON.parse(article.seo_i18n || '{}');
+    } catch {
+      return {};
+    }
+  }, [article?.seo_i18n]);
+
+  const contentI18n = useMemo(() => {
+    if (!article) return {};
+    try {
+      return JSON.parse(article.i18n || '{}');
+    } catch {
+      return {};
+    }
+  }, [article?.i18n]);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Spin size='large' tip={t('加载中...')} />
+      </div>
+    );
+  }
+
+  if (!currentArticle) {
+    return (
+      <div style={{ minHeight: '100vh', padding: '80px 20px', textAlign: 'center' }}>
+        <Title heading={3}>{t('文章不存在')}</Title>
+        <Button icon={<IconArrowLeft />} onClick={() => navigate('/article-gallery')}>
+          {t('返回文章列表')}
+        </Button>
+      </div>
+    );
+  }
+
+  const tags = parseTags(currentArticle.tags);
+  const description = currentArticle.seo_description || currentArticle.summary || currentArticle.content?.slice(0, 200) || '';
+  const keywords = currentArticle.seo_keywords || tags.join(', ');
+  const publishedDate = currentArticle.created_time ? new Date(currentArticle.created_time * 1000).toISOString() : '';
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--semi-color-bg-0)', paddingTop: 64 }}>
+      <SEO
+        title={currentArticle.seo_title || currentArticle.title}
+        description={description}
+        pathname={`/article/${id}`}
+        keywords={keywords}
+        ogImage={currentArticle.cover_image_url}
+        type='article'
+      />
+      <WebPageSchema
+        pageTitle={currentArticle.title}
+        pageDescription={description}
+        pathname={`/article/${id}`}
+      />
+      <ArticleSchema
+        headline={currentArticle.title}
+        description={description}
+        author={currentArticle.author}
+        datePublished={publishedDate}
+        image={currentArticle.cover_image_url}
+      />
+
+      <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
+        <Breadcrumb>
+          <Breadcrumb.Item onClick={() => navigate('/article-gallery')}>
+            {t('文章列表')}
+          </Breadcrumb.Item>
+          <Breadcrumb.Item>{currentArticle.title}</Breadcrumb.Item>
+        </Breadcrumb>
+
+        <div style={{ marginTop: 24 }}>
+          {/* Title */}
+          <Title heading={2} style={{ marginBottom: 12 }}>
+            {currentArticle.title}
+          </Title>
+
+          {/* Meta */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16, color: 'var(--semi-color-text-2)', fontSize: 14 }}>
+            {currentArticle.author && <span>{t('作者')}: {currentArticle.author}</span>}
+            {currentArticle.created_time && (
+              <span>{t('发布时间')}: {new Date(currentArticle.created_time * 1000).toLocaleDateString()}</span>
+            )}
+            {currentArticle.view_count > 0 && <span>{t('浏览量')}: {currentArticle.view_count}</span>}
+          </div>
+
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              {tags.map((tag, idx) => (
+                <Tag key={idx} color='light-blue' style={{ marginRight: 8, marginBottom: 8 }}>
+                  {tag}
+                </Tag>
+              ))}
+            </div>
+          )}
+
+          {/* Cover Image */}
+          {currentArticle.cover_image_url && (
+            <div style={{ marginBottom: 24 }}>
+              <img
+                src={currentArticle.cover_image_url || FALLBACK_IMAGE}
+                alt={currentArticle.title}
+                style={{ width: '100%', maxWidth: 640, borderRadius: 12, objectFit: 'cover' }}
+                onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
+              />
+            </div>
+          )}
+
+          {/* Summary */}
+          {currentArticle.summary && (
+            <div style={{ marginBottom: 24, padding: 16, background: 'var(--semi-color-fill-0)', borderRadius: 8, borderLeft: '4px solid var(--semi-color-primary)' }}>
+              <Text type='tertiary' size='small' style={{ fontStyle: 'italic' }}>
+                {currentArticle.summary}
+              </Text>
+            </div>
+          )}
+
+          {/* Content */}
+          <div style={{ marginBottom: 32 }}>
+            <MarkdownRenderer content={currentArticle.content || ''} />
+          </div>
+
+          <Divider />
+
+          {/* Language Switcher */}
+          <div style={{ marginTop: 24 }}>
+            <Text type='tertiary' size='small' style={{ marginBottom: 8, display: 'block' }}>
+              {t('语言')}
+            </Text>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {SEO_LANGS.map((lang) => {
+                const hasTranslation = lang.code === 'zh' ||
+                  (contentI18n[lang.code]?.title && contentI18n[lang.code]?.content);
+                return (
+                  <Button
+                    key={lang.code}
+                    type={activeLang === lang.code ? 'primary' : 'tertiary'}
+                    size='small'
+                    disabled={!hasTranslation}
+                    onClick={() => setActiveLang(lang.code)}
+                  >
+                    {lang.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

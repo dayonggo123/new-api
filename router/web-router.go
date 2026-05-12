@@ -20,6 +20,7 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	// Google Search Console has issues parsing gzip-compressed sitemaps,
 	// so /sitemap.xml must be served without Content-Encoding: gzip.
 	router.GET("/prompt/:id", controller.GetPromptSEOPage)
+	router.GET("/article/:id", controller.GetArticleSEOPage)
 
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())

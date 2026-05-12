@@ -757,3 +757,145 @@ func GetPromptSEOPage(c *gin.Context) {
 	c.Header("Cache-Control", "public, max-age=3600")
 	c.String(http.StatusOK, htmlStr)
 }
+
+// GetArticleSEOPage 为每篇文章生成独立的 SEO HTML 页面（基于 SPA index.html 注入）
+func GetArticleSEOPage(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+
+	article, err := model.GetPublicArticleById(id)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+
+	// 多语言 SEO：优先 ?lang= 参数，其次用户语言偏好
+	lang := c.Query("lang")
+	if lang == "" {
+		userId := c.GetInt("id")
+		if userId > 0 {
+			lang = model.GetUserLanguage(userId)
+		}
+	}
+	article.ApplyLanguage(lang)
+
+	serverAddr := strings.TrimSuffix(system_setting.ServerAddress, "/")
+	if serverAddr == "" {
+		serverAddr = "https://example.com"
+	}
+
+	pageURL := fmt.Sprintf("%s/article/%d", serverAddr, article.Id)
+
+	// 优先使用 SEO 标题，其次使用文章标题
+	title := article.SeoTitle
+	if title == "" {
+		title = article.Title
+	}
+	if title == "" {
+		title = "Article"
+	}
+
+	// 优先使用 SEO 描述，其次摘要，再次内容
+	description := article.SeoDescription
+	if description == "" {
+		description = article.Summary
+	}
+	if description == "" {
+		description = article.Content
+	}
+	if len(description) > 200 {
+		description = description[:200] + "..."
+	}
+
+	keywords := article.SeoKeywords
+	if keywords == "" && article.Tags != "" {
+		var tags []string
+		_ = common.Unmarshal([]byte(article.Tags), &tags)
+		keywords = strings.Join(tags, ", ")
+	}
+	if keywords == "" {
+		keywords = article.Title
+	}
+
+	// Clean content for display (escape HTML)
+	escapeHTML := func(s string) string {
+		s = strings.ReplaceAll(s, "<", "&lt;")
+		s = strings.ReplaceAll(s, ">", "&gt;")
+		return s
+	}
+	contentDisplay := escapeHTML(article.Content)
+	summaryDisplay := escapeHTML(article.Summary)
+
+	// Schema.org JSON-LD for Article
+	schema := map[string]interface{}{
+		"@context":    "https://schema.org",
+		"@type":       "Article",
+		"headline":    title,
+		"description": description,
+		"url":         pageURL,
+		"author": map[string]string{
+			"@type": "Person",
+			"name":  article.Author,
+		},
+		"datePublished": time.Unix(article.CreatedTime, 0).Format(time.RFC3339),
+		"dateModified":  time.Unix(article.UpdatedTime, 0).Format(time.RFC3339),
+		"keywords":      keywords,
+	}
+	if article.CoverImageUrl != "" {
+		schema["image"] = article.CoverImageUrl
+	}
+	schemaJSON, _ := common.Marshal(schema)
+
+	// Build SEO head injection
+	var seoHead strings.Builder
+	seoHead.WriteString(`<meta name="google-site-verification" content="W_hk0thQjq8IV0KmBQZXFVclXCfRxlhxRcjrhYDSxbg" />`)
+	seoHead.WriteString(fmt.Sprintf(`<title>%s</title>`, title))
+	seoHead.WriteString(fmt.Sprintf(`<meta name="description" content="%s">`, description))
+	seoHead.WriteString(fmt.Sprintf(`<meta name="keywords" content="%s">`, keywords))
+	seoHead.WriteString(fmt.Sprintf(`<link rel="canonical" href="%s">`, pageURL))
+	seoHead.WriteString(fmt.Sprintf(`<meta property="og:title" content="%s">`, title))
+	seoHead.WriteString(fmt.Sprintf(`<meta property="og:description" content="%s">`, description))
+	seoHead.WriteString(fmt.Sprintf(`<meta property="og:url" content="%s">`, pageURL))
+	seoHead.WriteString(`<meta property="og:type" content="article">`)
+	if article.CoverImageUrl != "" {
+		seoHead.WriteString(fmt.Sprintf(`<meta property="og:image" content="%s">`, article.CoverImageUrl))
+		seoHead.WriteString(fmt.Sprintf(`<meta name="twitter:image" content="%s">`, article.CoverImageUrl))
+	}
+	seoHead.WriteString(`<meta name="twitter:card" content="summary_large_image">`)
+	seoHead.WriteString(fmt.Sprintf(`<meta name="twitter:title" content="%s">`, title))
+	seoHead.WriteString(fmt.Sprintf(`<meta name="twitter:description" content="%s">`, description))
+	seoHead.WriteString(fmt.Sprintf(`<script type="application/ld+json">%s</script>`, string(schemaJSON)))
+	seoHead.WriteString(`<style>.seo-content{display:none}</style>`)
+
+	// Build noscript visible content for crawlers
+	var seoBody strings.Builder
+	seoBody.WriteString(`<noscript><div class="seo-noscript" style="max-width:800px;margin:0 auto;padding:20px;font-family:sans-serif;line-height:1.6">`)
+	seoBody.WriteString(fmt.Sprintf(`<h1>%s</h1>`, title))
+	if article.CoverImageUrl != "" {
+		seoBody.WriteString(fmt.Sprintf(`<img src="%s" alt="%s" style="max-width:100%%;border-radius:12px;margin-bottom:16px">`, article.CoverImageUrl, title))
+	}
+	if article.Author != "" {
+		seoBody.WriteString(fmt.Sprintf(`<p>作者: %s</p>`, article.Author))
+	}
+	seoBody.WriteString(fmt.Sprintf(`<p>发布时间: %s</p>`, time.Unix(article.CreatedTime, 0).Format("2006-01-02")))
+	if summaryDisplay != "" {
+		seoBody.WriteString(fmt.Sprintf(`<p style="background:#eef2ff;padding:16px;border-radius:8px;border-left:4px solid #4f46e5">%s</p>`, summaryDisplay))
+	}
+	// Article content as markdown text (escaped) — crawlers can read the raw text
+	seoBody.WriteString(fmt.Sprintf(`<h2>正文</h2><pre style="background:#f8f9fa;padding:16px;border-radius:8px;white-space:pre-wrap">%s</pre>`, contentDisplay))
+	seoBody.WriteString(`<p><a href="/article-gallery" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">浏览更多文章</a></p>`)
+	seoBody.WriteString(`</div></noscript>`)
+
+	// Inject into index.html
+	htmlStr := string(IndexPage)
+	htmlStr = strings.Replace(htmlStr, "<title>New API</title>", "", 1)
+	htmlStr = strings.Replace(htmlStr, "</head>", seoHead.String()+"</head>", 1)
+	htmlStr = strings.Replace(htmlStr, "<body>", "<body>"+seoBody.String(), 1)
+
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.String(http.StatusOK, htmlStr)
+}

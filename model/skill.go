@@ -119,6 +119,20 @@ func initDefaultSkills() error {
 			OverrideLocal:        false,
 			Status:               1,
 		},
+		{
+			SkillId:              "article-seo",
+			Name:                 "文章 SEO 生成",
+			NameEn:               "Article SEO Generation",
+			Icon:                 "search",
+			Cost:                 0,
+			SupportedNodeTypes:   `[]`,
+			Description:          "为长文章自动生成 SEO 标题、描述和关键词",
+			ExecutionType:        "llm",
+			SystemPromptTemplate: "You are an expert in SEO and content marketing.\nGiven an article's information, generate the following in the SAME LANGUAGE as the article:\n\n1. seo_title: A compelling SEO title (50-60 characters) that includes the main keyword and attracts clicks\n2. seo_description: A meta description (150-160 characters) that summarizes the article and encourages clicks\n3. seo_keywords: 8-12 SEO keywords separated by commas (include long-tail keywords relevant to the article topic)\n\nReturn ONLY valid JSON, no markdown, no explanation:\n{\"seo_title\":\"...\",\"seo_description\":\"...\",\"seo_keywords\":\"kw1, kw2, ...\"}",
+			UserPromptTemplate:   "Title: {{title}}\nSummary: {{summary}}\nContent Preview: {{content}}\nAuthor: {{author}}\nTags: {{tags}}\n\nGenerate SEO metadata for this article.",
+			OverrideLocal:        false,
+			Status:               1,
+		},
 	}
 
 	for _, skill := range defaultSkills {

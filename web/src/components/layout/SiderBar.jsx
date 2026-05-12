@@ -55,6 +55,7 @@ const routerMap = {
   seo: '/console/seo',
   seo_trends: '/console/seo-trends',
   notification: '/console/notification',
+  article: '/console/article',
 
 };
 
@@ -206,6 +207,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('Skill 管理'),
         itemKey: 'skills',
         to: '/skills',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('文章管理'),
+        itemKey: 'article',
+        to: '/article',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
