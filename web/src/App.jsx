@@ -38,6 +38,7 @@ import Prompt from './pages/Prompt';
 import PromptGallery from './pages/PromptGallery';
 import PromptDetail from './pages/PromptDetail';
 import SEOManagement from './pages/SEOManagement';
+import SEOTrends from './pages/SEOTrends';
 import NotificationManagement from './pages/NotificationManagement';
 import PresetPrompt from './pages/PresetPrompt';
 import SkillManagement from './pages/SkillManagement';
@@ -185,6 +186,14 @@ function App() {
           element={
             <AdminRoute>
               <Navigate to='/console/prompt' replace />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/seo-trends'
+          element={
+            <AdminRoute>
+              <SEOTrends />
             </AdminRoute>
           }
         />

@@ -2,6 +2,7 @@ package model
 
 import (
 	"math"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -172,4 +173,101 @@ func DeleteOldPromptSEOAudits(keep int) error {
 			) tmp
 		)
 	`, keep).Error
+}
+
+
+// SEOTrendPoint 单天的趋势数据
+type SEOTrendPoint struct {
+	Date        string  `json:"date"`
+	AvgScore    float64 `json:"avg_score"`
+	AuditCount  int     `json:"audit_count"`
+	PromptCount int     `json:"prompt_count"`
+}
+
+// GetSEOTrends 获取最近 N 天的 SEO 审计趋势（按天聚合）
+func GetSEOTrends(days int) ([]SEOTrendPoint, error) {
+	var audits []PromptSEOAudit
+	startTime := time.Now().AddDate(0, 0, -days).Unix()
+	if err := DB.Where("created_at >= ?", startTime).Order("created_at asc").Find(&audits).Error; err != nil {
+		return nil, err
+	}
+
+	type dayAgg struct {
+		totalScore int
+		count      int
+		promptIds  map[int]struct{}
+	}
+	aggMap := make(map[string]*dayAgg)
+
+	for _, a := range audits {
+		day := time.Unix(a.CreatedAt, 0).Format("2006-01-02")
+		if aggMap[day] == nil {
+			aggMap[day] = &dayAgg{promptIds: make(map[int]struct{})}
+		}
+		aggMap[day].totalScore += a.OverallScore
+		aggMap[day].count++
+		aggMap[day].promptIds[a.PromptId] = struct{}{}
+	}
+
+	var result []SEOTrendPoint
+	for i := days; i >= 0; i-- {
+		day := time.Now().AddDate(0, 0, -i).Format("2006-01-02")
+		if agg, ok := aggMap[day]; ok {
+			result = append(result, SEOTrendPoint{
+				Date:        day,
+				AvgScore:    math.Round(float64(agg.totalScore)/float64(agg.count)*10) / 10,
+				AuditCount:  agg.count,
+				PromptCount: len(agg.promptIds),
+			})
+		} else {
+			result = append(result, SEOTrendPoint{Date: day, AvgScore: 0, AuditCount: 0, PromptCount: 0})
+		}
+	}
+	return result, nil
+}
+
+// LowScorePrompt 低分提示词
+type LowScorePrompt struct {
+	Id           int    `json:"id"`
+	Title        string `json:"title"`
+	AuditScore   int    `json:"audit_score"`
+	AuditDate    int64  `json:"audit_date"`
+	CategoryName string `json:"category_name"`
+}
+
+// GetLowScorePrompts 获取最新审计分低于阈值的提示词
+func GetLowScorePrompts(threshold int, limit int) ([]LowScorePrompt, error) {
+	var rows []struct {
+		PromptId     int
+		OverallScore int
+		CreatedAt    int64
+	}
+	err := DB.Raw(`
+		SELECT prompt_id, overall_score, created_at FROM prompt_seo_audit a
+		WHERE id = (
+			SELECT MAX(id) FROM prompt_seo_audit b WHERE b.prompt_id = a.prompt_id
+		)
+		AND overall_score < ?
+		ORDER BY overall_score ASC
+		LIMIT ?
+	`, threshold, limit).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var result []LowScorePrompt
+	for _, r := range rows {
+		prompt, err := GetPromptById(r.PromptId)
+		if err != nil || prompt == nil {
+			continue
+		}
+		result = append(result, LowScorePrompt{
+			Id:           prompt.Id,
+			Title:        prompt.Title,
+			AuditScore:   r.OverallScore,
+			AuditDate:    r.CreatedAt,
+			CategoryName: prompt.CategoryName,
+		})
+	}
+	return result, nil
 }

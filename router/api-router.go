@@ -349,7 +349,11 @@ func SetApiRouter(router *gin.Engine) {
 			seoRoute.POST("/:id/regenerate", controller.RegeneratePromptSEO)
 			seoRoute.POST("/:id/audit", controller.AuditPromptSEOHandler)
 			seoRoute.GET("/:id/audits", controller.GetPromptSEOAHistory)
+			seoRoute.GET("/:id/report", controller.GetPromptSEOReport)
 			seoRoute.GET("/stats", controller.GetPromptSEOStats)
+			seoRoute.GET("/trends", controller.GetPromptSEOTrends)
+			seoRoute.GET("/low-score", controller.GetLowScorePrompts)
+			seoRoute.GET("/report-all", controller.GetAllSEOReport)
 			seoRoute.POST("/audit-batch", controller.BatchAuditPromptSEO)
 		}
 

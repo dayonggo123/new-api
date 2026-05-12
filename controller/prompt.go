@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
@@ -468,6 +469,192 @@ func GetPromptSEOStats(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, stats)
+}
+
+// GetPromptSEOTrends 获取 SEO 审计趋势
+func GetPromptSEOTrends(c *gin.Context) {
+	daysStr := c.DefaultQuery("days", "30")
+	days, _ := strconv.Atoi(daysStr)
+	if days <= 0 || days > 90 {
+		days = 30
+	}
+	trends, err := model.GetSEOTrends(days)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, trends)
+}
+
+// GetLowScorePrompts 获取低分提示词列表
+func GetLowScorePrompts(c *gin.Context) {
+	thresholdStr := c.DefaultQuery("threshold", "60")
+	threshold, _ := strconv.Atoi(thresholdStr)
+	if threshold <= 0 || threshold > 100 {
+		threshold = 60
+	}
+	limitStr := c.DefaultQuery("limit", "20")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	items, err := model.GetLowScorePrompts(threshold, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, items)
+}
+
+// GetPromptSEOReport 导出单个 Prompt 的 SEO 审计报告（Markdown）
+func GetPromptSEOReport(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	prompt, err := model.GetPromptById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	latestAudit, err := model.GetLatestPromptSEOAudit(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var categories map[string]service.SEOAuditCategory
+	var criticalIssues, quickWins []string
+	common.Unmarshal([]byte(latestAudit.Categories), &categories)
+	common.Unmarshal([]byte(latestAudit.CriticalIssues), &criticalIssues)
+	common.Unmarshal([]byte(latestAudit.QuickWins), &quickWins)
+
+	markdown := fmt.Sprintf("# SEO 审计报告：%s\n\n", prompt.Title)
+	markdown += fmt.Sprintf("- **Prompt ID**: %d\n", id)
+	markdown += fmt.Sprintf("- **审计日期**: %s\n", time.Unix(latestAudit.CreatedAt, 0).Format("2006-01-02 15:04:05"))
+	markdown += fmt.Sprintf("- **总分**: %d / 100\n\n", latestAudit.OverallScore)
+
+	markdown += "## 维度评分\n\n"
+	for key, cat := range categories {
+		labelMap := map[string]string{
+			"completeness":    "完整性",
+			"keyword_quality": "关键词质量",
+			"intro_quality":   "介绍文案",
+			"faq_quality":     "FAQ 质量",
+			"structured_data": "结构化数据",
+		}
+		label := labelMap[key]
+		if label == "" {
+			label = key
+		}
+		markdown += fmt.Sprintf("### %s: %d/100\n\n", label, cat.Score)
+		if len(cat.Issues) > 0 {
+			markdown += "**问题**:\n"
+			for _, issue := range cat.Issues {
+				markdown += fmt.Sprintf("- %s\n", issue)
+			}
+			markdown += "\n"
+		}
+		if len(cat.Suggestions) > 0 {
+			markdown += "**建议**:\n"
+			for _, s := range cat.Suggestions {
+				markdown += fmt.Sprintf("- %s\n", s)
+			}
+			markdown += "\n"
+		}
+	}
+
+	if len(criticalIssues) > 0 {
+		markdown += "## 关键问题\n\n"
+		for _, issue := range criticalIssues {
+			markdown += fmt.Sprintf("- %s\n", issue)
+		}
+		markdown += "\n"
+	}
+
+	if len(quickWins) > 0 {
+		markdown += "## 快速改进\n\n"
+		for _, win := range quickWins {
+			markdown += fmt.Sprintf("- %s\n", win)
+		}
+		markdown += "\n"
+	}
+
+	c.Header("Content-Type", "text/markdown; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"seo-report-%d.md\"", id))
+	c.String(http.StatusOK, markdown)
+}
+
+// GetAllSEOReport 导出全站 SEO 健康度报告（Markdown）
+func GetAllSEOReport(c *gin.Context) {
+	stats, err := model.GetPromptSEOAuditStats()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	lowScores, err := model.GetLowScorePrompts(60, 50)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	trends, err := model.GetSEOTrends(30)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	markdown := "# 全站 SEO 健康度报告\n\n"
+	markdown += fmt.Sprintf("**生成时间**: %s\n\n", time.Now().Format("2006-01-02 15:04:05"))
+
+	markdown += "## 概览\n\n"
+	markdown += fmt.Sprintf("- **总提示词数**: %.0f\n", stats["total_prompts"])
+	markdown += fmt.Sprintf("- **已配置 SEO**: %.0f (%.2f%%)\n", stats["with_seo"], stats["seo_coverage"])
+	markdown += fmt.Sprintf("- **已审计**: %.0f (%.2f%%)\n", stats["with_audit"], stats["audit_coverage"])
+	markdown += fmt.Sprintf("- **平均审计分**: %.1f\n\n", stats["average_score"])
+
+	markdown += "## 分数分布\n\n"
+	if dist, ok := stats["score_distribution"].([]struct {
+		Range string `json:"range"`
+		Count int64  `json:"count"`
+	}); ok {
+		labelMap := map[string]string{"excellent": "优秀", "good": "良好", "average": "中等", "poor": "较差"}
+		for _, d := range dist {
+			label := labelMap[d.Range]
+			if label == "" {
+				label = d.Range
+			}
+			markdown += fmt.Sprintf("- **%s**: %d\n", label, d.Count)
+		}
+	}
+	markdown += "\n"
+
+	markdown += "## 最近 30 天趋势\n\n"
+	markdown += "| 日期 | 平均分 | 审计数 | 覆盖 Prompt 数 |\n"
+	markdown += "|------|--------|--------|----------------|\n"
+	for _, t := range trends {
+		if t.AuditCount > 0 {
+			markdown += fmt.Sprintf("| %s | %.1f | %d | %d |\n", t.Date, t.AvgScore, t.AuditCount, t.PromptCount)
+		}
+	}
+	markdown += "\n"
+
+	if len(lowScores) > 0 {
+		markdown += "## 低分提示词（需改进）\n\n"
+		markdown += "| ID | 标题 | 分类 | 分数 | 审计日期 |\n"
+		markdown += "|----|------|------|------|----------|\n"
+		for _, p := range lowScores {
+			markdown += fmt.Sprintf("| %d | %s | %s | %d | %s |\n",
+				p.Id, p.Title, p.CategoryName, p.AuditScore, time.Unix(p.AuditDate, 0).Format("2006-01-02"))
+		}
+		markdown += "\n"
+	}
+
+	c.Header("Content-Type", "text/markdown; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename=\"seo-report-all.md\"")
+	c.String(http.StatusOK, markdown)
 }
 
 // BatchAuditPromptSEO 批量审计 Prompt SEO
