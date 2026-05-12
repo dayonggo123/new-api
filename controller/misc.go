@@ -588,6 +588,16 @@ func GetPromptSEOPage(c *gin.Context) {
 		return
 	}
 
+	// 多语言 SEO：优先 ?lang= 参数，其次用户语言偏好
+	lang := c.Query("lang")
+	if lang == "" {
+		userId := c.GetInt("id")
+		if userId > 0 {
+			lang = model.GetUserLanguage(userId)
+		}
+	}
+	prompt.ApplyLanguage(lang)
+
 	serverAddr := strings.TrimSuffix(system_setting.ServerAddress, "/")
 	if serverAddr == "" {
 		serverAddr = "https://example.com"

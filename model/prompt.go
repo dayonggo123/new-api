@@ -3,8 +3,16 @@ package model
 import (
 	"errors"
 
+	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 )
+
+// PromptSEO18n SEO 多语言翻译项
+type PromptSEO18n struct {
+	SeoKeywords string `json:"seo_keywords,omitempty"`
+	Intro       string `json:"intro,omitempty"`
+	Faq         string `json:"faq,omitempty"`
+}
 
 type Prompt struct {
 	Id            int            `json:"id"`
@@ -32,6 +40,31 @@ type Prompt struct {
 	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime   int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt     gorm.DeletedAt `gorm:"index"`
+}
+
+// ApplyLanguage 根据语言代码替换 SEO 字段内容（缺失则保持默认中文）
+func (p *Prompt) ApplyLanguage(lang string) {
+	if lang == "" || lang == "zh" || lang == "zh-CN" || lang == "zh-TW" {
+		return
+	}
+	if p.SeoI18n == "" {
+		return
+	}
+	var i18nMap map[string]PromptSEO18n
+	if err := common.Unmarshal([]byte(p.SeoI18n), &i18nMap); err != nil {
+		return
+	}
+	if t, ok := i18nMap[lang]; ok {
+		if t.SeoKeywords != "" {
+			p.SeoKeywords = t.SeoKeywords
+		}
+		if t.Intro != "" {
+			p.Intro = t.Intro
+		}
+		if t.Faq != "" {
+			p.Faq = t.Faq
+		}
+	}
 }
 
 func GetAllPrompts(startIdx int, num int) (prompts []*Prompt, total int64, err error) {
