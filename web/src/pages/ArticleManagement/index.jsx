@@ -474,7 +474,9 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories }) =
         <Form
           getFormApi={(api) => {
             formApiRef.current = api;
-            api.subscribeValue('content', (val) => setPreviewContent(val || ''));
+          }}
+          onValueChange={(values) => {
+            setPreviewContent(values.content || '');
           }}
           onSubmit={submit}
         >
