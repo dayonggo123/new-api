@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Tag, Spin, Typography, Breadcrumb } from '@douyinfe/semi-ui';
 import { IconCopy, IconArrowLeft } from '@douyinfe/semi-icons';
@@ -10,6 +10,21 @@ import { WebPageSchema, FAQPageSchema } from '../../components/seo/SchemaOrg';
 const { Title, Text } = Typography;
 
 const FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%23f0f0f0%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22%3E%E6%9A%82%E6%97%A0%E5%9B%BE%E7%89%87%3C/text%3E%3C/svg%3E';
+
+const SEO_LANGS = [
+  { code: 'zh', label: '中文' },
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'Français' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'ja', label: '日本語' },
+  { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'ko', label: '한국어' },
+  { code: 'es', label: 'Español' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'pt', label: 'Português' },
+  { code: 'ar', label: 'العربية' },
+];
 
 function parseTags(tagsStr) {
   if (!tagsStr) return [];
@@ -32,11 +47,17 @@ function parseFAQ(faqStr) {
 export default function PromptDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeLang, setActiveLang] = useState('zh');
 
   useEffect(() => {
+    const urlLang = searchParams.get('lang');
+    if (urlLang && SEO_LANGS.some((l) => l.code === urlLang)) {
+      setActiveLang(urlLang);
+    }
     loadPrompt();
   }, [id]);
 
@@ -82,9 +103,27 @@ export default function PromptDetail() {
   }
 
   const tags = parseTags(prompt.tags);
-  const faqList = parseFAQ(prompt.faq);
-  const description = prompt.intro || prompt.description || prompt.content?.slice(0, 200) || '';
-  const keywords = prompt.seo_keywords || tags.join(', ');
+  const seoI18n = useMemo(() => {
+    try {
+      return JSON.parse(prompt.seo_i18n || '{}');
+    } catch {
+      return {};
+    }
+  }, [prompt.seo_i18n]);
+
+  const currentIntro = activeLang === 'zh'
+    ? prompt.intro
+    : (seoI18n[activeLang]?.intro || prompt.intro);
+  const currentFaqStr = activeLang === 'zh'
+    ? prompt.faq
+    : (seoI18n[activeLang]?.faq || prompt.faq);
+  const currentFaqList = parseFAQ(currentFaqStr);
+  const currentKeywords = activeLang === 'zh'
+    ? (prompt.seo_keywords || tags.join(', '))
+    : (seoI18n[activeLang]?.seo_keywords || prompt.seo_keywords || tags.join(', '));
+
+  const description = currentIntro || prompt.description || prompt.content?.slice(0, 200) || '';
+  const keywords = currentKeywords;
 
   return (
     <div className='prompt-detail-page' style={{ minHeight: '100vh', background: 'var(--semi-color-bg-0)', paddingTop: 64 }}>
@@ -101,8 +140,8 @@ export default function PromptDetail() {
         pageDescription={description}
         pathname={`/prompt/${id}`}
       />
-      {faqList.length > 0 && (
-        <FAQPageSchema faqs={faqList} />
+      {currentFaqList.length > 0 && (
+        <FAQPageSchema faqs={currentFaqList} />
       )}
 
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
@@ -151,10 +190,69 @@ export default function PromptDetail() {
             </div>
           )}
 
-          {/* Intro */}
-          {prompt.intro && (
-            <div style={{ background: '#eef2ff', padding: 16, borderRadius: 8, borderLeft: '4px solid #4f46e5', marginBottom: 24 }}>
-              <Text style={{ fontSize: 15, lineHeight: 1.6 }}>{prompt.intro}</Text>
+          {/* 多语言 SEO 内容 */}
+          {(currentIntro || currentFaqList.length > 0) && (
+            <div style={{ marginBottom: 24 }}>
+              {/* 语言切换 */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 2,
+                borderBottom: '1px solid var(--semi-color-border)',
+                marginBottom: 16,
+              }}>
+                {SEO_LANGS.map((lang) => {
+                  const hasTranslation = lang.code === 'zh' || !!(seoI18n[lang.code]?.intro || seoI18n[lang.code]?.faq);
+                  const active = activeLang === lang.code;
+                  return (
+                    <button
+                      key={lang.code}
+                      type='button'
+                      onClick={() => setActiveLang(lang.code)}
+                      style={{
+                        padding: '6px 12px',
+                        border: 'none',
+                        background: 'none',
+                        cursor: hasTranslation ? 'pointer' : 'default',
+                        borderBottom: active ? '2px solid var(--semi-color-primary)' : '2px solid transparent',
+                        color: active ? 'var(--semi-color-primary)' : (hasTranslation ? 'var(--semi-color-text-2)' : '#ccc'),
+                        fontWeight: active ? 600 : 400,
+                        fontSize: 13,
+                        transition: 'all 0.2s',
+                        marginBottom: -1,
+                        opacity: hasTranslation ? 1 : 0.4,
+                      }}
+                      disabled={!hasTranslation}
+                    >
+                      {lang.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Intro */}
+              {currentIntro && (
+                <div style={{ background: '#eef2ff', padding: 16, borderRadius: 8, borderLeft: '4px solid #4f46e5', marginBottom: 20 }}>
+                  <Text style={{ fontSize: 15, lineHeight: 1.6 }}>{currentIntro}</Text>
+                </div>
+              )}
+
+              {/* FAQ */}
+              {currentFaqList.length > 0 && (
+                <div>
+                  <Title heading={4} style={{ marginBottom: 16 }}>{t('常见问题')}</Title>
+                  {currentFaqList.map((item, idx) => (
+                    <details key={idx} style={{ marginBottom: 12, padding: 12, background: '#f9fafb', borderRadius: 8, border: '1px solid var(--semi-color-border)' }}>
+                      <summary style={{ fontWeight: 600, color: '#4f46e5', cursor: 'pointer', fontSize: 15 }}>
+                        {item.question}
+                      </summary>
+                      <div style={{ marginTop: 8, color: '#555', lineHeight: 1.6 }}>
+                        {item.answer}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -186,27 +284,10 @@ export default function PromptDetail() {
             </div>
           )}
 
-          {/* FAQ */}
-          {faqList.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <Title heading={4} style={{ marginBottom: 16 }}>{t('常见问题')}</Title>
-              {faqList.map((item, idx) => (
-                <details key={idx} style={{ marginBottom: 12, padding: 12, background: '#f9fafb', borderRadius: 8, border: '1px solid var(--semi-color-border)' }}>
-                  <summary style={{ fontWeight: 600, color: '#4f46e5', cursor: 'pointer', fontSize: 15 }}>
-                    {item.question}
-                  </summary>
-                  <div style={{ marginTop: 8, color: '#555', lineHeight: 1.6 }}>
-                    {item.answer}
-                  </div>
-                </details>
-              ))}
-            </div>
-          )}
-
           {/* Back */}
           <Button icon={<IconArrowLeft />} onClick={() => navigate('/prompt-gallery')}>
             {t('返回画廊')}
-        </Button>
+          </Button>
         </div>
       </div>
     </div>

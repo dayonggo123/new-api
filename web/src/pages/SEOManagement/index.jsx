@@ -137,15 +137,47 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
     }
   }, [visible, promptId]);
 
-  const handleAutoTranslate = async () => {
-    if (!formApiRef.current) return;
-    const values = formApiRef.current.getValues();
+  // 构建翻译 items，含 FAQ 扁平化
+  const buildTranslateItems = (values) => {
     const items = [
       { key: 'seo_keywords', text: values.seo_keywords || '' },
       { key: 'intro', text: values.intro || '' },
-    ].filter((item) => item.text !== '');
+    ];
+    try {
+      const faqArr = JSON.parse(values.faq || '[]');
+      if (Array.isArray(faqArr)) {
+        faqArr.forEach((item, idx) => {
+          if (item.question) items.push({ key: `faq_${idx}_question`, text: item.question });
+          if (item.answer) items.push({ key: `faq_${idx}_answer`, text: item.answer });
+        });
+      }
+    } catch (e) {}
+    return items.filter((item) => item.text !== '');
+  };
+
+  // 从翻译结果重组 FAQ JSON
+  const reassembleFaq = (langResult) => {
+    const faqMap = {};
+    Object.keys(langResult).forEach((key) => {
+      const m = key.match(/^faq_(\d+)_(question|answer)$/);
+      if (m) {
+        const idx = parseInt(m[1]);
+        const field = m[2];
+        if (!faqMap[idx]) faqMap[idx] = {};
+        faqMap[idx][field] = langResult[key];
+      }
+    });
+    const indices = Object.keys(faqMap).map(Number).sort((a, b) => a - b);
+    if (indices.length === 0) return null;
+    return JSON.stringify(indices.map((idx) => faqMap[idx]));
+  };
+
+  const handleAutoTranslate = async () => {
+    if (!formApiRef.current) return;
+    const values = formApiRef.current.getValues();
+    const items = buildTranslateItems(values);
     if (items.length === 0) {
-      showError('请先填写中文 SEO 关键词和介绍文案');
+      showError('请先填写中文 SEO 内容');
       return;
     }
     const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
@@ -160,7 +192,18 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
       if (success && result) {
         const updated = { ...i18nData };
         Object.keys(result).forEach((langCode) => {
-          if (updated[langCode]) updated[langCode] = { ...updated[langCode], ...result[langCode] };
+          if (updated[langCode]) {
+            const langResult = result[langCode];
+            const newFaq = reassembleFaq(langResult);
+            updated[langCode] = {
+              ...updated[langCode],
+              seo_keywords: langResult.seo_keywords || updated[langCode].seo_keywords || '',
+              intro: langResult.intro || updated[langCode].intro || '',
+            };
+            if (newFaq) {
+              updated[langCode].faq = newFaq;
+            }
+          }
         });
         setI18nData(updated);
         showSuccess('翻译完成');
@@ -177,12 +220,9 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
   const handleRetranslate = async (targetLang) => {
     if (!formApiRef.current) return;
     const values = formApiRef.current.getValues();
-    const items = [
-      { key: 'seo_keywords', text: values.seo_keywords || '' },
-      { key: 'intro', text: values.intro || '' },
-    ].filter((item) => item.text !== '');
+    const items = buildTranslateItems(values);
     if (items.length === 0) {
-      showError('请先填写中文 SEO 关键词和介绍文案');
+      showError('请先填写中文 SEO 内容');
       return;
     }
     setTranslating(true);
@@ -194,9 +234,16 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
       });
       const { success, data: result, message } = res.data;
       if (success && result && result[targetLang]) {
+        const langResult = result[targetLang];
+        const newFaq = reassembleFaq(langResult);
         setI18nData((prev) => ({
           ...prev,
-          [targetLang]: { ...prev[targetLang], ...result[targetLang] },
+          [targetLang]: {
+            ...prev[targetLang],
+            seo_keywords: langResult.seo_keywords || prev[targetLang]?.seo_keywords || '',
+            intro: langResult.intro || prev[targetLang]?.intro || '',
+            ...(newFaq ? { faq: newFaq } : {}),
+          },
         }));
         showSuccess('翻译完成');
       } else {
@@ -578,11 +625,46 @@ const SEOManagement = () => {
     setAuditing((prev) => ({ ...prev, [id]: true }));
     setAuditResult(null);
     try {
+      // 先尝试读取最近一次审计记录
+      const historyRes = await API.get(`/api/prompt/seo/${id}/audits?limit=1`);
+      if (historyRes.data.success && historyRes.data.data && historyRes.data.data.length > 0) {
+        const latest = historyRes.data.data[0];
+        setAuditResult({
+          overall_score: latest.overall_score,
+          categories: JSON.parse(latest.categories || '{}'),
+          critical_issues: JSON.parse(latest.critical_issues || '[]'),
+          quick_wins: JSON.parse(latest.quick_wins || '[]'),
+        });
+        openAudit(id);
+      } else {
+        // 没有历史记录，调用 AI 生成
+        const res = await API.post(`/api/prompt/seo/${id}/audit`);
+        const { success, data, message } = res.data;
+        if (success) {
+          setAuditResult(data);
+          openAudit(id);
+        } else {
+          showError(message || t('审计失败'));
+        }
+      }
+    } catch (error) {
+      showError(error.message);
+    }
+    setAuditing((prev) => ({ ...prev, [id]: false }));
+  };
+
+  const handleReAudit = async (id) => {
+    setAuditing((prev) => ({ ...prev, [id]: true }));
+    setAuditResult(null);
+    try {
       const res = await API.post(`/api/prompt/seo/${id}/audit`);
       const { success, data, message } = res.data;
       if (success) {
         setAuditResult(data);
-        openAudit(id);
+        loadAuditHistory(id);
+        loadStats();
+        loadData(activePage, pageSize, keyword);
+        showSuccess(t('审计完成'));
       } else {
         showError(message || t('审计失败'));
       }
@@ -901,6 +983,28 @@ const SEOManagement = () => {
       >
         {auditResult ? (
           <div className='p-2'>
+            {/* 操作栏 */}
+            <div className='flex justify-end gap-2 mb-4'>
+              <Button
+                type='tertiary'
+                size='small'
+                icon={<IconRefresh />}
+                loading={auditing[auditId]}
+                onClick={() => handleReAudit(auditId)}
+              >
+                {t('重新审计')}
+              </Button>
+              <Button
+                type='tertiary'
+                size='small'
+                icon={<IconBolt />}
+                loading={regenerating[auditId]}
+                onClick={() => handleRegenerate(auditId)}
+              >
+                {t('根据建议重新生成 SEO')}
+              </Button>
+            </div>
+
             {/* 总分 */}
             <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
               <div className='flex items-center gap-4'>
