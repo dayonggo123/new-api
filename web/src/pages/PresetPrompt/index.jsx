@@ -13,6 +13,7 @@ import {
   Typography,
   Empty,
   Progress,
+  TextArea,
 } from '@douyinfe/semi-ui';
 import {
   IconPlus,
@@ -392,7 +393,7 @@ export default function PresetPrompt() {
           <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
             {t('系统提示词')}
           </label>
-          <Input.TextArea
+          <TextArea
             value={data.system_prompt || ''}
             onChange={(v) => updateI18nField(langCode, 'system_prompt', v)}
             placeholder={t('请输入系统提示词（可选）')}
@@ -403,7 +404,7 @@ export default function PresetPrompt() {
           <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
             {t('用户提示词')}
           </label>
-          <Input.TextArea
+          <TextArea
             value={data.user_prompt || ''}
             onChange={(v) => updateI18nField(langCode, 'user_prompt', v)}
             placeholder={t('请输入用户提示词（可选）')}
@@ -414,7 +415,7 @@ export default function PresetPrompt() {
           <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
             {t('描述')}
           </label>
-          <Input.TextArea
+          <TextArea
             value={data.description || ''}
             onChange={(v) => updateI18nField(langCode, 'description', v)}
             placeholder={t('请输入描述（可选）')}
