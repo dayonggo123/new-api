@@ -429,3 +429,69 @@ func AuditPromptSEOHandler(c *gin.Context) {
 
 	common.ApiSuccess(c, result)
 }
+
+// GetPromptSEOAHistory 获取指定 Prompt 的 SEO 审计历史
+func GetPromptSEOAHistory(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	limitStr := c.DefaultQuery("limit", "10")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+
+	audits, err := model.GetPromptSEOAudits(id, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, audits)
+}
+
+// GetPromptSEOStats 获取 SEO 统计概览
+func GetPromptSEOStats(c *gin.Context) {
+	stats, err := model.GetPromptSEOAuditStats()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, stats)
+}
+
+// BatchAuditPromptSEO 批量审计 Prompt SEO
+func BatchAuditPromptSEO(c *gin.Context) {
+	var req struct {
+		Ids []int `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(req.Ids) == 0 {
+		common.ApiErrorMsg(c, "ids is required")
+		return
+	}
+	if len(req.Ids) > 50 {
+		common.ApiErrorMsg(c, "最多一次审计 50 个提示词")
+		return
+	}
+
+	// 异步批量审计
+	go func(ids []int) {
+		for _, id := range ids {
+			prompt, err := model.GetPromptById(id)
+			if err != nil {
+				continue
+			}
+			service.AuditPromptSEO(prompt.Prompt)
+		}
+	}(req.Ids)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("已启动 %d 个提示词的批量审计任务", len(req.Ids)),
+	})
+}

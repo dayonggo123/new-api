@@ -466,6 +466,8 @@ const SEOManagement = () => {
   const [auditResult, setAuditResult] = useState(null);
   const [showAudit, setShowAudit] = useState(false);
   const [auditId, setAuditId] = useState(null);
+  const [auditHistory, setAuditHistory] = useState([]);
+  const [stats, setStats] = useState(null);
 
   const loadData = useCallback(
     async (page = activePage, size = pageSize, search = keyword) => {
@@ -492,8 +494,20 @@ const SEOManagement = () => {
     [activePage, pageSize, keyword]
   );
 
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await API.get('/api/prompt/seo/stats');
+      if (res.data.success) {
+        setStats(res.data.data);
+      }
+    } catch (error) {
+      // 静默失败，不影响主列表
+    }
+  }, []);
+
   useEffect(() => {
     loadData(1, pageSize, '');
+    loadStats();
   }, [pageSize]);
 
   const handleSearch = () => {
@@ -539,12 +553,25 @@ const SEOManagement = () => {
   const openAudit = (id) => {
     setAuditId(id);
     setShowAudit(true);
+    loadAuditHistory(id);
   };
 
   const closeAudit = () => {
     setShowAudit(false);
     setAuditResult(null);
     setAuditId(null);
+    setAuditHistory([]);
+  };
+
+  const loadAuditHistory = async (id) => {
+    try {
+      const res = await API.get(`/api/prompt/seo/${id}/audits?limit=10`);
+      if (res.data.success) {
+        setAuditHistory(res.data.data || []);
+      }
+    } catch (error) {
+      setAuditHistory([]);
+    }
   };
 
   const handleAudit = async (id) => {
@@ -596,6 +623,71 @@ const SEOManagement = () => {
 
   return (
     <div className='mt-[60px] px-2'>
+      {/* SEO 统计卡片 */}
+      {stats && (
+        <Row gutter={12} className='mb-4'>
+          <Col span={6} xs={24} sm={12} md={6}>
+            <Card className='!rounded-2xl shadow-sm border-0' bodyStyle={{ padding: '16px' }}>
+              <div className='text-sm text-gray-500 mb-1'>{t('SEO 覆盖率')}</div>
+              <div className='text-2xl font-bold' style={{ color: stats.seo_coverage >= 80 ? '#52c41a' : stats.seo_coverage >= 50 ? '#faad14' : '#f5222d' }}>
+                {stats.seo_coverage}%
+              </div>
+              <div className='text-xs text-gray-400'>
+                {stats.with_seo} / {stats.total_prompts}
+              </div>
+            </Card>
+          </Col>
+          <Col span={6} xs={24} sm={12} md={6}>
+            <Card className='!rounded-2xl shadow-sm border-0' bodyStyle={{ padding: '16px' }}>
+              <div className='text-sm text-gray-500 mb-1'>{t('审计覆盖率')}</div>
+              <div className='text-2xl font-bold' style={{ color: stats.audit_coverage >= 80 ? '#52c41a' : stats.audit_coverage >= 50 ? '#faad14' : '#f5222d' }}>
+                {stats.audit_coverage}%
+              </div>
+              <div className='text-xs text-gray-400'>
+                {stats.with_audit} / {stats.total_prompts}
+              </div>
+            </Card>
+          </Col>
+          <Col span={6} xs={24} sm={12} md={6}>
+            <Card className='!rounded-2xl shadow-sm border-0' bodyStyle={{ padding: '16px' }}>
+              <div className='text-sm text-gray-500 mb-1'>{t('平均审计分')}</div>
+              <div className='text-2xl font-bold' style={{ color: stats.average_score >= 80 ? '#52c41a' : stats.average_score >= 60 ? '#faad14' : '#f5222d' }}>
+                {stats.average_score}
+              </div>
+              <div className='text-xs text-gray-400'>
+                {t('满分 100')}
+              </div>
+            </Card>
+          </Col>
+          <Col span={6} xs={24} sm={12} md={6}>
+            <Card className='!rounded-2xl shadow-sm border-0' bodyStyle={{ padding: '16px' }}>
+              <div className='text-sm text-gray-500 mb-1'>{t('分数分布')}</div>
+              <div className='flex gap-2 text-xs'>
+                {stats.score_distribution?.map((d) => {
+                  const labelMap = {
+                    excellent: t('优'),
+                    good: t('良'),
+                    average: t('中'),
+                    poor: t('差'),
+                  };
+                  const colorMap = {
+                    excellent: '#52c41a',
+                    good: '#95de64',
+                    average: '#faad14',
+                    poor: '#f5222d',
+                  };
+                  return (
+                    <span key={d.range} style={{ color: colorMap[d.range] || '#666' }}>
+                      {labelMap[d.range] || d.range}: {d.count}
+                    </span>
+                  );
+                }) || '-'}
+              </div>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
       <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
         <div className='flex flex-wrap items-center justify-between gap-3 mb-4'>
           <div className='flex items-center gap-2'>
@@ -935,6 +1027,33 @@ const SEOManagement = () => {
                 })}
               </Collapse>
             </Card>
+
+            {/* 审计历史 */}
+            {auditHistory.length > 0 && (
+              <Card className='!rounded-2xl shadow-sm border-0 mb-4' title={t('审计历史')}>
+                <div className='space-y-2'>
+                  {auditHistory.map((h) => (
+                    <div key={h.id} className='flex items-center justify-between text-sm py-1 border-b' style={{ borderColor: 'var(--semi-color-border)' }}>
+                      <div className='flex items-center gap-2'>
+                        <span
+                          className='w-2 h-2 rounded-full inline-block'
+                          style={{
+                            background: h.overall_score >= 80 ? '#52c41a' : h.overall_score >= 60 ? '#faad14' : '#f5222d',
+                          }}
+                        />
+                        <span>{new Date(h.created_at * 1000).toLocaleString()}</span>
+                      </div>
+                      <Tag
+                        size='small'
+                        color={h.overall_score >= 80 ? 'green' : h.overall_score >= 60 ? 'orange' : 'red'}
+                      >
+                        {h.overall_score}
+                      </Tag>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
           </div>
         ) : (
           <div className='flex items-center justify-center h-64'>

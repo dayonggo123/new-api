@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -114,7 +115,28 @@ func AuditPromptSEO(prompt *model.Prompt) (*SEOAuditResult, error) {
 		result.OverallScore = 100
 	}
 
+	// 异步保存审计结果到数据库
+	go saveSEOAuditResult(prompt.Id, &result)
+
 	return &result, nil
+}
+
+func saveSEOAuditResult(promptId int, result *SEOAuditResult) {
+	categoriesJSON, _ := common.Marshal(result.Categories)
+	criticalJSON, _ := common.Marshal(result.CriticalIssues)
+	quickWinsJSON, _ := common.Marshal(result.QuickWins)
+
+	audit := &model.PromptSEOAudit{
+		PromptId:       promptId,
+		OverallScore:   result.OverallScore,
+		Categories:     string(categoriesJSON),
+		CriticalIssues: string(criticalJSON),
+		QuickWins:      string(quickWinsJSON),
+		CreatedAt:      time.Now().Unix(),
+	}
+	if err := model.CreatePromptSEOAudit(audit); err != nil {
+		logger.LogError(context.Background(), fmt.Sprintf("save seo audit failed: prompt=%d err=%v", promptId, err))
+	}
 }
 
 func buildDefaultSEOAuditSystemPrompt() string {
