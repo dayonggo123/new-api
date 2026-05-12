@@ -42,6 +42,7 @@ import ArticleDetail from './pages/ArticleDetail';
 import SEOManagement from './pages/SEOManagement';
 import SEOTrends from './pages/SEOTrends';
 import ArticleManagement from './pages/ArticleManagement';
+import ImageStudio from './pages/ImageStudio';
 import NotificationManagement from './pages/NotificationManagement';
 import PresetPrompt from './pages/PresetPrompt';
 import SkillManagement from './pages/SkillManagement';
