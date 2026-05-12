@@ -93,10 +93,10 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		systemPrompt = "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}."
 	}
 	if userPromptTemplate == "" {
-		userPromptTemplate = "Translate ALL the following items from {{sourceLang}} to {{targetLang}}. You MUST translate EVERY item including names, titles, categories, descriptions, and labels. Do NOT skip any item. Do NOT leave any item untranslated. Do NOT return the original {{sourceLang}} text under any circumstances. Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text. Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n{{items}}"
+		userPromptTemplate = "Translate the following prompt fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n\nOutput format example:\n{\"title\":\"Translated Title\",\"content\":\"Translated content...\"}"
 	}
 
-	// 构建 {{items}} 变量内容
+	// 构建 {{items}} 变量内容（旧文本格式，向后兼容）
 	var itemsBuilder strings.Builder
 	for _, item := range items {
 		if item.Text != "" {
@@ -104,11 +104,21 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		}
 	}
 
+	// 构建 {{fields}} 变量内容（新 JSON 格式）
+	fieldsMap := make(map[string]string)
+	for _, item := range items {
+		if item.Text != "" {
+			fieldsMap[item.Key] = item.Text
+		}
+	}
+	fieldsJSON, _ := common.Marshal(fieldsMap)
+
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLang)
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLang)
 	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLang)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLang)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsBuilder.String())
+	userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
 
 	response := callTranslateAI(cfg, systemPrompt, userPrompt)
 	if response == "" {
@@ -130,27 +140,35 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		}
 	}
 
-	// 解析 "key: translated text" 格式
-	lines := strings.Split(response, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+	// 先尝试 JSON 解析（新格式）
+	var jsonResult map[string]string
+	if err := common.Unmarshal([]byte(response), &jsonResult); err == nil && len(jsonResult) > 0 {
+		for k, v := range jsonResult {
+			result[k] = v
 		}
-		if !strings.Contains(line, ":") {
-			continue
-		}
-		idx := strings.Index(line, ": ")
-		if idx == -1 {
-			idx = strings.Index(line, ":")
-		}
-		if idx <= 0 {
-			continue
-		}
-		key := strings.TrimSpace(line[:idx])
-		val := strings.TrimSpace(line[idx+1:])
-		if key != "" {
-			result[key] = val
+	} else {
+		// 回退到 "key: translated text" 格式（旧格式，向后兼容）
+		lines := strings.Split(response, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if !strings.Contains(line, ":") {
+				continue
+			}
+			idx := strings.Index(line, ": ")
+			if idx == -1 {
+				idx = strings.Index(line, ":")
+			}
+			if idx <= 0 {
+				continue
+			}
+			key := strings.TrimSpace(line[:idx])
+			val := strings.TrimSpace(line[idx+1:])
+			if key != "" {
+				result[key] = val
+			}
 		}
 	}
 
