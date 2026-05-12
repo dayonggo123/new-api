@@ -12,7 +12,6 @@ import {
   Select,
   Typography,
   Empty,
-  Tabs,
 } from '@douyinfe/semi-ui';
 import {
   IconPlus,
@@ -29,24 +28,6 @@ const statusMap = {
   2: { color: 'red', text: '禁用' },
 };
 
-// 12 种支持语言（第一项为默认语言中文）
-const LANGUAGES = [
-  { code: 'zh-CN', label: '中文（默认）' },
-  { code: 'en', label: 'English' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'ja', label: '日本語' },
-  { code: 'vi', label: 'Tiếng Việt' },
-  { code: 'zh-TW', label: '繁體中文' },
-  { code: 'es', label: 'Español' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'ko', label: '한국어' },
-  { code: 'pt', label: 'Português' },
-  { code: 'it', label: 'Italiano' },
-];
-
-const DEFAULT_LANG = 'zh-CN';
-
 export default function PresetPrompt() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -62,8 +43,6 @@ export default function PresetPrompt() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
   const [searchStatus, setSearchStatus] = useState('');
-  const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
-  const [i18nData, setI18nData] = useState({});
 
   const loadCategories = useCallback(async () => {
     try {
@@ -110,42 +89,25 @@ export default function PresetPrompt() {
 
   const handleAdd = () => {
     setEditingItem(null);
-    setI18nData({});
-    setActiveLang(DEFAULT_LANG);
     setModalVisible(true);
     if (formApi) formApi.reset();
   };
 
   const handleEdit = (record) => {
     setEditingItem(record);
-    setActiveLang(DEFAULT_LANG);
-    // 解析 i18n JSON
-    let parsed = {};
-    if (record.i18n) {
-      try {
-        parsed = JSON.parse(record.i18n);
-      } catch (e) {
-        parsed = {};
-      }
-    }
-    setI18nData(parsed);
     setModalVisible(true);
-  };
-
-  // 当 Modal 打开且 formApi 就绪时填充表单值
-  useEffect(() => {
-    if (modalVisible && editingItem && formApi) {
+    if (formApi) {
       formApi.setValues({
-        name: editingItem.name,
-        system_prompt: editingItem.system_prompt,
-        user_prompt: editingItem.user_prompt,
-        description: editingItem.description,
-        category: editingItem.category,
-        status: editingItem.status,
-        sort_order: editingItem.sort_order,
+        name: record.name,
+        system_prompt: record.system_prompt,
+        user_prompt: record.user_prompt,
+        description: record.description,
+        category: record.category,
+        status: record.status,
+        sort_order: record.sort_order,
       });
     }
-  }, [modalVisible, editingItem, formApi]);
+  };
 
   const handleDelete = (record) => {
     Modal.confirm({
@@ -180,7 +142,6 @@ export default function PresetPrompt() {
         category: values.category || '',
         status: values.status || 1,
         sort_order: values.sort_order || 0,
-        i18n: JSON.stringify(i18nData),
       };
 
       let res;
@@ -202,28 +163,6 @@ export default function PresetPrompt() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // 设置当前语言表单值
-  const setLangField = (field, value) => {
-    if (activeLang === DEFAULT_LANG) {
-      formApi?.setValue(field, value);
-    } else {
-      setI18nData((prev) => ({
-        ...prev,
-        [activeLang]: {
-          ...prev[activeLang],
-          [field]: value,
-        },
-      }));
-    }
-  };
-
-  // 判断某语言是否有翻译
-  const hasTranslation = (code) => {
-    if (code === DEFAULT_LANG) return true;
-    const t = i18nData[code];
-    return t && (t.name || t.system_prompt || t.user_prompt || t.description);
   };
 
   const columns = [
@@ -372,27 +311,8 @@ export default function PresetPrompt() {
         confirmLoading={submitting}
         centered
         maskClosable={false}
-        width={800}
-        bodyStyle={{ maxHeight: '75vh', overflow: 'auto', paddingRight: 4 }}
+        style={{ width: 600 }}
       >
-        <Tabs
-          activeKey={activeLang}
-          onChange={(key) => setActiveLang(key)}
-          type='button'
-          style={{ marginBottom: 8 }}
-          tabList={LANGUAGES.map((lang) => ({
-            tab: (
-              <span>
-                {lang.label}
-                {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
-                  <span style={{ color: 'var(--semi-color-primary)', marginLeft: 4, fontSize: 8 }}>●</span>
-                )}
-              </span>
-            ),
-            itemKey: lang.code,
-          }))}
-        />
-
         <Form
           getFormApi={(api) => setFormApi(api)}
           initValues={{
@@ -400,80 +320,30 @@ export default function PresetPrompt() {
             sort_order: 0,
           }}
         >
-          <div style={{ display: activeLang === DEFAULT_LANG ? 'block' : 'none' }}>
-            <Form.Input
-              field='name'
-              label={t('名称')}
-              placeholder={t('请输入预设提示词名称')}
-              rules={[{ required: true, message: t('名称不能为空') }]}
-            />
-            <Form.TextArea
-              field='system_prompt'
-              label={t('系统提示词')}
-              placeholder={t('请输入系统提示词（可选）')}
-              rows={4}
-            />
-            <Form.TextArea
-              field='user_prompt'
-              label={t('用户提示词')}
-              placeholder={t('请输入用户提示词（可选）')}
-              rows={4}
-            />
-            <Form.TextArea
-              field='description'
-              label={t('描述')}
-              placeholder={t('请输入描述（可选）')}
-              rows={2}
-            />
-          </div>
-
-          {LANGUAGES.filter(l => l.code !== DEFAULT_LANG).map((lang) => (
-            <div key={lang.code} style={{ display: activeLang === lang.code ? 'block' : 'none' }}>
-              <div style={{ marginBottom: 16, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>
-                {lang.label} {t('翻译')}
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{t('名称')}</label>
-                <Input
-                  value={i18nData[lang.code]?.name || ''}
-                  onChange={(v) => setLangField('name', v)}
-                  placeholder={t('请输入翻译后的名称')}
-                  style={{ width: '100%' }}
-                />
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{t('系统提示词')}</label>
-                <Input.TextArea
-                  value={i18nData[lang.code]?.system_prompt || ''}
-                  onChange={(v) => setLangField('system_prompt', v)}
-                  rows={4}
-                  placeholder={t('请输入翻译后的系统提示词')}
-                  style={{ width: '100%' }}
-                />
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{t('用户提示词')}</label>
-                <Input.TextArea
-                  value={i18nData[lang.code]?.user_prompt || ''}
-                  onChange={(v) => setLangField('user_prompt', v)}
-                  rows={4}
-                  placeholder={t('请输入翻译后的用户提示词')}
-                  style={{ width: '100%' }}
-                />
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{t('描述')}</label>
-                <Input.TextArea
-                  value={i18nData[lang.code]?.description || ''}
-                  onChange={(v) => setLangField('description', v)}
-                  rows={2}
-                  placeholder={t('请输入翻译后的描述')}
-                  style={{ width: '100%' }}
-                />
-              </div>
-            </div>
-          ))}
-
+          <Form.Input
+            field='name'
+            label={t('名称')}
+            placeholder={t('请输入预设提示词名称')}
+            rules={[{ required: true, message: t('名称不能为空') }]}
+          />
+          <Form.TextArea
+            field='system_prompt'
+            label={t('系统提示词')}
+            placeholder={t('请输入系统提示词（可选）')}
+            rows={4}
+          />
+          <Form.TextArea
+            field='user_prompt'
+            label={t('用户提示词')}
+            placeholder={t('请输入用户提示词（可选）')}
+            rows={4}
+          />
+          <Form.TextArea
+            field='description'
+            label={t('描述')}
+            placeholder={t('请输入描述（可选）')}
+            rows={2}
+          />
           <Form.Input
             field='category'
             label={t('分类')}
@@ -488,10 +358,11 @@ export default function PresetPrompt() {
               { value: 2, label: t('禁用') },
             ]}
           />
-          <Form.Input
+          <Form.InputNumber
             field='sort_order'
             label={t('排序')}
             placeholder={t('数字越大越靠前')}
+            min={0}
           />
         </Form>
       </Modal>
