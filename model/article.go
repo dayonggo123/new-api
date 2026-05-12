@@ -38,7 +38,11 @@ func GetAllArticleCategories(startIdx int, num int) (categories []*ArticleCatego
 		return nil, 0, err
 	}
 
-	err = tx.Order("sort_order asc, id desc").Limit(num).Offset(startIdx).Find(&categories).Error
+	if num > 0 {
+		err = tx.Order("sort_order asc, id desc").Limit(num).Offset(startIdx).Find(&categories).Error
+	} else {
+		err = tx.Order("sort_order asc, id desc").Find(&categories).Error
+	}
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err

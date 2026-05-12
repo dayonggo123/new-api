@@ -126,7 +126,7 @@ const CategoryEditModal = ({ visible, onCancel, category, refresh }) => {
       const { success, message } = res.data;
       if (success) {
         showSuccess(isEdit ? t('分类更新成功！') : t('分类创建成功！'));
-        refresh();
+        await refresh();
         onCancel();
       } else {
         showError(message);
