@@ -51,7 +51,7 @@ const DEFAULT_LANG = 'zh';
 const emptyI18n = () => {
   const obj = {};
   LANGUAGES.forEach((lang) => {
-    obj[lang.code] = { name: '', system_prompt: '', user_prompt: '', description: '' };
+    obj[lang.code] = { name: '', system_prompt: '', user_prompt: '', description: '', category: '' };
   });
   return obj;
 };
@@ -193,6 +193,7 @@ export default function PresetPrompt() {
       { key: 'system_prompt', text: values.system_prompt || '' },
       { key: 'user_prompt', text: values.user_prompt || '' },
       { key: 'description', text: values.description || '' },
+      { key: 'category', text: values.category || '' },
     ].filter((item) => item.text !== '');
     if (items.length === 0) {
       showError(t('请至少填写一个默认语言字段后再翻译'));
@@ -225,6 +226,44 @@ export default function PresetPrompt() {
     } finally {
       setTranslating(false);
       setTranslateProgress(100);
+    }
+  };
+
+  const handleRetranslate = async (targetLang) => {
+    if (!formApi) return;
+    const values = formApi.getValues();
+    const items = [
+      { key: 'name', text: values.name || '' },
+      { key: 'system_prompt', text: values.system_prompt || '' },
+      { key: 'user_prompt', text: values.user_prompt || '' },
+      { key: 'description', text: values.description || '' },
+      { key: 'category', text: values.category || '' },
+    ].filter((item) => item.text !== '');
+    if (items.length === 0) {
+      showError(t('请至少填写一个默认语言字段后再翻译'));
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await API.post('/api/translate/batch', {
+        items,
+        source_lang: DEFAULT_LANG,
+        target_langs: [targetLang],
+      });
+      const { success, data: result, message } = res.data;
+      if (success && result && result[targetLang]) {
+        setI18nData((prev) => ({
+          ...prev,
+          [targetLang]: { ...prev[targetLang], ...result[targetLang] },
+        }));
+        showSuccess(t('翻译完成'));
+      } else {
+        showError(message || t('翻译失败'));
+      }
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -380,6 +419,17 @@ export default function PresetPrompt() {
     return (
       <>
         <div style={{ marginBottom: 12 }}>
+          <Button
+            icon={<IconLanguage />}
+            loading={translating}
+            onClick={() => handleRetranslate(langCode)}
+            type='tertiary'
+            size='small'
+          >
+            {t('重新翻译')}
+          </Button>
+        </div>
+        <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
             {t('名称')}
           </label>
@@ -420,6 +470,16 @@ export default function PresetPrompt() {
             onChange={(v) => updateI18nField(langCode, 'description', v)}
             placeholder={t('请输入描述（可选）')}
             rows={2}
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
+            {t('分类')}
+          </label>
+          <Input
+            value={data.category || ''}
+            onChange={(v) => updateI18nField(langCode, 'category', v)}
+            placeholder={t('请输入分类（可选）') + ' ' + langLabel}
           />
         </div>
       </>
