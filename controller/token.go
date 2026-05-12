@@ -357,3 +357,80 @@ func GetTokenKeysBatch(c *gin.Context) {
 	}
 	common.ApiSuccess(c, gin.H{"keys": keysMap})
 }
+
+// GetUserTokensFull 返回当前用户的所有 token 列表（包含完整 key，用于客户端自动配置）
+func GetUserTokensFull(c *gin.Context) {
+	userId := c.GetInt("id")
+	tokens, err := model.GetAllUserTokens(userId, 0, 1000)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, tokens)
+}
+
+// AutoToken 一键获取或创建客户端专属 token（Storyboard-Copilot / HarseTV 用）
+// 若已存在同名 token，直接返回已有 token 的完整 key；否则创建新 token
+func AutoToken(c *gin.Context) {
+	userId := c.GetInt("id")
+	tokenName := "Storyboard-Copilot"
+
+	// 先查找是否已有同名 token
+	existingToken, err := model.GetUserTokenByName(userId, tokenName)
+	if err == nil && existingToken != nil {
+		common.ApiSuccess(c, gin.H{
+			"id":     existingToken.Id,
+			"name":   existingToken.Name,
+			"key":    existingToken.GetFullKey(),
+			"status": existingToken.Status,
+		})
+		return
+	}
+
+	// 检查用户令牌数量是否已达上限
+	maxTokens := operation_setting.GetMaxUserTokens()
+	count, err := model.CountUserTokens(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if int(count) >= maxTokens {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("已达到最大令牌数量限制 (%d)", maxTokens),
+		})
+		return
+	}
+
+	// 创建新 token
+	key, err := common.GenerateKey()
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
+		common.SysLog("failed to generate token key: " + err.Error())
+		return
+	}
+
+	now := common.GetTimestamp()
+	newToken := model.Token{
+		UserId:         userId,
+		Name:           tokenName,
+		Key:            key,
+		Status:         common.TokenStatusEnabled,
+		UnlimitedQuota: true,
+		CreatedTime:    now,
+		AccessedTime:   now,
+		ExpiredTime:    -1,
+	}
+
+	if err := newToken.Insert(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"id":     newToken.Id,
+		"name":   newToken.Name,
+		"key":    newToken.GetFullKey(),
+		"status": newToken.Status,
+	})
+}

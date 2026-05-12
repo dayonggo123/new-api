@@ -235,6 +235,19 @@ func GetTokenByIds(id int, userId int) (*Token, error) {
 	return &token, err
 }
 
+// GetUserTokenByName 根据用户ID和token名称查找token（用于客户端自动获取/创建场景）
+func GetUserTokenByName(userId int, name string) (*Token, error) {
+	if userId == 0 || name == "" {
+		return nil, errors.New("userId 或 name 为空")
+	}
+	var token Token
+	err := DB.Where("user_id = ? AND name = ?", userId, name).First(&token).Error
+	if err != nil {
+		return nil, err
+	}
+	return &token, nil
+}
+
 func GetTokenById(id int) (*Token, error) {
 	if id == 0 {
 		return nil, errors.New("id 为空！")
