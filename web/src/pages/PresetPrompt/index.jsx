@@ -17,14 +17,12 @@ import {
 import {
   IconPlus,
   IconRefresh,
-  IconLanguage,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 
 const statusMap = {
   1: { color: 'green', text: '启用' },
@@ -66,8 +64,6 @@ export default function PresetPrompt() {
   const [searchStatus, setSearchStatus] = useState('');
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState({});
-  const [translating, setTranslating] = useState(false);
-  const [translateProgress, setTranslateProgress] = useState('');
 
   const loadCategories = useCallback(async () => {
     try {
@@ -169,51 +165,6 @@ export default function PresetPrompt() {
         }
       },
     });
-  };
-
-  const handleAutoTranslate = async () => {
-    if (!formApi) return;
-    const values = formApi.getValues();
-    const items = [];
-    if (values.name?.trim()) items.push({ key: 'name', text: values.name.trim() });
-    if (values.system_prompt?.trim()) items.push({ key: 'system_prompt', text: values.system_prompt.trim() });
-    if (values.user_prompt?.trim()) items.push({ key: 'user_prompt', text: values.user_prompt.trim() });
-    if (values.description?.trim()) items.push({ key: 'description', text: values.description.trim() });
-
-    if (items.length === 0) {
-      showError('请先填写中文内容');
-      return;
-    }
-
-    const targetLangs = ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'];
-    setTranslating(true);
-
-    for (let i = 0; i < targetLangs.length; i++) {
-      const lang = targetLangs[i];
-      setTranslateProgress(`${i + 1}/${targetLangs.length} ${lang}`);
-      try {
-        const res = await API.post('/api/translate/batch', {
-          items,
-          source_lang: 'ZH',
-          target_langs: [lang],
-        });
-        if (res.data.success) {
-          const normalized = {};
-          Object.entries(res.data.data).forEach(([l, fields]) => {
-            normalized[l.toLowerCase()] = fields;
-          });
-          setI18nData((prev) => ({ ...prev, ...normalized }));
-        } else {
-          console.warn('翻译失败:', lang, res.data.message);
-        }
-      } catch (err) {
-        console.warn('翻译请求失败:', lang, err.message);
-      }
-    }
-
-    setTranslating(false);
-    setTranslateProgress('');
-    showSuccess('翻译完成，已填充到各语言 Tab');
   };
 
   const handleSubmit = async () => {
@@ -374,21 +325,19 @@ export default function PresetPrompt() {
             onChange={(v) => { setSearchCategory(v); setPage(1); }}
             style={{ width: 160 }}
             allowClear
-          >
-            {categories.map((cat) => (
-              <Option key={cat} value={cat}>{cat}</Option>
-            ))}
-          </Select>
+            optionList={categories.map((cat) => ({ value: cat, label: cat }))}
+          />
           <Select
             placeholder={t('全部状态')}
             value={searchStatus}
             onChange={(v) => { setSearchStatus(v); setPage(1); }}
             style={{ width: 140 }}
             allowClear
-          >
-            <Option value={1}>{t('启用')}</Option>
-            <Option value={2}>{t('禁用')}</Option>
-          </Select>
+            optionList={[
+              { value: 1, label: t('启用') },
+              { value: 2, label: t('禁用') },
+            ]}
+          />
           <Button type='primary' onClick={() => { setPage(1); loadData(); }}>
             {t('查询')}
           </Button>
@@ -443,21 +392,6 @@ export default function PresetPrompt() {
             itemKey: lang.code,
           }))}
         />
-
-        <div style={{ marginBottom: 16 }}>
-          <Button
-            type='tertiary'
-            icon={<IconLanguage />}
-            onClick={handleAutoTranslate}
-            loading={translating}
-            disabled={translating}
-          >
-            {translating ? `${t('翻译中')} ${translateProgress}` : `${t('自动翻译')}（AI）`}
-          </Button>
-          <Text type='tertiary' size='small' style={{ marginLeft: 8 }}>
-            {t('将中文内容一键翻译成其他 11 种语言')}
-          </Text>
-        </div>
 
         <Form
           getFormApi={(api) => setFormApi(api)}
@@ -549,10 +483,11 @@ export default function PresetPrompt() {
             field='status'
             label={t('状态')}
             rules={[{ required: true }]}
-          >
-            <Option value={1}>{t('启用')}</Option>
-            <Option value={2}>{t('禁用')}</Option>
-          </Form.Select>
+            optionList={[
+              { value: 1, label: t('启用') },
+              { value: 2, label: t('禁用') },
+            ]}
+          />
           <Form.Input
             field='sort_order'
             label={t('排序')}
