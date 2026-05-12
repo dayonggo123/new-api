@@ -93,7 +93,7 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		systemPrompt = "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}."
 	}
 	if userPromptTemplate == "" {
-		userPromptTemplate = "Translate ALL the following items from {{sourceLang}} to {{targetLang}}. You MUST translate every item into {{targetLang}}. Do NOT return the original {{sourceLang}} text under any circumstances. Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text. Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n{{items}}"
+		userPromptTemplate = "Translate ALL the following items from {{sourceLang}} to {{targetLang}}. You MUST translate EVERY item including names, titles, categories, descriptions, and labels. Do NOT skip any item. Do NOT leave any item untranslated. Do NOT return the original {{sourceLang}} text under any circumstances. Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text. Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n{{items}}"
 	}
 
 	// 构建 {{items}} 变量内容

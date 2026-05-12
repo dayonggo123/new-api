@@ -101,7 +101,7 @@ func initDefaultSkills() error {
 			Description:          "批量将多个字段翻译成目标语言",
 			ExecutionType:        "llm",
 			SystemPromptTemplate: "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}.",
-			UserPromptTemplate:   "Translate ALL the following items from {{sourceLang}} to {{targetLang}}. You MUST translate every item into {{targetLang}}. Do NOT return the original {{sourceLang}} text under any circumstances. Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text. Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n{{items}}",
+			UserPromptTemplate:   "Translate ALL the following items from {{sourceLang}} to {{targetLang}}. You MUST translate EVERY item including names, titles, categories, descriptions, and labels. Do NOT skip any item. Do NOT leave any item untranslated. Do NOT return the original {{sourceLang}} text under any circumstances. Return the translations in this exact format, one per line, with the key followed by a colon and a space, then the translated text. Do not add any extra text, explanations, markdown code blocks, or blank lines.\n\n{{items}}",
 			OverrideLocal:        false,
 			Status:               1,
 		},
