@@ -3,6 +3,7 @@ FROM node:20-alpine AS builder
 WORKDIR /build
 COPY ./web .
 COPY ./VERSION .
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN test -f dist/index.html || (npm install --legacy-peer-deps && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat VERSION) npm run build)
 
 FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder2
