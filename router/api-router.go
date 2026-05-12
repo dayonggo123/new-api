@@ -360,6 +360,7 @@ func SetApiRouter(router *gin.Engine) {
 		// Article Admin Routes
 		apiRouter.GET("/admin/articles", middleware.AdminAuth(), controller.GetArticles)
 		apiRouter.POST("/admin/articles", middleware.AdminAuth(), controller.CreateArticle)
+		apiRouter.POST("/admin/articles/generate", middleware.AdminAuth(), controller.GenerateArticle)
 		apiRouter.GET("/admin/articles/:id", middleware.AdminAuth(), controller.GetArticle)
 		apiRouter.PUT("/admin/articles/:id", middleware.AdminAuth(), controller.UpdateArticle)
 		apiRouter.DELETE("/admin/articles/:id", middleware.AdminAuth(), controller.DeleteArticle)

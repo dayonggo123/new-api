@@ -38,6 +38,7 @@ import {
   Pagination,
   TextArea,
   Select,
+  Modal,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -48,6 +49,7 @@ import {
   IconLanguage,
   IconSearch,
   IconRefresh,
+  IconPen,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -204,7 +206,7 @@ const CategoryEditModal = ({ visible, onCancel, category, refresh }) => {
 
 // ==================== Article Edit Modal ====================
 
-const EditArticleModal = ({ visible, onCancel, article, refresh, categories }) => {
+const EditArticleModal = ({ visible, onCancel, article, refresh, categories, initialData }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -251,7 +253,27 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories }) =
   };
 
   useEffect(() => {
-    if (visible && article?.id) {
+    if (visible && initialData) {
+      formApiRef.current?.setValues({
+        title: initialData.title || '',
+        slug: '',
+        category_id: categories[0]?.id || 0,
+        author: initialData.author || '',
+        cover_image_url: initialData.cover_image_url || '',
+        tags: initialData.tags || '',
+        status: true,
+        is_featured: false,
+        summary: initialData.summary || '',
+        content: initialData.content || '',
+        seo_title: '',
+        seo_description: '',
+        seo_keywords: '',
+      });
+      setPreviewContent(initialData.content || '');
+      setI18nData(emptyI18n());
+      setActiveTab('content');
+      setActiveLang(DEFAULT_LANG);
+    } else if (visible && article?.id) {
       loadDetail();
     } else if (visible && !article?.id) {
       // New article
@@ -275,7 +297,7 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories }) =
       setActiveTab('basic');
       setActiveLang(DEFAULT_LANG);
     }
-  }, [visible, article?.id]);
+  }, [visible, article?.id, initialData]);
 
   const buildTranslateItems = (values) => {
     const items = [
@@ -657,6 +679,11 @@ const ArticleManagement = () => {
   const [articleStatus, setArticleStatus] = useState(0);
   const [editingArticle, setEditingArticle] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [aiGeneratedData, setAiGeneratedData] = useState(null);
+
+  // AI Generate state
+  const [showAIGenerate, setShowAIGenerate] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   // Categories state
   const [categories, setCategories] = useState([]);
@@ -710,6 +737,31 @@ const ArticleManagement = () => {
   useEffect(() => {
     loadArticles(1, articlePageSize);
   }, [articleKeyword, articleCategoryId, articleStatus]);
+
+  const handleAIGenerate = async (values) => {
+    setAiGenerating(true);
+    try {
+      const res = await API.post('/api/admin/articles/generate', {
+        title: values.title || '',
+        prompt: values.prompt || '',
+        reference_url: values.reference_url || '',
+        language: values.language || 'zh',
+      });
+      const { success, data, message } = res.data;
+      if (success && data) {
+        showSuccess(t('AI 生成成功，请检查并完善文章内容'));
+        setShowAIGenerate(false);
+        setAiGeneratedData(data);
+        setEditingArticle(null);
+        setShowEdit(true);
+      } else {
+        showError(message || t('生成失败'));
+      }
+    } catch (err) {
+      showError(err.message);
+    }
+    setAiGenerating(false);
+  };
 
   const handleDeleteArticle = async (id) => {
     try {
@@ -817,10 +869,12 @@ const ArticleManagement = () => {
         onCancel={() => {
           setShowEdit(false);
           setEditingArticle(null);
+          setAiGeneratedData(null);
         }}
         article={editingArticle}
         refresh={loadArticles}
         categories={categories}
+        initialData={aiGeneratedData}
       />
 
       <CategoryEditModal
@@ -833,6 +887,60 @@ const ArticleManagement = () => {
         refresh={loadCategories}
       />
 
+      {/* AI Generate Article Modal */}
+      <Modal
+        title={t('AI 写文章')}
+        visible={showAIGenerate}
+        onCancel={() => setShowAIGenerate(false)}
+        footer={null}
+        maskClosable={false}
+      >
+        <Spin spinning={aiGenerating}>
+          <Form
+            onSubmit={handleAIGenerate}
+            initValues={{ language: 'zh' }}
+          >
+            {({ formApi }) => (
+              <div className='space-y-4'>
+                <Form.Input
+                  field='title'
+                  label={t('标题（可选）')}
+                  placeholder={t('给文章一个标题，或留空让 AI 生成')}
+                  showClear
+                />
+                <Form.TextArea
+                  field='prompt'
+                  label={t('写作要求')}
+                  placeholder={t('描述你想写的文章主题、风格、字数要求等。例如：写一篇关于 AI 编程助手工具对比的深度评测文章')}
+                  rows={4}
+                  showClear
+                />
+                <Form.Input
+                  field='reference_url'
+                  label={t('参考链接（可选）')}
+                  placeholder={t('粘贴参考文章链接，AI 会参考其结构和内容')}
+                  showClear
+                />
+                <Form.Select
+                  field='language'
+                  label={t('目标语言')}
+                  optionList={LANGUAGES.map((l) => ({ label: l.label, value: l.code }))}
+                  style={{ width: '100%' }}
+                />
+                <div className='flex justify-end gap-2 pt-2'>
+                  <Button theme='light' onClick={() => setShowAIGenerate(false)}>
+                    {t('取消')}
+                  </Button>
+                  <Button theme='solid' htmlType='submit' loading={aiGenerating}>
+                    {t('开始生成')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Form>
+        </Spin>
+      </Modal>
+
       <Tabs type='line' activeKey={activeTab} onChange={(key) => setActiveTab(key)}>
         <Tabs.TabPane tab={t('文章管理')} itemKey='articles'>
           <Card className='!rounded-2xl shadow-sm border-0'>
@@ -843,12 +951,19 @@ const ArticleManagement = () => {
                 </Avatar>
                 <Text className='text-lg font-medium'>{t('文章列表')}</Text>
               </div>
-              <Button type='primary' size='small' icon={<IconPlus />} onClick={() => {
-                setEditingArticle(null);
-                setShowEdit(true);
-              }}>
-                {t('新增文章')}
-              </Button>
+              <Space>
+                <Button type='primary' size='small' icon={<IconPlus />} onClick={() => {
+                  setEditingArticle(null);
+                  setShowEdit(true);
+                }}>
+                  {t('新增文章')}
+                </Button>
+                <Button type='secondary' size='small' icon={<IconPen />} onClick={() => {
+                  setShowAIGenerate(true);
+                }}>
+                  {t('AI 写文章')}
+                </Button>
+              </Space>
             </div>
 
             <div className='flex flex-wrap gap-2 mb-4'>

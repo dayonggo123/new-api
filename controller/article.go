@@ -391,3 +391,33 @@ func RegenerateArticleSEO(c *gin.Context) {
 		"message": "AI 生成任务已启动，请稍后刷新查看结果",
 	})
 }
+
+// ==================== Admin: AI Write Article ====================
+
+func GenerateArticle(c *gin.Context) {
+	var req service.ArticleWriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if req.Prompt == "" && req.Title == "" && req.ReferenceURL == "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "请至少提供标题、写作要求或参考链接之一"})
+		return
+	}
+	if req.Language == "" {
+		req.Language = "zh"
+	}
+
+	result, err := service.GenerateArticle(&req)
+	if err != nil {
+		logger.LogError(context.Background(), fmt.Sprintf("generate article failed: %v", err))
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "AI 生成失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    result,
+	})
+}

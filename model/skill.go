@@ -133,6 +133,20 @@ func initDefaultSkills() error {
 			OverrideLocal:        false,
 			Status:               1,
 		},
+		{
+			SkillId:              "article-write",
+			Name:                 "AI 写文章",
+			NameEn:               "AI Article Writing",
+			Icon:                 "pen",
+			Cost:                 0,
+			SupportedNodeTypes:   `[]`,
+			Description:          "根据标题、提示词或参考链接自动生成完整文章内容",
+			ExecutionType:        "llm",
+			SystemPromptTemplate: "You are an expert content writer and SEO specialist. Your task is to write a complete, high-quality article based on the user's requirements.\n\nRequirements:\n1. Write the article in the requested language\n2. Use Markdown format for the content (headings, lists, bold, code blocks, tables, etc.)\n3. The article should be comprehensive, well-structured, and engaging (at least 800 words if possible)\n4. Include a compelling title, well-organized sections with H2/H3 headings, and practical insights\n5. The summary should be 1-2 sentences capturing the essence of the article\n6. Tags should be 5-10 relevant keywords separated by commas\n7. Cover image URL: provide a descriptive image search phrase (e.g., \"futuristic AI robot workspace\") or leave empty\n8. Author: provide a plausible author name or \"Editorial Team\"\n\nReturn ONLY valid JSON, no markdown, no explanation:\n{\"title\":\"...\",\"content\":\"...\",\"summary\":\"...\",\"tags\":\"...\",\"cover_image_url\":\"...\",\"author\":\"...\"}",
+			UserPromptTemplate:   "Please write an article with the following requirements:\n\nLanguage: {{language}}\nTitle hint: {{title}}\nWriting requirements: {{prompt}}\nReference article URL: {{reference_url}}\n\nGenerate a complete article with title, markdown content, summary, tags, cover image URL (descriptive phrase or empty), and author name.",
+			OverrideLocal:        false,
+			Status:               1,
+		},
 	}
 
 	for _, skill := range defaultSkills {
