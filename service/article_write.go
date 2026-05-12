@@ -14,7 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
-const articleWriteAITimeout = 120 * time.Second
+const articleWriteAITimeout = 180 * time.Second
 
 // ArticleWriteRequest AI 写文章的请求参数
 type ArticleWriteRequest struct {
@@ -24,7 +24,7 @@ type ArticleWriteRequest struct {
 	Language     string `json:"language"`
 }
 
-// ArticleWriteResult AI 生成的文章内容
+// ArticleWriteResult AI 生成的文章内容（含 SEO + GEO）
 type ArticleWriteResult struct {
 	Title         string `json:"title"`
 	Content       string `json:"content"`
@@ -32,9 +32,13 @@ type ArticleWriteResult struct {
 	Tags          string `json:"tags"`
 	CoverImageUrl string `json:"cover_image_url"`
 	Author        string `json:"author"`
+	SeoTitle      string `json:"seo_title"`
+	SeoDescription string `json:"seo_description"`
+	SeoKeywords   string `json:"seo_keywords"`
+	GeoKeywords   string `json:"geo_keywords"`
 }
 
-// GenerateArticle 调用 AI 根据用户输入生成完整文章
+// GenerateArticle 调用 AI 根据用户输入生成 SEO+GEO 优化的完整文章
 func GenerateArticle(req *ArticleWriteRequest) (*ArticleWriteResult, error) {
 	cfg := operation_setting.GetSEOSetting()
 	if !cfg.SeoAIEnabled || cfg.SeoAIApiKey == "" || cfg.SeoAIBaseURL == "" {
@@ -60,7 +64,7 @@ func GenerateArticle(req *ArticleWriteRequest) (*ArticleWriteResult, error) {
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": userContent},
 		},
-		"temperature": 0.7,
+		"temperature": 0.6,
 		"max_tokens":  8000,
 	}
 
@@ -116,31 +120,52 @@ func GenerateArticle(req *ArticleWriteRequest) (*ArticleWriteResult, error) {
 }
 
 func buildArticleWriteSystemPrompt() string {
-	return `You are an expert content writer and SEO specialist. Your task is to write a complete, high-quality article based on the user's requirements.
+	return `You are an expert SEO content strategist and GEO (Generative Engine Optimization) specialist. Your task is to produce a complete, search-engine-optimized article.
 
-Requirements:
-1. Write the article in the requested language
-2. Use Markdown format for the content (headings, lists, bold, code blocks, tables, etc.)
-3. The article should be comprehensive, well-structured, and engaging (at least 800 words if possible)
-4. Include a compelling title, well-organized sections with H2/H3 headings, and practical insights
-5. The summary should be 1-2 sentences capturing the essence of the article
-6. Tags should be 5-10 relevant keywords separated by commas
-7. Cover image URL: provide a descriptive image search phrase (e.g., "futuristic AI robot workspace") or leave empty
-8. Author: provide a plausible author name or "Editorial Team"
+Workflow you MUST follow:
+1. Analyze the user's title/prompt/reference URL and extract the CORE topic and user intent.
+2. Conduct keyword research: identify 1 primary keyword, 3-5 secondary keywords, and 5-8 long-tail keywords.
+3. Build an article outline using H2/H3 headings that naturally incorporate the keywords.
+4. Write the full article in Markdown (min 1000 words) with:
+   - An engaging introduction that includes the primary keyword in the first 100 words
+   - Well-structured H2/H3 sections using secondary keywords in headings
+   - Keyword density: primary keyword 1-2%, secondary keywords 0.5-1%
+   - At least one ordered or unordered list for featured snippets
+   - A FAQ section at the end with 3-5 Q&A pairs (critical for GEO)
+   - Bold key phrases and entities for AI engine comprehension
+5. Generate all SEO and GEO metadata.
 
-Return ONLY valid JSON, no markdown, no explanation:
-{"title":"...","content":"...","summary":"...","tags":"...","cover_image_url":"...","author":"..."}`
+Return ONLY valid JSON. No markdown wrappers, no explanations.
+
+JSON format:
+{
+  "title": "Compelling title (50-60 chars)",
+  "content": "Full markdown article with H2/H3, lists, bold, code blocks if needed, and FAQ block at the end",
+  "summary": "1-2 sentence summary (150-160 chars)",
+  "tags": "5-10 keywords separated by commas",
+  "cover_image_url": "Descriptive image search phrase or empty",
+  "author": "Author name or Editorial Team",
+  "seo_title": "SEO title 50-60 chars with primary keyword",
+  "seo_description": "Meta description 150-160 chars with CTA",
+  "seo_keywords": "8-12 SEO keywords separated by commas (include long-tail)",
+  "geo_keywords": "5-8 GEO keywords for AI search engines (question-based, entity-focused)"
+}`
 }
 
 func buildArticleWriteUserPromptTemplate() string {
-	return `Please write an article with the following requirements:
+	return `Please write an SEO+GEO optimized article with the following requirements:
 
 Language: {{language}}
 Title hint: {{title}}
-Writing requirements: {{prompt}}
+Writing requirements / prompt: {{prompt}}
 Reference article URL: {{reference_url}}
 
-Generate a complete article with title, markdown content, summary, tags, cover image URL (descriptive phrase or empty), and author name.`
+Follow the system workflow strictly:
+1. Extract keywords first
+2. Plan outline with keyword-rich headings
+3. Write the full article (Markdown, min 1000 words)
+4. Include a FAQ section at the end for GEO
+5. Output all fields in the required JSON format.`
 }
 
 func renderArticleWritePrompt(template string, req *ArticleWriteRequest) string {

@@ -265,9 +265,9 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
         is_featured: false,
         summary: initialData.summary || '',
         content: initialData.content || '',
-        seo_title: '',
-        seo_description: '',
-        seo_keywords: '',
+        seo_title: initialData.seo_title || '',
+        seo_description: initialData.seo_description || '',
+        seo_keywords: initialData.seo_keywords || '',
       });
       setPreviewContent(initialData.content || '');
       setI18nData(emptyI18n());
@@ -911,7 +911,7 @@ const ArticleManagement = () => {
                 <Form.TextArea
                   field='prompt'
                   label={t('写作要求')}
-                  placeholder={t('描述你想写的文章主题、风格、字数要求等。例如：写一篇关于 AI 编程助手工具对比的深度评测文章')}
+                  placeholder={t('描述文章主题、风格、字数等。AI 会先提炼 SEO 关键词，再围绕关键词重写/仿写，并自动生成 SEO 和 GEO 优化内容')}
                   rows={4}
                   showClear
                 />
