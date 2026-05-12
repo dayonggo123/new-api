@@ -195,7 +195,7 @@ func SearchArticles(keyword string, categoryId int, status int, startIdx int, nu
 		return nil, 0, err
 	}
 
-	err = query.Order("is_featured desc, sort_order asc, id desc").Limit(num).Offset(startIdx).Find(&articles).Error
+	err = query.Order("is_featured desc, id desc").Limit(num).Offset(startIdx).Find(&articles).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err

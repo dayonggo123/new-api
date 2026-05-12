@@ -37,6 +37,7 @@ import {
   Avatar,
   Pagination,
   TextArea,
+  Select,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -858,14 +859,14 @@ const ArticleManagement = () => {
                 showClear
                 style={{ width: 200 }}
               />
-              <Form.Select
+              <Select
                 placeholder={t('全部分类')}
                 value={articleCategoryId}
                 onChange={(v) => setArticleCategoryId(v || 0)}
                 optionList={[{ label: t('全部分类'), value: 0 }, ...categories.map((c) => ({ label: c.name, value: c.id }))]}
                 style={{ width: 150 }}
               />
-              <Form.Select
+              <Select
                 placeholder={t('全部状态')}
                 value={articleStatus}
                 onChange={(v) => setArticleStatus(v || 0)}
