@@ -72,6 +72,50 @@ const DEFAULT_LANG = 'zh-CN';
 
 const EditPromptModal = (props) => {
   const { t } = useTranslation();
+
+  // DEFENSIVE: check every Semi UI sub-component we rely on
+  const requiredComponents = {
+    Button,
+    SideSheet,
+    Space,
+    Spin,
+    Typography,
+    Card,
+    Tag,
+    Form,
+    'Form.Input': Form?.Input,
+    'Form.TextArea': Form?.TextArea,
+    'Form.Select': Form?.Select,
+    'Form.RadioGroup': Form?.RadioGroup,
+    'Form.InputNumber': Form?.InputNumber,
+    'Form.Switch': Form?.Switch,
+    'Form.TagInput': Form?.TagInput,
+    Avatar,
+    Row,
+    Col,
+    Upload,
+    Tabs,
+    Input,
+  };
+  const missing = Object.entries(requiredComponents)
+    .filter(([_, v]) => v === undefined)
+    .map(([k]) => k);
+  if (missing.length > 0) {
+    return (
+      <SideSheet visible={props.visiable} width={400} onCancel={props.handleClose}>
+        <div style={{ padding: 24 }}>
+          <Title heading={4} type='danger'>组件加载异常</Title>
+          <Text>以下 Semi UI 子组件在生产构建中丢失：</Text>
+          <ul>
+            {missing.map((m) => (
+              <li key={m}><Tag color='red'>{m}</Tag></li>
+            ))}
+          </ul>
+          <Text type='tertiary'>请复制此列表发给开发者。</Text>
+        </div>
+      </SideSheet>
+    );
+  }
   const isEdit = props.editingPrompt.id !== undefined;
   const [loading, setLoading] = useState(isEdit);
   const isMobile = useIsMobile();
