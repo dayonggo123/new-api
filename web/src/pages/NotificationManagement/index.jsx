@@ -16,6 +16,7 @@ import {
   Banner,
   Checkbox,
   Tabs,
+  TextArea,
 } from '@douyinfe/semi-ui';
 import {
   IconPlus,
@@ -28,8 +29,6 @@ import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
-const { TabPane } = Tabs;
 
 const typeMap = {
   system: { color: 'blue', text: '系统' },
@@ -88,6 +87,7 @@ export default function NotificationManagement() {
   const [useTemplate, setUseTemplate] = useState(false);
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState({});
+  const [editingItem, setEditingItem] = useState(null);
 
   // tier / tag options
   const [tiers, setTiers] = useState([]);
@@ -147,20 +147,38 @@ export default function NotificationManagement() {
   }, [loadTiers, loadTags]);
 
   const handleOpenModal = () => {
+    setEditingItem(null);
     setI18nData({});
     setActiveLang(DEFAULT_LANG);
     setTargetType('all');
     setUseTemplate(false);
     setModalVisible(true);
-    if (formApi) formApi.reset();
   };
 
   const handleCloseModal = () => {
     setModalVisible(false);
+    setEditingItem(null);
     setTargetType('all');
     setUseTemplate(false);
     setI18nData({});
     setActiveLang(DEFAULT_LANG);
+  };
+
+  const handleEdit = (record) => {
+    setEditingItem(record);
+    setActiveLang(DEFAULT_LANG);
+    setUseTemplate(false);
+
+    let parsed = {};
+    try {
+      if (record.i18n) {
+        parsed = JSON.parse(record.i18n);
+      }
+    } catch (e) {
+      parsed = {};
+    }
+    setI18nData(parsed);
+    setModalVisible(true);
   };
 
   const handleAutoTranslate = async () => {
@@ -203,34 +221,111 @@ export default function NotificationManagement() {
     }
   };
 
+  const handleRetranslate = async (targetLang) => {
+    if (!formApi) return;
+    const values = formApi.getValues();
+    const items = [];
+    if (values.title?.trim()) items.push({ key: 'title', text: values.title.trim() });
+    if (values.content?.trim()) items.push({ key: 'content', text: values.content.trim() });
+
+    if (items.length === 0) {
+      showError('请先填写中文标题和内容');
+      return;
+    }
+
+    try {
+      const res = await API.post('/api/translate/batch', {
+        items,
+        source_lang: 'ZH',
+        target_langs: [targetLang.toUpperCase()],
+      });
+      if (res.data.success) {
+        const normalized = {};
+        Object.entries(res.data.data).forEach(([lang, fields]) => {
+          normalized[lang.toLowerCase()] = fields;
+        });
+        setI18nData((prev) => ({ ...prev, ...normalized }));
+        Object.entries(normalized).forEach(([lang, fields]) => {
+          Object.entries(fields).forEach(([key, value]) => {
+            formApi.setValue(`${key}_${lang}`, value);
+          });
+        });
+        showSuccess('翻译完成');
+      } else {
+        showError(res.data.message || '翻译失败');
+      }
+    } catch (err) {
+      showError(err.message || '翻译服务不可用');
+    }
+  };
+
+  // Modal 打开且 Form 挂载完成后设置值
+  useEffect(() => {
+    if (!modalVisible || !formApi) return;
+    if (editingItem) {
+      formApi.setValues({
+        title: editingItem.title,
+        content: editingItem.content,
+        type: editingItem.type,
+        action_url: editingItem.action_url || '',
+      });
+      // 同步多语言字段到表单
+      Object.entries(i18nData).forEach(([lang, fields]) => {
+        if (fields) {
+          Object.entries(fields).forEach(([key, value]) => {
+            if (value) {
+              formApi.setValue(`${key}_${lang}`, value);
+            }
+          });
+        }
+      });
+    } else {
+      formApi.reset();
+    }
+  }, [modalVisible, formApi, editingItem]);
+
   const handleSubmit = async (values) => {
     setSubmitting(true);
     try {
       const payload = {
-        ...values,
-        use_template: !!useTemplate,
+        title: values.title,
+        content: values.content,
         i18n: JSON.stringify(i18nData),
+        type: values.type,
+        action_url: values.action_url || '',
       };
-      // handle array values from multi-select / tag-input, convert to int arrays
-      if (values.target_users) {
-        payload.target_users = Array.isArray(values.target_users)
-          ? values.target_users.map(Number).filter((v) => !isNaN(v))
-          : [Number(values.target_users)].filter((v) => !isNaN(v));
+
+      let res;
+      if (editingItem) {
+        res = await API.put(`/api/admin/notifications/${editingItem.id}`, payload);
+      } else {
+        const createPayload = {
+          ...payload,
+          use_template: !!useTemplate,
+          target_type: values.target_type,
+        };
+        // handle array values from multi-select / tag-input, convert to int arrays
+        if (values.target_users) {
+          createPayload.target_users = Array.isArray(values.target_users)
+            ? values.target_users.map(Number).filter((v) => !isNaN(v))
+            : [Number(values.target_users)].filter((v) => !isNaN(v));
+        }
+        if (values.target_tiers) {
+          createPayload.target_tiers = Array.isArray(values.target_tiers)
+            ? values.target_tiers.map(Number).filter((v) => !isNaN(v))
+            : [Number(values.target_tiers)].filter((v) => !isNaN(v));
+        }
+        if (values.target_tags) {
+          createPayload.target_tags = Array.isArray(values.target_tags)
+            ? values.target_tags.map(Number).filter((v) => !isNaN(v))
+            : [Number(values.target_tags)].filter((v) => !isNaN(v));
+        }
+        res = await API.post('/api/admin/notifications', createPayload);
       }
-      if (values.target_tiers) {
-        payload.target_tiers = Array.isArray(values.target_tiers)
-          ? values.target_tiers.map(Number).filter((v) => !isNaN(v))
-          : [Number(values.target_tiers)].filter((v) => !isNaN(v));
-      }
-      if (values.target_tags) {
-        payload.target_tags = Array.isArray(values.target_tags)
-          ? values.target_tags.map(Number).filter((v) => !isNaN(v))
-          : [Number(values.target_tags)].filter((v) => !isNaN(v));
-      }
-      const res = await API.post('/api/admin/notifications', payload);
+
       const { success, message } = res.data;
       if (success) {
-        showSuccess(message || '发送成功');
+        showSuccess(message || (editingItem ? '更新成功' : '发送成功'));
         handleCloseModal();
         loadData();
       } else {
@@ -348,6 +443,15 @@ export default function NotificationManagement() {
         return date.toLocaleString('zh-CN');
       },
     },
+    {
+      title: '操作',
+      width: 100,
+      render: (_, record) => (
+        <Button type='primary' size='small' onClick={() => handleEdit(record)}>
+          编辑
+        </Button>
+      ),
+    },
   ];
 
   const renderTargetFields = () => {
@@ -379,13 +483,11 @@ export default function NotificationManagement() {
             placeholder='选择目标层级'
             multiple
             filter
-          >
-            {tiers.map((tier) => (
-              <Form.Select.Option key={tier.level} value={tier.level}>
-                <Tag color={tier.color || 'blue'}>L{tier.level} {tier.name}</Tag>
-              </Form.Select.Option>
-            ))}
-          </Form.Select>
+            optionList={tiers.map((tier) => ({
+              value: tier.level,
+              label: <Tag color={tier.color || 'blue'}>L{tier.level} {tier.name}</Tag>,
+            }))}
+          />
         );
       case 'tag':
         return (
@@ -396,13 +498,11 @@ export default function NotificationManagement() {
             placeholder='选择目标标签'
             multiple
             filter
-          >
-            {tags.map((tag) => (
-              <Form.Select.Option key={tag.id} value={tag.id}>
-                <Tag color={tag.color || 'blue'}>{tag.name}</Tag>
-              </Form.Select.Option>
-            ))}
-          </Form.Select>
+            optionList={tags.map((tag) => ({
+              value: tag.id,
+              label: <Tag color={tag.color || 'blue'}>{tag.name}</Tag>,
+            }))}
+          />
         );
       default:
         return null;
@@ -456,7 +556,7 @@ export default function NotificationManagement() {
       </Card>
 
       <Modal
-        title='发布消息'
+        title={editingItem ? '编辑消息' : '发布消息'}
         visible={modalVisible}
         onCancel={handleCloseModal}
         footer={null}
@@ -468,22 +568,18 @@ export default function NotificationManagement() {
           onChange={(key) => setActiveLang(key)}
           type='button'
           style={{ marginBottom: 8 }}
-        >
-          {LANGUAGES.map((lang) => (
-            <TabPane
-              tab={
-                <span>
-                  {lang.label}
-                  {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
-                    <span style={{ color: 'var(--semi-color-primary)', marginLeft: 4, fontSize: 8 }}>●</span>
-                  )}
-                </span>
-              }
-              itemKey={lang.code}
-              key={lang.code}
-            />
-          ))}
-        </Tabs>
+          tabList={LANGUAGES.map((lang) => ({
+            tab: (
+              <span>
+                {lang.label}
+                {hasTranslation(lang.code) && lang.code !== DEFAULT_LANG && (
+                  <span style={{ color: 'var(--semi-color-primary)', marginLeft: 4, fontSize: 8 }}>●</span>
+                )}
+              </span>
+            ),
+            itemKey: lang.code,
+          }))}
+        />
 
         <div style={{ marginBottom: 16 }}>
           <Button
@@ -522,6 +618,17 @@ export default function NotificationManagement() {
 
           {LANGUAGES.filter(l => l.code !== DEFAULT_LANG).map((lang) => (
             <div key={lang.code} style={{ display: activeLang === lang.code ? 'block' : 'none' }}>
+              <div style={{ marginBottom: 12 }}>
+                <Button
+                  icon={<IconLanguage />}
+                  type='tertiary'
+                  size='small'
+                  onClick={() => handleRetranslate(lang.code)}
+                  loading={translating}
+                >
+                  重新翻译
+                </Button>
+              </div>
               <Form.Input
                 field={`title_${lang.code}`}
                 label={`${lang.label} 标题`}
@@ -541,50 +648,54 @@ export default function NotificationManagement() {
             </div>
           ))}
 
-          {useTemplate && (
-            <Banner
-              type='info'
-              icon={<IconHelpCircle />}
-              title='模板变量可用（点击插入）'
-              description={
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                  {templateVars.map((v) => (
-                    <Tooltip content={v.desc} key={v.key}>
-                      <Tag
-                        color='blue'
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => insertTemplateVar(v.key)}
-                      >
-                        {v.key}
-                      </Tag>
-                    </Tooltip>
-                  ))}
-                </div>
-              }
-              closeIcon={null}
-            />
-          )}
+          {!editingItem && (
+            <>
+              {useTemplate && (
+                <Banner
+                  type='info'
+                  icon={<IconHelpCircle />}
+                  title='模板变量可用（点击插入）'
+                  description={
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                      {templateVars.map((v) => (
+                        <Tooltip content={v.desc} key={v.key}>
+                          <Tag
+                            color='blue'
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => insertTemplateVar(v.key)}
+                          >
+                            {v.key}
+                          </Tag>
+                        </Tooltip>
+                      ))}
+                    </div>
+                  }
+                  closeIcon={null}
+                />
+              )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-            <Checkbox
-              checked={useTemplate}
-              onChange={(e) => setUseTemplate(e.target.checked)}
-            >
-              启用模板变量替换
-            </Checkbox>
-            <Tooltip
-              content={
-                <div>
-                  <div>开启后，消息内容中的变量会自动替换为每个用户的实际值：</div>
-                  {templateVars.map((v) => (
-                    <div key={v.key}>{v.key} = {v.desc}</div>
-                  ))}
-                </div>
-              }
-            >
-              <IconHelpCircle style={{ color: 'var(--semi-color-text-2)', cursor: 'pointer' }} />
-            </Tooltip>
-          </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                <Checkbox
+                  checked={useTemplate}
+                  onChange={(e) => setUseTemplate(e.target.checked)}
+                >
+                  启用模板变量替换
+                </Checkbox>
+                <Tooltip
+                  content={
+                    <div>
+                      <div>开启后，消息内容中的变量会自动替换为每个用户的实际值：</div>
+                      {templateVars.map((v) => (
+                        <div key={v.key}>{v.key} = {v.desc}</div>
+                      ))}
+                    </div>
+                  }
+                >
+                  <IconHelpCircle style={{ color: 'var(--semi-color-text-2)', cursor: 'pointer' }} />
+                </Tooltip>
+              </div>
+            </>
+          )}
 
           <Form.Select
             field='type'
@@ -592,29 +703,35 @@ export default function NotificationManagement() {
             rules={[{ required: true, message: '请选择类型' }]}
             placeholder='请选择消息类型'
             initValue='system'
-          >
-            <Form.Select.Option value='system'>系统</Form.Select.Option>
-            <Form.Select.Option value='promotion'>活动</Form.Select.Option>
-            <Form.Select.Option value='announcement'>公告</Form.Select.Option>
-            <Form.Select.Option value='task_status'>任务</Form.Select.Option>
-          </Form.Select>
+            optionList={[
+              { value: 'system', label: '系统' },
+              { value: 'promotion', label: '活动' },
+              { value: 'announcement', label: '公告' },
+              { value: 'task_status', label: '任务' },
+            ]}
+          />
 
-          <Form.Select
-            field='target_type'
-            label='发送目标'
-            rules={[{ required: true, message: '请选择发送目标' }]}
-            placeholder='请选择发送目标'
-            initValue='all'
-            onChange={(value) => setTargetType(value)}
-          >
-            <Form.Select.Option value='all'>全员广播</Form.Select.Option>
-            <Form.Select.Option value='users'>指定用户</Form.Select.Option>
-            <Form.Select.Option value='group'>指定分组</Form.Select.Option>
-            <Form.Select.Option value='tier'>按层级</Form.Select.Option>
-            <Form.Select.Option value='tag'>按标签</Form.Select.Option>
-          </Form.Select>
+          {!editingItem && (
+            <>
+              <Form.Select
+                field='target_type'
+                label='发送目标'
+                rules={[{ required: true, message: '请选择发送目标' }]}
+                placeholder='请选择发送目标'
+                initValue='all'
+                onChange={(value) => setTargetType(value)}
+                optionList={[
+                  { value: 'all', label: '全员广播' },
+                  { value: 'users', label: '指定用户' },
+                  { value: 'group', label: '指定分组' },
+                  { value: 'tier', label: '按层级' },
+                  { value: 'tag', label: '按标签' },
+                ]}
+              />
 
-          {renderTargetFields()}
+              {renderTargetFields()}
+            </>
+          )}
 
           <Form.Input
             field='action_url'
@@ -624,7 +741,7 @@ export default function NotificationManagement() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 }}>
             <Button onClick={handleCloseModal}>取消</Button>
             <Button type='primary' htmlType='submit' loading={submitting}>
-              发布
+              {editingItem ? '更新' : '发布'}
             </Button>
           </div>
         </Form>

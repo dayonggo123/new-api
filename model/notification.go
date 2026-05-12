@@ -124,3 +124,8 @@ func GetAllNotifications(startIdx int, pageSize int, notificationType string) ([
 	err = db.Order("created_time DESC").Limit(pageSize).Offset(startIdx).Find(&notifications).Error
 	return notifications, total, err
 }
+
+// UpdateNotification 更新通知内容
+func UpdateNotification(id int, updates map[string]interface{}) error {
+	return DB.Model(&Notification{}).Where("id = ?", id).Updates(updates).Error
+}

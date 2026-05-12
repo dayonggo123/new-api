@@ -149,3 +149,39 @@ func AdminGetNotifications(c *gin.Context) {
 	pageInfo.SetItems(notifications)
 	common.ApiSuccess(c, pageInfo)
 }
+
+// AdminUpdateNotification 管理员更新通知内容
+func AdminUpdateNotification(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var req struct {
+		Title     string `json:"title"`
+		Content   string `json:"content"`
+		I18n      string `json:"i18n"`
+		Type      string `json:"type"`
+		ActionUrl string `json:"action_url"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	updates := map[string]interface{}{
+		"title":      req.Title,
+		"content":    req.Content,
+		"i18n":       req.I18n,
+		"type":       req.Type,
+		"action_url": req.ActionUrl,
+	}
+
+	if err := model.UpdateNotification(id, updates); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, nil)
+}
