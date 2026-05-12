@@ -131,6 +131,7 @@ func GetPresetPromptCategories(c *gin.Context) {
 }
 
 // GetPublicPresetPrompts 公开接口：获取启用的预设提示词列表
+// 支持 ?lang= 显式指定语言；未指定且用户已登录时，自动使用用户语言偏好
 func GetPublicPresetPrompts(c *gin.Context) {
 	prompts, err := model.GetEnabledPresetPrompts()
 	if err != nil {
@@ -139,6 +140,12 @@ func GetPublicPresetPrompts(c *gin.Context) {
 	}
 
 	lang := c.Query("lang")
+	if lang == "" {
+		userId := c.GetInt("id")
+		if userId > 0 {
+			lang = model.GetUserLanguage(userId)
+		}
+	}
 	for i := range prompts {
 		prompts[i].ApplyLanguage(lang)
 		// 对外隐藏 i18n 原始 JSON，减少响应体积

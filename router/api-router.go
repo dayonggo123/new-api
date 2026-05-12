@@ -382,8 +382,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
 		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
 
-		// Preset Prompt Public Routes (no auth required)
-		apiRouter.GET("/public/preset-prompts", controller.GetPublicPresetPrompts)
+		// Preset Prompt Public Routes (optional auth for auto language detection)
+		apiRouter.GET("/public/preset-prompts", middleware.TryUserAuth(), controller.GetPublicPresetPrompts)
 
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)

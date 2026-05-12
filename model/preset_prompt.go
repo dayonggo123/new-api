@@ -14,6 +14,7 @@ type PresetPromptI18n struct {
 	SystemPrompt string `json:"system_prompt,omitempty"`
 	UserPrompt   string `json:"user_prompt,omitempty"`
 	Description  string `json:"description,omitempty"`
+	Category     string `json:"category,omitempty"`
 }
 
 type PresetPrompt struct {
@@ -55,6 +56,9 @@ func (p *PresetPrompt) ApplyLanguage(lang string) {
 		}
 		if t.Description != "" {
 			p.Description = t.Description
+		}
+		if t.Category != "" {
+			p.Category = t.Category
 		}
 	}
 }
