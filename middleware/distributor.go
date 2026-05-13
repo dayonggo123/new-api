@@ -178,6 +178,39 @@ func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
 	return &modelRequest, nil
 }
 
+// normalizeModelName 将常见模型别名标准化为完整名称（主要用于 Kling 系列）
+func normalizeModelName(model string) string {
+	switch model {
+	case "kling-2.5":
+		return "kling-video-2-5"
+	case "kling-2.6":
+		return "kling-video-2-6"
+	case "kling-3.0":
+		return "kling-video-3-0"
+	case "kling-o1":
+		return "kling-video-o1"
+	case "kling-motion":
+		return "kling-video-motion"
+	case "kling-motion-3":
+		return "kling-video-motion-3"
+	case "kling-lipsync":
+		return "kling-video-lipsync"
+	case "kling-2-1-5s":
+		return "kling-video-2-1-5s"
+	case "kling-2-1-10s":
+		return "kling-video-2-1-10s"
+	case "kling-1-6-5s":
+		return "kling-video-1-6-5s"
+	case "kling-1-6-10s":
+		return "kling-video-1-6-10s"
+	case "kling-3-0-edit":
+		return "kling-video-3-0-edit"
+	case "kling-o1-edit":
+		return "kling-video-o1-edit"
+	}
+	return model
+}
+
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
@@ -355,6 +388,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
+	modelRequest.Model = normalizeModelName(modelRequest.Model)
 	return &modelRequest, shouldSelectChannel, nil
 }
 

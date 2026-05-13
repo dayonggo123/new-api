@@ -106,6 +106,9 @@ type GeneralOpenAIRequest struct {
 	SearchMode             json.RawMessage `json:"search_mode,omitempty"`
 	// Minimax
 	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
+	// Veo / GeminiGen Kling video generation
+	RefImages []string `json:"ref_images,omitempty"`
+	RefVideos []string `json:"ref_videos,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
