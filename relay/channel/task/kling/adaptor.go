@@ -252,7 +252,28 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{"kling-v1", "kling-v1-6", "kling-v2-master"}
+	return []string{
+		// Text-to-Video / Image-to-Video
+		"kling-video-3-0",
+		"kling-video-2-6",
+		"kling-video-2-5",
+		"kling-video-2-1-5s",
+		"kling-video-2-1-10s",
+		// O1 Variants
+		"kling-video-o1",
+		// Motion Control
+		"kling-video-motion-3",
+		"kling-video-motion",
+		// Edit
+		"kling-video-3-0-edit",
+		"kling-video-o1-edit",
+		// Lipsync
+		"kling-video-lipsync",
+		// Legacy models (keep for backward compatibility)
+		"kling-v1",
+		"kling-v1-6",
+		"kling-v2-master",
+	}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {
