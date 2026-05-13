@@ -38,6 +38,21 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseURL := strings.TrimSuffix(info.ChannelBaseUrl, "/")
 	model := info.UpstreamModelName
+	// 如果 model 为空（如 GET 任务查询），尝试从请求路径中提取
+	if model == "" && info.RequestURLPath != "" {
+		parts := strings.Split(strings.Trim(info.RequestURLPath, "/"), "/")
+		if len(parts) >= 4 && parts[0] == "uapi" && parts[1] == "v1" {
+			if parts[2] == "video-gen" && len(parts) >= 4 {
+				model = parts[3]
+			} else if parts[2] == "generate_image" {
+				model = "generate_image"
+			} else if parts[2] == "imagen" && len(parts) >= 4 {
+				model = parts[3]
+			} else if parts[2] == "meta_ai" && len(parts) >= 4 {
+				model = parts[3]
+			}
+		}
+	}
 	path, ok := modelToPath[model]
 	if !ok {
 		path = fmt.Sprintf("/uapi/v1/video-gen/%s", model)
