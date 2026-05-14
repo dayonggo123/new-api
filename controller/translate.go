@@ -165,26 +165,29 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		}
 	} else {
 		// 回退到 "key: translated text" 格式（旧格式，向后兼容）
+		// 支持值跨多行：如果一行没有 ":"，则追加到上一个 key
 		lines := strings.Split(response, "\n")
+		var currentKey string
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
 			}
-			if !strings.Contains(line, ":") {
-				continue
-			}
-			idx := strings.Index(line, ": ")
-			if idx == -1 {
-				idx = strings.Index(line, ":")
-			}
-			if idx <= 0 {
-				continue
-			}
-			key := strings.TrimSpace(line[:idx])
-			val := strings.TrimSpace(line[idx+1:])
-			if key != "" {
-				result[key] = val
+			if strings.Contains(line, ":") {
+				idx := strings.Index(line, ": ")
+				if idx == -1 {
+					idx = strings.Index(line, ":")
+				}
+				if idx > 0 {
+					currentKey = strings.TrimSpace(line[:idx])
+					val := strings.TrimSpace(line[idx+1:])
+					if currentKey != "" {
+						result[currentKey] = val
+					}
+				}
+			} else if currentKey != "" {
+				// 追加到当前 key（多行值）
+				result[currentKey] += "\n" + line
 			}
 		}
 	}
