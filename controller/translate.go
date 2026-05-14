@@ -78,9 +78,26 @@ func BatchTranslate(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
+// langCodeToName 将语言代码映射为 AI 易于理解的完整语言名称
+var langCodeToName = map[string]string{
+	"zh": "Chinese", "en": "English", "fr": "French", "ru": "Russian",
+	"ja": "Japanese", "vi": "Vietnamese", "ko": "Korean", "es": "Spanish",
+	"de": "German", "pt": "Portuguese", "it": "Italian", "ar": "Arabic",
+}
+
+func getLangName(code string) string {
+	if name, ok := langCodeToName[code]; ok {
+		return name
+	}
+	return code
+}
+
 // translateBatchWithAI 批量翻译：一次请求翻译某语言的多个字段
 func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []TranslateItem, sourceLang, targetLang string) map[string]string {
 	result := make(map[string]string)
+
+	sourceLangName := getLangName(sourceLang)
+	targetLangName := getLangName(targetLang)
 
 	// 读取 batch-translate Skill 模板，不存在则使用硬编码默认值
 	systemPrompt := ""
@@ -90,10 +107,10 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		userPromptTemplate = skill.UserPromptTemplate
 	}
 	if systemPrompt == "" {
-		systemPrompt = "You are a professional AI prompt translator specialized in maintaining prompt engineering integrity. Your task is to translate prompt fields into {{targetLang}} while preserving:\n1. All variable placeholders like {{variableName}} — DO NOT translate text inside {{}}\n2. Markdown formatting, lists, and special syntax\n3. Prompt structure and technical intent\n4. Commonly accepted {{targetLang}} terms for AI/ML concepts\n\nYou must return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON."
+		systemPrompt = "You are a professional translator. Your ONLY task is to translate the given fields from {{sourceLang}} to {{targetLang}}. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Preserve all variable placeholders like {{variableName}} exactly as-is. Return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON."
 	}
 	if userPromptTemplate == "" {
-		userPromptTemplate = "Translate the following prompt fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n\nOutput format example:\n{\"title\":\"Translated Title\",\"content\":\"Translated content...\"}"
+		userPromptTemplate = "Translate the following fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n\nOutput format example:\n{\"title\":\"Translated Title\",\"content\":\"Translated content...\"}"
 	}
 
 	// 构建 {{items}} 变量内容（旧文本格式，向后兼容）
@@ -113,10 +130,10 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 	}
 	fieldsJSON, _ := common.Marshal(fieldsMap)
 
-	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLang)
-	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLang)
-	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLang)
-	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLang)
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLangName)
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLangName)
+	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLangName)
+	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsBuilder.String())
 	userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
 
@@ -184,6 +201,9 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 
 // translateSingleWithAI 使用 AI 模型翻译单条文本
 func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
+	sourceLangName := getLangName(sourceLang)
+	targetLangName := getLangName(targetLang)
+
 	// 读取 prompt-translate Skill 模板
 	systemPrompt := ""
 	userPromptTemplate := ""
@@ -198,10 +218,10 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 		userPromptTemplate = "Translate the following text from {{sourceLang}} to {{targetLang}}. Your response must be ONLY the translated text in {{targetLang}}, nothing else:\n\n\"\"\"\n{{prompt}}\n\"\"\""
 	}
 
-	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLang)
-	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLang)
-	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLang)
-	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLang)
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLangName)
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLangName)
+	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLangName)
+	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{prompt}}", text)
 
 	return callTranslateAI(cfg, systemPrompt, userPrompt)
@@ -224,6 +244,10 @@ func callTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, user
 		common.SysLog("AI translate marshal error: " + err.Error())
 		return ""
 	}
+
+	common.SysLog(fmt.Sprintf("AI translate request: model=%s baseURL=%s", cfg.TranslateAIModel, cfg.TranslateAIBaseURL))
+	common.SysLog(fmt.Sprintf("AI translate system prompt: %s", systemPrompt))
+	common.SysLog(fmt.Sprintf("AI translate user prompt: %s", userPrompt))
 
 	client := &http.Client{Timeout: 15 * time.Second}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cfg.TranslateAIBaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
@@ -264,7 +288,9 @@ func callTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, user
 		return ""
 	}
 
-	return extractPlainText(apiResp.Choices[0].Message.Content)
+	rawContent := apiResp.Choices[0].Message.Content
+	common.SysLog(fmt.Sprintf("AI translate raw response: %s", rawContent))
+	return extractPlainText(rawContent)
 }
 
 // extractPlainText 去除 AI 返回内容中可能的引号、markdown 等格式
