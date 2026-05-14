@@ -93,11 +93,23 @@ func getLangName(code string) string {
 }
 
 // translateBatchWithAI 批量翻译：一次请求翻译某语言的多个字段
+// 若 content 字段过长，会拆分出来单独翻译，避免 AI 因 token 限制截断长文本
 func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []TranslateItem, sourceLang, targetLang string) map[string]string {
 	result := make(map[string]string)
 
 	sourceLangName := getLangName(sourceLang)
 	targetLangName := getLangName(targetLang)
+
+	// 若 content 过长，先拆出来单独翻译
+	var contentItem *TranslateItem
+	var shortItems []TranslateItem
+	for i := range items {
+		if items[i].Key == "content" && len(items[i].Text) > 300 {
+			contentItem = &items[i]
+		} else {
+			shortItems = append(shortItems, items[i])
+		}
+	}
 
 	// 读取 batch-translate Skill 模板，不存在则使用硬编码默认值
 	systemPrompt := ""
@@ -115,7 +127,7 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 
 	// 构建 {{items}} 变量内容（旧文本格式，向后兼容）
 	var itemsBuilder strings.Builder
-	for _, item := range items {
+	for _, item := range shortItems {
 		if item.Text != "" {
 			itemsBuilder.WriteString(fmt.Sprintf("%s: %s\n", item.Key, item.Text))
 		}
@@ -123,7 +135,7 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 
 	// 构建 {{fields}} 变量内容（新 JSON 格式）
 	fieldsMap := make(map[string]string)
-	for _, item := range items {
+	for _, item := range shortItems {
 		if item.Text != "" {
 			fieldsMap[item.Key] = item.Text
 		}
@@ -192,6 +204,17 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		}
 	}
 
+	// 若 content 被拆分出来，单独翻译（避免长文本被截断）
+	if contentItem != nil {
+		common.SysLog(fmt.Sprintf("AI translate content separately: [%s->%s] len=%d", sourceLang, targetLang, len(contentItem.Text)))
+		translatedContent := translateSingleWithAI(cfg, contentItem.Text, sourceLang, targetLang)
+		if translatedContent != "" && translatedContent != contentItem.Text {
+			result[contentItem.Key] = translatedContent
+		} else {
+			result[contentItem.Key] = contentItem.Text
+		}
+	}
+
 	missingKeys := []string{}
 	for _, item := range items {
 		if result[item.Key] == "" || result[item.Key] == item.Text {
@@ -250,7 +273,7 @@ func callTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, user
 			{"role": "user", "content": userPrompt},
 		},
 		"temperature": 0.3,
-		"max_tokens":  4096,
+		"max_tokens":  8192,
 	}
 
 	jsonData, err := common.Marshal(reqBody)
