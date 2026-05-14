@@ -525,9 +525,6 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		}
 
 		model := info.UpstreamModelName
-		if m, ok := bodyMap["model"].(string); ok && m != "" {
-			model = m
-		}
 
 		prompt := ""
 		if p, ok := bodyMap["prompt"].(string); ok {
@@ -601,9 +598,6 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		writer := multipart.NewWriter(&buf)
 
 		model := info.UpstreamModelName
-		if v, ok := formData.Value["model"]; ok && len(v) > 0 && v[0] != "" {
-			model = v[0]
-		}
 		writer.WriteField("model", model)
 
 		mode := ""
