@@ -93,6 +93,22 @@ export default function PromptDetail() {
     }
   }, [prompt?.seo_i18n]);
 
+  const contentI18n = useMemo(() => {
+    if (!prompt) return {};
+    try {
+      return JSON.parse(prompt.i18n || '{}');
+    } catch {
+      return {};
+    }
+  }, [prompt?.i18n]);
+
+  const currentContent = useMemo(() => {
+    if (!prompt) return '';
+    if (activeLang === 'zh') return prompt.content || '';
+    if (activeLang === 'en') return prompt.content_en || prompt.content || '';
+    return contentI18n[activeLang]?.content || prompt.content_en || prompt.content || '';
+  }, [activeLang, prompt?.content, prompt?.content_en, contentI18n]);
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -205,7 +221,9 @@ export default function PromptDetail() {
                 marginBottom: 16,
               }}>
                 {SEO_LANGS.map((lang) => {
-                  const hasTranslation = lang.code === 'zh' || !!(seoI18n[lang.code]?.intro || seoI18n[lang.code]?.faq);
+                  const hasTranslation = lang.code === 'zh'
+                    || !!(seoI18n[lang.code]?.intro || seoI18n[lang.code]?.faq)
+                    || !!(lang.code === 'en' ? prompt?.content_en : contentI18n[lang.code]?.content);
                   const active = activeLang === lang.code;
                   return (
                     <button
@@ -260,29 +278,18 @@ export default function PromptDetail() {
           )}
 
           {/* Content */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Title heading={4} style={{ margin: 0 }}>{t('提示词内容')}</Title>
-              <Button icon={<IconCopy />} size='small' onClick={() => handleCopy(prompt.content)}>
-                {t('复制')}
-              </Button>
-            </div>
-            <pre style={{ background: '#f8f9fa', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, fontSize: 14, border: '1px solid var(--semi-color-border)' }}>
-              {prompt.content}
-            </pre>
-          </div>
-
-          {/* English Content */}
-          {prompt.content_en && (
+          {currentContent && (
             <div style={{ marginBottom: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Title heading={4} style={{ margin: 0 }}>English Prompt</Title>
-                <Button icon={<IconCopy />} size='small' onClick={() => handleCopy(prompt.content_en)}>
+                <Title heading={4} style={{ margin: 0 }}>
+                  {activeLang === 'en' ? 'English Prompt' : activeLang === 'zh' ? t('提示词内容') : `${SEO_LANGS.find(l => l.code === activeLang)?.label || activeLang} Prompt`}
+                </Title>
+                <Button icon={<IconCopy />} size='small' onClick={() => handleCopy(currentContent)}>
                   {t('复制')}
                 </Button>
               </div>
               <pre style={{ background: '#f8f9fa', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, fontSize: 14, border: '1px solid var(--semi-color-border)' }}>
-                {prompt.content_en}
+                {currentContent}
               </pre>
             </div>
           )}
