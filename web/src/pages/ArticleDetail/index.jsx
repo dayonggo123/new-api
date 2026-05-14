@@ -221,15 +221,8 @@ export default function ArticleDetail() {
             </div>
           )}
 
-          {/* Content */}
-          <div style={{ marginBottom: 32 }}>
-            <MarkdownRenderer content={currentArticle.content || ''} />
-          </div>
-
-          <Divider />
-
           {/* Language Switcher */}
-          <div style={{ marginTop: 24 }}>
+          <div style={{ marginBottom: 24 }}>
             <Text type='tertiary' size='small' style={{ marginBottom: 8, display: 'block' }}>
               {t('语言')}
             </Text>
@@ -251,6 +244,13 @@ export default function ArticleDetail() {
               })}
             </div>
           </div>
+
+          {/* Content */}
+          <div style={{ marginBottom: 32 }}>
+            <MarkdownRenderer content={currentArticle.content || ''} />
+          </div>
+
+          <Divider />
         </div>
       </div>
     </div>
