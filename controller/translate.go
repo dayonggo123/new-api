@@ -46,7 +46,7 @@ func BatchTranslate(c *gin.Context) {
 	var wg sync.WaitGroup
 
 	// 并发翻译，提高速度避免网关超时
-	semaphore := make(chan struct{}, 10)
+	semaphore := make(chan struct{}, 3)
 
 	// 检查是否启用 AI 翻译
 	cfg := operation_setting.GetTranslateSetting()
@@ -249,7 +249,7 @@ func callTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, user
 	common.SysLog(fmt.Sprintf("AI translate system prompt: %s", systemPrompt))
 	common.SysLog(fmt.Sprintf("AI translate user prompt: %s", userPrompt))
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cfg.TranslateAIBaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		common.SysLog("AI translate request error: " + err.Error())
