@@ -189,12 +189,23 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		}
 	}
 
+	missingKeys := []string{}
 	for _, item := range items {
-		if result[item.Key] == "" {
-			result[item.Key] = item.Text
+		if result[item.Key] == "" || result[item.Key] == item.Text {
+			// 字段缺失或仍是原文，尝试单条补翻
+			translated := translateSingleWithAI(cfg, item.Text, sourceLang, targetLang)
+			if translated != "" && translated != item.Text {
+				result[item.Key] = translated
+				missingKeys = append(missingKeys, item.Key)
+			} else {
+				result[item.Key] = item.Text
+			}
 		}
 	}
 
+	if len(missingKeys) > 0 {
+		common.SysLog(fmt.Sprintf("AI batch fallback translated: [%s->%s] keys=%v", sourceLang, targetLang, missingKeys))
+	}
 	common.SysLog(fmt.Sprintf("AI batch translated: [%s->%s] keys=%v", sourceLang, targetLang, len(result)))
 	return result
 }
