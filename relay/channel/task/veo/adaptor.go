@@ -305,6 +305,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			duration = v[0]
 		}
 
+		common.SysLog(fmt.Sprintf("[TaskVeo] model=%s mode=%s resolution=%s duration=%s", modelName, mode, resolution, duration))
 		writer.WriteField("prompt", prompt)
 		writer.WriteField("model", modelName)
 		if resolution != "" {
