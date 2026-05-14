@@ -256,11 +256,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if strings.HasPrefix(contentType, "application/json") {
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
-			if model, ok := bodyMap["model"].(string); ok && model != "" {
-				// model already set, pass through
-			} else {
-				bodyMap["model"] = info.UpstreamModelName
-			}
+			bodyMap["model"] = info.UpstreamModelName
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}
@@ -278,9 +274,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		writer := multipart.NewWriter(&buf)
 
 		modelName := info.UpstreamModelName
-		if v, ok := formData.Value["model"]; ok && len(v) > 0 && v[0] != "" {
-			modelName = v[0]
-		}
 
 		prompt := ""
 		if v, ok := formData.Value["prompt"]; ok && len(v) > 0 {
