@@ -123,8 +123,8 @@ type Article struct {
 	SeoTitle       string         `json:"seo_title" gorm:"type:text"`
 	SeoDescription string         `json:"seo_description" gorm:"type:text"`
 	SeoKeywords    string         `json:"seo_keywords" gorm:"type:text"`
-	I18n           string         `json:"i18n" gorm:"type:text"`     // 内容多语言 JSON
-	SeoI18n        string         `json:"seo_i18n" gorm:"type:text"` // SEO 多语言 JSON
+	I18n           string         `json:"i18n" gorm:"type:longtext"`     // 内容多语言 JSON
+	SeoI18n        string         `json:"seo_i18n" gorm:"type:longtext"` // SEO 多语言 JSON
 	CreatedTime    int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime    int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt      gorm.DeletedAt `gorm:"index"`

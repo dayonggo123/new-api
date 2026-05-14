@@ -254,6 +254,10 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// Migrate articles.i18n and articles.seo_i18n from text to longtext for existing tables (MySQL)
+	if err := migrateArticleI18nToLongText(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -466,6 +470,45 @@ PRIMARY KEY (` + "`id`" + `)
 		if err := DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN " + col.DDL).Error; err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// migrateArticleI18nToLongText migrates articles.i18n and articles.seo_i18n from text to longtext (MySQL only)
+// This is safe to run multiple times - it checks the column type first
+func migrateArticleI18nToLongText() error {
+	if common.UsingSQLite || common.UsingPostgreSQL {
+		return nil
+	}
+
+	tableName := "articles"
+	columns := []string{"i18n", "seo_i18n"}
+
+	if !DB.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	for _, columnName := range columns {
+		if !DB.Migrator().HasColumn(&Article{}, columnName) {
+			continue
+		}
+
+		var columnType string
+		if err := DB.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
+				WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+				tableName, columnName).Scan(&columnType).Error; err != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to query metadata for %s.%s: %v", tableName, columnName, err))
+			continue
+		}
+		if strings.ToLower(columnType) == "longtext" {
+			continue
+		}
+
+		alterSQL := fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s LONGTEXT", tableName, columnName)
+		if err := DB.Exec(alterSQL).Error; err != nil {
+			return fmt.Errorf("failed to migrate %s.%s to longtext: %w", tableName, columnName, err)
+		}
+		common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to longtext", tableName, columnName))
 	}
 	return nil
 }
