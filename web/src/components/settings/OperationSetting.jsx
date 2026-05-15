@@ -162,6 +162,10 @@ const OperationSetting = () => {
         <Card style={{ marginTop: '10px' }}>
           <SettingsSEO options={inputs} refresh={onRefresh} />
         </Card>
+        {/* 图片 AI 设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsImageAI options={inputs} refresh={onRefresh} />
+        </Card>
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
