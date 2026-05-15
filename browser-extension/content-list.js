@@ -243,6 +243,7 @@
       media_type: window.location.href.includes('video') ? 'video' : 'image',
       tags: JSON.stringify(tags.slice(0, 10)),
       source_url: window.location.href,
+      category_id: getCategoryId(model),
       status: 1
     };
 
