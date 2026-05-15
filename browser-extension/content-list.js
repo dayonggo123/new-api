@@ -358,11 +358,11 @@
         // 提取内容
         const data = await extractFromModal();
 
-        if (!data || !data.content) {
+        if (!data || (!data.content && !data.content_en)) {
           // 如果没找到内容，再等一下再试一次
           await new Promise(r => setTimeout(r, 500));
           const retryData = await extractFromModal();
-          if (!retryData || !retryData.content) {
+          if (!retryData || (!retryData.content && !retryData.content_en)) {
             alert('未能提取到 prompt 内容，请手动复制后粘贴到插件弹窗');
             btn.textContent = '采集';
             btn.style.pointerEvents = 'auto';
@@ -371,9 +371,9 @@
           Object.assign(data, retryData);
         }
 
-        // 发送给 background
+        // 追加到批量列表
         await chrome.runtime.sendMessage({
-          action: 'saveExtractedData',
+          action: 'appendBatchData',
           data
         });
 
@@ -392,9 +392,6 @@
           btn.textContent = '采集';
           btn.style.pointerEvents = 'auto';
         }, 2000);
-
-        // 打开插件弹窗提示用户
-        chrome.action.openPopup?.();
 
       } catch (err) {
         console.error('[Prompt Collector] 采集失败:', err);

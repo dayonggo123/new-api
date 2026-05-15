@@ -1,8 +1,9 @@
 // background.js - Service Worker
-// 负责跨域请求代理、Tab 管理、消息路由
+// 负责跨域请求代理、Tab 管理、消息路由、批量数据存储
 
 const STORAGE_KEY = 'promptCollectorConfig';
 const EXTRACTED_KEY = 'promptCollectorExtracted';
+const BATCH_KEY = 'promptCollectorBatch';
 
 // 消息路由
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -10,7 +11,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try {
       switch (message.action) {
         case 'openDetailTab': {
-          // 在后台打开详情页
           const tab = await chrome.tabs.create({
             url: message.url,
             active: false
@@ -19,46 +19,103 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        // 单条兼容（旧接口）
         case 'saveExtractedData': {
-          // 保存提取的数据
           await chrome.storage.local.set({ [EXTRACTED_KEY]: message.data });
-          // 广播给所有监听者（popup / sidepanel）
           chrome.runtime.sendMessage({ action: 'dataExtracted', data: message.data }).catch(() => {});
           sendResponse({ success: true });
           break;
         }
 
         case 'getExtractedData': {
-          // 获取提取的数据
           const result = await chrome.storage.local.get(EXTRACTED_KEY);
           sendResponse({ success: true, data: result[EXTRACTED_KEY] || null });
           break;
         }
 
         case 'clearExtractedData': {
-          // 清除提取的数据
           await chrome.storage.local.remove(EXTRACTED_KEY);
           chrome.runtime.sendMessage({ action: 'dataCleared' }).catch(() => {});
           sendResponse({ success: true });
           break;
         }
 
+        // 批量接口（新）
+        case 'appendBatchData': {
+          const result = await chrome.storage.local.get(BATCH_KEY);
+          const batch = result[BATCH_KEY] || [];
+          const item = {
+            id: Date.now() + Math.random().toString(36).slice(2, 8),
+            ...message.data,
+            submitted: false,
+            error: '',
+            createdAt: Date.now()
+          };
+          batch.unshift(item);
+          await chrome.storage.local.set({ [BATCH_KEY]: batch });
+          chrome.runtime.sendMessage({ action: 'batchUpdated', batch }).catch(() => {});
+          sendResponse({ success: true, item });
+          break;
+        }
+
+        case 'getBatchData': {
+          const result = await chrome.storage.local.get(BATCH_KEY);
+          sendResponse({ success: true, batch: result[BATCH_KEY] || [] });
+          break;
+        }
+
+        case 'updateBatchItem': {
+          const result = await chrome.storage.local.get(BATCH_KEY);
+          const batch = result[BATCH_KEY] || [];
+          const idx = batch.findIndex(i => i.id === message.id);
+          if (idx >= 0) {
+            batch[idx] = { ...batch[idx], ...message.updates };
+            await chrome.storage.local.set({ [BATCH_KEY]: batch });
+          }
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'removeBatchItem': {
+          const result = await chrome.storage.local.get(BATCH_KEY);
+          let batch = result[BATCH_KEY] || [];
+          batch = batch.filter(i => i.id !== message.id);
+          await chrome.storage.local.set({ [BATCH_KEY]: batch });
+          chrome.runtime.sendMessage({ action: 'batchUpdated', batch }).catch(() => {});
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'clearSubmittedBatch': {
+          const result = await chrome.storage.local.get(BATCH_KEY);
+          let batch = result[BATCH_KEY] || [];
+          batch = batch.filter(i => !i.submitted);
+          await chrome.storage.local.set({ [BATCH_KEY]: batch });
+          chrome.runtime.sendMessage({ action: 'batchUpdated', batch }).catch(() => {});
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'clearBatchData': {
+          await chrome.storage.local.remove(BATCH_KEY);
+          chrome.runtime.sendMessage({ action: 'batchUpdated', batch: [] }).catch(() => {});
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'saveConfig': {
-          // 保存配置
           await chrome.storage.local.set({ [STORAGE_KEY]: message.data });
           sendResponse({ success: true });
           break;
         }
 
         case 'getConfig': {
-          // 获取配置
           const result = await chrome.storage.local.get(STORAGE_KEY);
           sendResponse({ success: true, data: result[STORAGE_KEY] || {} });
           break;
         }
 
         case 'apiRequest': {
-          // 代理跨域请求到 new-api
           const config = await chrome.storage.local.get(STORAGE_KEY);
           const cfg = config[STORAGE_KEY] || {};
           const baseUrl = (cfg.apiBaseUrl || '').replace(/\/$/, '');
@@ -83,14 +140,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             options.body = JSON.stringify(message.body);
           }
 
+          console.log('[Background] API Request:', options.method, url);
           const resp = await fetch(url, options);
-          const data = await resp.json();
+          const text = await resp.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            data = { raw: text };
+          }
+          console.log('[Background] API Response:', resp.status, data);
+          if (!resp.ok) {
+            sendResponse({ success: false, message: `HTTP ${resp.status}: ${data.message || text.slice(0, 200)}` });
+            return;
+          }
           sendResponse({ success: true, data });
           break;
         }
 
         case 'closeTab': {
-          // 关闭指定 Tab（不传 tabId 则关闭发送者的 tab）
           const targetTabId = message.tabId || sender.tab?.id;
           if (targetTabId) {
             try {
@@ -104,7 +172,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'openSidePanel': {
-          // 打开侧边栏（需要在用户手势上下文中调用）
           try {
             const windowId = sender.tab?.windowId;
             if (windowId) {
@@ -126,7 +193,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   })();
 
-  return true; // 保持通道开启以支持异步
+  return true;
 });
 
 // 安装时初始化

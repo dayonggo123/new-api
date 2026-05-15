@@ -11,7 +11,7 @@
     <!-- 头部 -->
     <div class="header">
       <h1>🎯 提示词采集器</h1>
-      <p class="subtitle">固定在侧边栏，采集实时显示</p>
+      <p class="subtitle">批量采集，一键提交</p>
     </div>
 
     <!-- 配置面板（可折叠） -->
@@ -23,7 +23,7 @@
       <div class="config-body" id="configBody" style="display:none;">
         <div class="field">
           <label>API Base URL</label>
-          <input type="text" id="apiBaseUrl" placeholder="https://your-domain.com">
+          <input type="text" id="apiBaseUrl" placeholder="https://your-domain.com/api">
         </div>
         <div class="field">
           <label>Admin JWT Token</label>
@@ -42,88 +42,97 @@
       </div>
     </div>
 
-    <!-- 提取数据展示 -->
-    <div class="data-section" id="dataSection">
-      <div class="section-title">
-        <span>📋 提取内容</span>
-        <span class="badge" id="dataBadge" style="display:none;">新</span>
-      </div>
+    <!-- 批量统计栏 -->
+    <div class="batch-stats" id="batchStats" style="display:none;">
+      <span>📦 共 <strong id="totalCount">0</strong> 条</span>
+      <span class="sep">|</span>
+      <span>✅ <strong id="submittedCount">0</strong> 已提交</span>
+      <span class="sep">|</span>
+      <span>⏳ <strong id="pendingCount">0</strong> 待提交</span>
+    </div>
 
-      <!-- 封面图预览 -->
-      <div class="cover-preview" id="coverPreview" style="display:none;">
-        <img id="coverImg" src="" alt="封面图">
-      </div>
-
-      <div class="field">
-        <label>标题 <span class="required">*</span></label>
-        <input type="text" id="fieldTitle" placeholder="提示词标题">
-      </div>
-
-      <div class="field">
-        <label>Prompt 内容（中文）<span class="required">*</span></label>
-        <textarea id="fieldContent" placeholder="中文提示词正文..." rows="4"></textarea>
-      </div>
-
-      <div class="field">
-        <label>Prompt 内容（英文）</label>
-        <textarea id="fieldContentEn" placeholder="英文提示词正文..." rows="4"></textarea>
-      </div>
-
-      <div class="field">
-        <label>简介</label>
-        <input type="text" id="fieldDescription" placeholder="简短描述">
-      </div>
-
-      <div class="field-row">
-        <div class="field half">
-          <label>模型</label>
-          <input type="text" id="fieldModel" placeholder="如: GPT-4o">
-        </div>
-        <div class="field half">
-          <label>媒体类型</label>
-          <select id="fieldMediaType">
-            <option value="image">图片</option>
-            <option value="video">视频</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>标签（逗号分隔，可选）</label>
-        <input type="text" id="fieldTags" placeholder="标签1, 标签2, 标签3">
-      </div>
-
-      <div class="field">
-        <label>分类 ID</label>
-        <input type="number" id="fieldCategoryId" placeholder="从 new-api 获取的分类 ID">
-      </div>
-
-      <div class="field">
-        <label>封面图 URL</label>
-        <input type="text" id="fieldCoverImage" placeholder="https://...">
-      </div>
-
-      <div class="field">
-        <label>来源链接</label>
-        <input type="text" id="fieldSourceUrl" readonly>
-      </div>
-
-      <div class="actions">
-        <button class="btn btn-primary" id="submitBtn">
-          <span class="btn-icon">⬆️</span> 提交到提示词库
+    <!-- 批量操作栏 -->
+    <div class="batch-actions-bar" id="batchActionsBar" style="display:none;">
+      <label class="check-all">
+        <input type="checkbox" id="checkAll"> 全选
+      </label>
+      <div class="batch-btns">
+        <button class="btn btn-primary btn-sm" id="batchSubmitBtn">
+          <span class="btn-icon">⬆️</span> 批量提交
         </button>
-        <button class="btn btn-ghost" id="clearBtn">清空</button>
+        <button class="btn btn-ghost btn-sm" id="clearSubmittedBtn">清空已提交</button>
+        <button class="btn btn-danger btn-sm" id="clearAllBtn">全部清空</button>
       </div>
-
-      <div class="status" id="submitStatus"></div>
     </div>
 
-    <!-- 空状态 -->
-    <div class="empty-state" id="emptyState">
-      <div class="empty-icon">📭</div>
-      <p>暂无提取的数据</p>
-      <p class="hint">在 opennana.com 点击「采集」按钮<br>内容会实时显示在这里</p>
+    <!-- 采集列表 -->
+    <div class="batch-list" id="batchList">
+      <!-- 空状态 -->
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">📭</div>
+        <p>暂无采集的数据</p>
+        <p class="hint">在 opennana.com 点击「采集」按钮<br>内容会实时追加到这里</p>
+      </div>
     </div>
+
+    <!-- 单条编辑弹窗（内联展开） -->
+    <div class="edit-panel" id="editPanel" style="display:none;">
+      <div class="edit-panel-header">
+        <span>✏️ 编辑提示词</span>
+        <button class="btn-close" id="closeEditPanel">✕</button>
+      </div>
+      <div class="edit-panel-body">
+        <input type="hidden" id="editId">
+        <div class="field">
+          <label>标题 <span class="required">*</span></label>
+          <input type="text" id="editTitle" placeholder="提示词标题">
+        </div>
+        <div class="field">
+          <label>Prompt 内容（中文）<span class="required">*</span></label>
+          <textarea id="editContent" placeholder="中文提示词正文..." rows="3"></textarea>
+        </div>
+        <div class="field">
+          <label>Prompt 内容（英文）</label>
+          <textarea id="editContentEn" placeholder="英文提示词正文..." rows="3"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field half">
+            <label>模型</label>
+            <input type="text" id="editModel" placeholder="如: GPT-4o">
+          </div>
+          <div class="field half">
+            <label>媒体类型</label>
+            <select id="editMediaType">
+              <option value="image">图片</option>
+              <option value="video">视频</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>标签（逗号分隔，可选）</label>
+          <input type="text" id="editTags" placeholder="标签1, 标签2, 标签3">
+        </div>
+        <div class="field">
+          <label>分类 ID</label>
+          <input type="number" id="editCategoryId" placeholder="从 new-api 获取的分类 ID">
+        </div>
+        <div class="field">
+          <label>封面图 URL</label>
+          <input type="text" id="editCoverImage" placeholder="https://...">
+        </div>
+        <div class="field">
+          <label>来源链接</label>
+          <input type="text" id="editSourceUrl" readonly>
+        </div>
+        <div class="edit-actions">
+          <button class="btn btn-primary" id="saveEditBtn">保存修改</button>
+          <button class="btn btn-ghost" id="cancelEditBtn">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 全局状态提示 -->
+    <div class="status" id="globalStatus"></div>
   </div>
 
   <script src="sidepanel.js"></script>
