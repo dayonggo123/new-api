@@ -200,75 +200,6 @@ const CategoryEditModal = ({ visible, onCancel, category, refresh }) => {
         </Form>
       </Spin>
 
-      {/* AI 生成图片 Modal */}
-      <Modal
-        title={t('AI 生成图片')}
-        visible={imageGenModalVisible}
-        onCancel={() => setImageGenModalVisible(false)}
-        footer={null}
-        width={600}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('提示词')}</Text>
-          <TextArea
-            value={imageGenPrompt}
-            onChange={(v) => setImageGenPrompt(v)}
-            placeholder={t('描述你想要生成的图片')}
-            rows={3}
-          />
-        </div>
-        <Row gutter={12} style={{ marginBottom: 16 }}>
-          <Col span={8}>
-            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('数量')}</Text>
-            <Select value={String(imageGenN)} onChange={(v) => setImageGenN(parseInt(v))}>
-              <Select.Option value='1'>1</Select.Option>
-              <Select.Option value='2'>2</Select.Option>
-              <Select.Option value='3'>3</Select.Option>
-              <Select.Option value='4'>4</Select.Option>
-            </Select>
-          </Col>
-          <Col span={8}>
-            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('尺寸')}</Text>
-            <Select value={imageGenSize} onChange={(v) => setImageGenSize(v)}>
-              <Select.Option value='1024x1024'>1024x1024</Select.Option>
-              <Select.Option value='1024x1792'>1024x1792</Select.Option>
-              <Select.Option value='1792x1024'>1792x1024</Select.Option>
-              <Select.Option value='512x512'>512x512</Select.Option>
-              <Select.Option value='256x256'>256x256</Select.Option>
-            </Select>
-          </Col>
-          <Col span={8}>
-            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('用途')}</Text>
-            <Select value={imageGenTarget} onChange={(v) => setImageGenTarget(v)}>
-              <Select.Option value='cover'>{t('封面图')}</Select.Option>
-              <Select.Option value='content'>{t('正文配图')}</Select.Option>
-            </Select>
-          </Col>
-        </Row>
-        <div style={{ marginBottom: 16 }}>
-          <Button type='primary' loading={imageGenLoading} onClick={handleGenerateImages} block>
-            {t('生成图片')}
-          </Button>
-        </div>
-        {imageGenUrls.length > 0 && (
-          <div>
-            <Text type='tertiary' size='small' style={{ marginBottom: 8, display: 'block' }}>{t('点击选择图片')}</Text>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-              {imageGenUrls.map((url, idx) => (
-                <div
-                  key={idx}
-                  style={{ cursor: 'pointer', border: '2px solid transparent', borderRadius: 8, overflow: 'hidden', width: 120, height: 120 }}
-                  onClick={() => handleSelectImage(url)}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--semi-color-primary)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent'; }}
-                >
-                  <img src={url} alt={`gen-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Modal>
     </SideSheet>
   );
 };
@@ -793,6 +724,76 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
           )}
         </Form>
       </Spin>
+
+      {/* AI 生成图片 Modal */}
+      <Modal
+        title={t('AI 生成图片')}
+        visible={imageGenModalVisible}
+        onCancel={() => setImageGenModalVisible(false)}
+        footer={null}
+        width={600}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('提示词')}</Text>
+          <TextArea
+            value={imageGenPrompt}
+            onChange={(v) => setImageGenPrompt(v)}
+            placeholder={t('描述你想要生成的图片')}
+            rows={3}
+          />
+        </div>
+        <Row gutter={12} style={{ marginBottom: 16 }}>
+          <Col span={8}>
+            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('数量')}</Text>
+            <Select value={String(imageGenN)} onChange={(v) => setImageGenN(parseInt(v))}>
+              <Select.Option value='1'>1</Select.Option>
+              <Select.Option value='2'>2</Select.Option>
+              <Select.Option value='3'>3</Select.Option>
+              <Select.Option value='4'>4</Select.Option>
+            </Select>
+          </Col>
+          <Col span={8}>
+            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('尺寸')}</Text>
+            <Select value={imageGenSize} onChange={(v) => setImageGenSize(v)}>
+              <Select.Option value='1024x1024'>1024x1024</Select.Option>
+              <Select.Option value='1024x1792'>1024x1792</Select.Option>
+              <Select.Option value='1792x1024'>1792x1024</Select.Option>
+              <Select.Option value='512x512'>512x512</Select.Option>
+              <Select.Option value='256x256'>256x256</Select.Option>
+            </Select>
+          </Col>
+          <Col span={8}>
+            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('用途')}</Text>
+            <Select value={imageGenTarget} onChange={(v) => setImageGenTarget(v)}>
+              <Select.Option value='cover'>{t('封面图')}</Select.Option>
+              <Select.Option value='content'>{t('正文配图')}</Select.Option>
+            </Select>
+          </Col>
+        </Row>
+        <div style={{ marginBottom: 16 }}>
+          <Button type='primary' loading={imageGenLoading} onClick={handleGenerateImages} block>
+            {t('生成图片')}
+          </Button>
+        </div>
+        {imageGenUrls.length > 0 && (
+          <div>
+            <Text type='tertiary' size='small' style={{ marginBottom: 8, display: 'block' }}>{t('点击选择图片')}</Text>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {imageGenUrls.map((url, idx) => (
+                <div
+                  key={idx}
+                  style={{ cursor: 'pointer', border: '2px solid transparent', borderRadius: 8, overflow: 'hidden', width: 120, height: 120 }}
+                  onClick={() => handleSelectImage(url)}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--semi-color-primary)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent'; }}
+                >
+                  <img src={url} alt={`gen-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
     </SideSheet>
   );
 };
