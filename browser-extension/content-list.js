@@ -377,9 +377,14 @@
           await new Promise(r => setTimeout(r, 500));
           const retryData = await extractFromModal();
           if (!retryData || (!retryData.content && !retryData.content_en)) {
-            alert('未能提取到 prompt 内容，请手动复制后粘贴到插件弹窗');
-            btn.textContent = '采集';
-            btn.style.pointerEvents = 'auto';
+            btn.textContent = '❌ 提取失败';
+            btn.style.background = '#f87171';
+            setTimeout(() => {
+              btn.textContent = '采集';
+              btn.style.background = 'linear-gradient(135deg, #06b6d4, #3b82f6)';
+              btn.style.pointerEvents = 'auto';
+            }, 2000);
+            console.log('[Prompt Collector] 提取失败，弹窗内容:', modal?.innerText?.slice(0, 500));
             return;
           }
           Object.assign(data, retryData);
