@@ -43,6 +43,11 @@
             <span>采集后自动提交到后台（无需手动点提交）</span>
           </label>
         </div>
+        <div class="field">
+          <label>模型→分类映射（可选）</label>
+          <textarea id="categoryMapping" placeholder="每行一个映射，格式：模型名=分类ID&#10;例：&#10;Nano banana pro=2&#10;ChatGPT=1&#10;Midjourney=3" rows="4"></textarea>
+          <div class="field-hint">不填则自动按名称匹配分类</div>
+        </div>
         <button class="btn btn-secondary" id="saveConfigBtn">保存配置</button>
         <div class="status" id="configStatus"></div>
       </div>

@@ -11,6 +11,7 @@
     userId: document.getElementById('userId'),
     defaultCategoryId: document.getElementById('defaultCategoryId'),
     autoSubmit: document.getElementById('autoSubmit'),
+    categoryMapping: document.getElementById('categoryMapping'),
     saveConfigBtn: document.getElementById('saveConfigBtn'),
     configStatus: document.getElementById('configStatus'),
 
@@ -61,6 +62,7 @@
       if (els.userId) els.userId.value = config.userId || '';
       els.defaultCategoryId.value = config.defaultCategoryId || '';
       if (els.autoSubmit) els.autoSubmit.checked = !!config.autoSubmit;
+      if (els.categoryMapping) els.categoryMapping.value = config.categoryMapping || '';
     }
 
     await loadCategories();
@@ -100,10 +102,31 @@
     } catch (e) {}
   }
 
-  // 根据模型名称匹配分类 ID
+  // 解析映射配置
+  function parseCategoryMapping() {
+    const mapping = {};
+    const text = config.categoryMapping || '';
+    if (!text) return mapping;
+    text.split('\n').forEach(line => {
+      const [key, val] = line.split('=');
+      if (key && val) {
+        mapping[key.trim().toLowerCase()] = parseInt(val.trim()) || 0;
+      }
+    });
+    return mapping;
+  }
+
+  // 根据模型名称匹配分类 ID（优先用映射，其次自动匹配）
   function matchCategoryId(modelName) {
-    if (!modelName || categoriesCache.length === 0) return 0;
+    if (!modelName) return 0;
     const normalized = modelName.trim().toLowerCase();
+
+    // 优先用自定义映射
+    const mapping = parseCategoryMapping();
+    if (mapping[normalized]) return mapping[normalized];
+
+    // 其次自动匹配分类列表
+    if (categoriesCache.length === 0) return 0;
     for (const cat of categoriesCache) {
       if (cat.name && cat.name.trim().toLowerCase() === normalized) return cat.id;
     }
@@ -431,7 +454,8 @@
       apiToken: els.apiToken.value.trim(),
       userId: els.userId ? els.userId.value.trim() : '',
       defaultCategoryId: els.defaultCategoryId.value.trim(),
-      autoSubmit: els.autoSubmit ? els.autoSubmit.checked : false
+      autoSubmit: els.autoSubmit ? els.autoSubmit.checked : false,
+      categoryMapping: els.categoryMapping ? els.categoryMapping.value.trim() : ''
     };
     const res = await chrome.runtime.sendMessage({ action: 'saveConfig', data });
     if (res.success) {

@@ -405,7 +405,7 @@
             model: data.model || '',
             media_type: data.media_type || 'image',
             tags: data.tags || '[]',
-            category_id: parseInt(data.category_id) || 0,
+            category_id: getCategoryId(data.model),
             cover_image_url: data.cover_image_url || '',
             status: 1,
             sort_order: 0,
@@ -519,6 +519,28 @@
         collectedTitles = new Set(batch.map(i => (i.title || '').trim()).filter(Boolean));
       }
     } catch (e) {}
+  }
+
+  // 解析映射配置
+  function parseCategoryMapping() {
+    const mapping = {};
+    const text = config.categoryMapping || '';
+    if (!text) return mapping;
+    text.split('\n').forEach(line => {
+      const [key, val] = line.split('=');
+      if (key && val) {
+        mapping[key.trim().toLowerCase()] = parseInt(val.trim()) || 0;
+      }
+    });
+    return mapping;
+  }
+
+  // 根据模型名获取分类 ID
+  function getCategoryId(modelName) {
+    if (!modelName) return parseInt(config.defaultCategoryId) || 0;
+    const normalized = modelName.trim().toLowerCase();
+    const mapping = parseCategoryMapping();
+    return mapping[normalized] || parseInt(config.defaultCategoryId) || 0;
   }
 
   // 初始化
