@@ -222,6 +222,9 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
   const [imageGenSize, setImageGenSize] = useState('1024x1024');
   const [imageGenTarget, setImageGenTarget] = useState('cover');
   const [imageGenUrls, setImageGenUrls] = useState([]);
+  const [seoAuditLoading, setSeoAuditLoading] = useState(false);
+  const [seoAuditResult, setSeoAuditResult] = useState(null);
+  const [seoAuditHistory, setSeoAuditHistory] = useState([]);
   const formApiRef = useRef(null);
   const isEdit = article?.id !== undefined;
 
@@ -250,6 +253,7 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
           if (merged[code]) merged[code] = { ...merged[code], ...parsed[code] };
         });
         setI18nData(merged);
+        loadSEOAHistory();
       } else {
         showError(message);
       }
@@ -419,6 +423,55 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
       }
     } catch (err) {
       showError(err.message);
+    }
+  };
+
+  const handleAuditSEO = async () => {
+    if (!isEdit) {
+      showError('请先保存文章');
+      return;
+    }
+    setSeoAuditLoading(true);
+    try {
+      const res = await API.post(`/api/article/seo/${article.id}/audit`);
+      const { success, data, message } = res.data;
+      if (success && data) {
+        setSeoAuditResult(data);
+        showSuccess(`SEO 审核完成，总分: ${data.overall_score}`);
+      } else {
+        showError(message || '审核失败');
+      }
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setSeoAuditLoading(false);
+    }
+  };
+
+  const loadSEOAHistory = async () => {
+    if (!isEdit || !article?.id) return;
+    try {
+      const res = await API.get(`/api/article/seo/${article.id}/audits`);
+      const { success, data } = res.data;
+      if (success && data) {
+        setSeoAuditHistory(data);
+        if (data.length > 0 && !seoAuditResult) {
+          const latest = data[0];
+          try {
+            latest.parsedCategories = JSON.parse(latest.categories || '{}');
+            latest.parsedCriticalIssues = JSON.parse(latest.critical_issues || '[]');
+            latest.parsedQuickWins = JSON.parse(latest.quick_wins || '[]');
+          } catch (e) {}
+          setSeoAuditResult({
+            overall_score: latest.overall_score,
+            categories: latest.parsedCategories || {},
+            critical_issues: latest.parsedCriticalIssues || [],
+            quick_wins: latest.parsedQuickWins || [],
+          });
+        }
+      }
+    } catch (err) {
+      // ignore
     }
   };
 
@@ -650,7 +703,10 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                 <Card className='!rounded-2xl shadow-sm border-0'>
                   <Row gutter={12}>
                     <Col span={24}>
-                      <div className='flex justify-end mb-2'>
+                      <div className='flex justify-end mb-2 gap-2'>
+                        <Button type='tertiary' size='small' onClick={handleAuditSEO} loading={seoAuditLoading}>
+                          {t('AI 审核 SEO')}
+                        </Button>
                         <Button type='tertiary' size='small' onClick={handleRegenerateSEO}>
                           {t('AI 生成 SEO')}
                         </Button>
@@ -666,6 +722,78 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                       <Form.TextArea field='seo_keywords' label={t('SEO 关键词')} placeholder={t('8-12 个关键词，逗号分隔')} rows={2} />
                     </Col>
                   </Row>
+
+                  {/* SEO Audit Result */}
+                  {seoAuditResult && (
+                    <div style={{ marginTop: 24 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                        <Title heading={5} style={{ margin: 0 }}>{t('SEO 审核结果')}</Title>
+                        <Tag color={seoAuditResult.overall_score >= 80 ? 'green' : seoAuditResult.overall_score >= 60 ? 'orange' : 'red'} size='large'>
+                          {seoAuditResult.overall_score} 分
+                        </Tag>
+                      </div>
+
+                      {/* Category Scores */}
+                      {seoAuditResult.categories && Object.entries(seoAuditResult.categories).map(([key, cat]) => (
+                        <div key={key} style={{ marginBottom: 12, padding: 12, background: '#f9fafb', borderRadius: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <Text strong>{key === 'completeness' ? t('完整性') : key === 'keyword_quality' ? t('关键词质量') : key === 'title_quality' ? t('标题质量') : key === 'description_quality' ? t('描述质量') : key === 'technical' ? t('技术规范') : key}</Text>
+                            <Tag color={cat.score >= 80 ? 'green' : cat.score >= 60 ? 'orange' : 'red'}>{cat.score}</Tag>
+                          </div>
+                          {cat.issues?.length > 0 && (
+                            <div style={{ marginBottom: 8 }}>
+                              <Text type='danger' size='small' style={{ display: 'block', marginBottom: 4 }}>{t('问题')}:</Text>
+                              {cat.issues.map((issue, idx) => (
+                                <div key={idx} style={{ color: '#ef4444', fontSize: 13, marginLeft: 8 }}>• {issue}</div>
+                              ))}
+                            </div>
+                          )}
+                          {cat.suggestions?.length > 0 && (
+                            <div>
+                              <Text type='success' size='small' style={{ display: 'block', marginBottom: 4 }}>{t('建议')}:</Text>
+                              {cat.suggestions.map((s, idx) => (
+                                <div key={idx} style={{ color: '#22c55e', fontSize: 13, marginLeft: 8 }}>• {s}</div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                      {/* Critical Issues */}
+                      {seoAuditResult.critical_issues?.length > 0 && (
+                        <div style={{ marginTop: 16, padding: 12, background: '#fef2f2', borderRadius: 8, borderLeft: '4px solid #ef4444' }}>
+                          <Text type='danger' strong style={{ display: 'block', marginBottom: 8 }}>{t('严重问题')}</Text>
+                          {seoAuditResult.critical_issues.map((issue, idx) => (
+                            <div key={idx} style={{ color: '#ef4444', fontSize: 14 }}>• {issue}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Quick Wins */}
+                      {seoAuditResult.quick_wins?.length > 0 && (
+                        <div style={{ marginTop: 16, padding: 12, background: '#f0fdf4', borderRadius: 8, borderLeft: '4px solid #22c55e' }}>
+                          <Text type='success' strong style={{ display: 'block', marginBottom: 8 }}>{t('快速优化')}</Text>
+                          {seoAuditResult.quick_wins.map((win, idx) => (
+                            <div key={idx} style={{ color: '#22c55e', fontSize: 14 }}>• {win}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* History */}
+                      {seoAuditHistory.length > 1 && (
+                        <div style={{ marginTop: 16 }}>
+                          <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 8 }}>{t('历史记录')}</Text>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {seoAuditHistory.slice(1).map((h, idx) => (
+                              <Tag key={idx} color='light-blue' size='small'>
+                                {new Date(h.created_at * 1000).toLocaleDateString()}: {h.overall_score}分
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </Card>
               </div>
 

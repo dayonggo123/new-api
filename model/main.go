@@ -299,6 +299,7 @@ func migrateDB() error {
 		&PromptSEOAudit{},
 		&ArticleCategory{},
 		&Article{},
+		&ArticleSEOAudit{},
 	)
 	if err != nil {
 		return err

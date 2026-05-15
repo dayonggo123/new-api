@@ -422,6 +422,101 @@ func GenerateArticle(c *gin.Context) {
 	})
 }
 
+// ==================== Admin: Article SEO Audit ====================
+
+func AuditArticleSEOHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	article, err := model.GetArticleById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	result, err := service.AuditArticleSEO(article)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "SEO 审核失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    result,
+	})
+}
+
+func GetArticleSEOAHistory(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	audits, err := model.GetArticleSEOAudits(id, 20)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    audits,
+	})
+}
+
+func GetArticleSEOReport(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	audit, err := model.GetLatestArticleSEOAudit(id)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "暂无审核记录"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    audit,
+	})
+}
+
+func GetAllArticleSEOReport(c *gin.Context) {
+	stats, err := model.GetArticleSEOAuditStats()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    stats,
+	})
+}
+
+func GetLowScoreArticlesHandler(c *gin.Context) {
+	threshold, _ := strconv.Atoi(c.Query("threshold"))
+	if threshold <= 0 {
+		threshold = 60
+	}
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit <= 0 {
+		limit = 20
+	}
+	articles, err := model.GetLowScoreArticles(threshold, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    articles,
+	})
+}
+
 // ==================== Admin: AI Generate Images ====================
 
 type GenerateArticleImagesRequest struct {

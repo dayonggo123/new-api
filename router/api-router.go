@@ -382,6 +382,11 @@ func SetApiRouter(router *gin.Engine) {
 			articleSEORoute.GET("/:id", controller.GetArticleSEO)
 			articleSEORoute.PUT("/:id", controller.UpdateArticleSEOFields)
 			articleSEORoute.POST("/:id/regenerate", controller.RegenerateArticleSEO)
+			articleSEORoute.POST("/:id/audit", controller.AuditArticleSEOHandler)
+			articleSEORoute.GET("/:id/audits", controller.GetArticleSEOAHistory)
+			articleSEORoute.GET("/:id/report", controller.GetArticleSEOReport)
+			articleSEORoute.GET("/stats", controller.GetAllArticleSEOReport)
+			articleSEORoute.GET("/low-score", controller.GetLowScoreArticlesHandler)
 		}
 
 		// Notification Routes
