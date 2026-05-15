@@ -249,28 +249,54 @@
   // 关闭弹窗
   function closeModal() {
     // 策略1：发送 Escape 键盘事件
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    try {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    } catch (e) {}
 
-    // 策略2：点击关闭按钮（只点 button 或带 role="button" 的元素）
+    // 策略2：点击遮罩层背景（opennana 弹窗外层通常是 fixed inset-0）
+    const backdrops = document.querySelectorAll('div.fixed.inset-0');
+    for (const el of backdrops) {
+      if (el.offsetParent !== null && el.childElementCount > 0) {
+        try {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          return;
+        } catch (e) {}
+      }
+    }
+
+    // 策略3：对所有可能的关闭按钮触发 click 事件（不用 btn.click()，避免 crash）
     const closeSelectors = [
-      'button[class*="close"]',
+      'button svg',
+      'button',
       '[class*="close"]',
       '[aria-label*="close"]',
       '[aria-label*="关闭"]'
     ];
     for (const sel of closeSelectors) {
-      const btns = document.querySelectorAll(sel);
-      for (const btn of btns) {
-        if (btn.offsetParent !== null && typeof btn.click === 'function') {
+      const els = document.querySelectorAll(sel);
+      for (const el of els) {
+        if (el.offsetParent !== null) {
           try {
-            btn.click();
-            return; // 成功关闭一个就退出
-          } catch (e) {
-            // 忽略错误，尝试下一个
-          }
+            el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            // 不 return，多点几个确保关闭
+          } catch (e) {}
         }
       }
     }
+
+    // 策略4：兜底——直接移除弹窗 DOM（opennana 用 animate-modal-in）
+    try {
+      const modals = document.querySelectorAll('[class*="animate-modal-in"]');
+      for (const m of modals) {
+        m.remove();
+      }
+      // 同时移除遮罩层
+      document.querySelectorAll('div.fixed.inset-0').forEach(el => {
+        if (el.childElementCount === 0 || !el.querySelector('[class*="modal"]')) {
+          el.remove();
+        }
+      });
+    } catch (e) {}
   }
 
   // 当前正在采集的卡片（用于备选图片提取）
