@@ -47,16 +47,31 @@
     const modelMatch = modalText.match(/模型[：:]\s*([^\n]+)/);
     if (modelMatch) model = modelMatch[1].trim();
 
-    // 提取 prompt 内容
+    // 提取 prompt 内容（支持纯文本和 JSON 两种格式）
     let content = '';
 
-    // 策略1：找 ENGLISH 和 中文 之间的英文 prompt
-    const englishMatch = modalText.match(/ENGLISH[\s\n]*(?:去 AI 生图)?[\s\n]*复制[\s\n]*([\s\S]*?)(?:中文|去 AI 生图|更多推荐|$)/);
-    if (englishMatch) {
-      content = englishMatch[1].trim();
+    // 策略1：找 "复制" 后面的内容（JSON 或纯文本）
+    // opennana 格式：复制\n{JSON...} 或 复制\n英文prompt\n中文\n复制\n中文prompt
+    const copyMatch = modalText.match(/复制[\s\n]+([\s\S]*?)(?:中文[\s\n]*去 AI 生图[\s\n]*复制[\s\n]*[\s\S]*?)?(?:更多推荐|$)/);
+    if (copyMatch) {
+      const candidate = copyMatch[1].trim();
+      // 如果以 { 开头，是 JSON 格式
+      if (candidate.startsWith('{')) {
+        content = candidate;
+      } else {
+        // 纯文本格式，取最长的连续段落
+        const paragraphs = candidate.split('\n').map(l => l.trim()).filter(l => l.length > 20);
+        content = paragraphs.join('\n');
+      }
     }
 
-    // 策略2：如果没找到英文，找 中文 标签后的中文 prompt
+    // 策略2：如果没找到，尝试 ENGLISH / 中文 分段提取
+    if (!content) {
+      const englishMatch = modalText.match(/ENGLISH[\s\n]*(?:去 AI 生图)?[\s\n]*复制[\s\n]*([\s\S]*?)(?:中文|去 AI 生图|更多推荐|$)/);
+      if (englishMatch) {
+        content = englishMatch[1].trim();
+      }
+    }
     if (!content) {
       const chineseMatch = modalText.match(/中文[\s\n]*(?:去 AI 生图)?[\s\n]*复制[\s\n]*([\s\S]*?)(?:更多推荐|$)/);
       if (chineseMatch) {
@@ -67,10 +82,10 @@
     // 策略3：从 DOM 中找最长的文本段落
     if (!content) {
       let longest = '';
-      modal.querySelectorAll('p, div, span').forEach(el => {
+      modal.querySelectorAll('p, div, span, pre, code').forEach(el => {
         const text = (el.innerText || '').trim();
-        if (text.length > longest.length && text.length > 100 && text.length < 3000) {
-          if (!el.closest('button, [class*="close"]')) {
+        if (text.length > longest.length && text.length > 100 && text.length < 5000) {
+          if (!el.closest('button, [class*="close"], [class*="header"]')) {
             longest = text;
           }
         }
@@ -88,14 +103,14 @@
       }
     }
 
-    // 提取标签（来源后面的标签列表）
+    // 提取标签（在"收藏"和"示例图片"之间的词）
     const tags = [];
-    // opennana 的标签在来源和模型信息附近
-    const tagMatch = modalText.match(/来源[：:]\s*@[^\n]+[\s\n]*模型[：:]\s*[^\n]+[\s\n]*收藏?[\s\n]*([\s\S]*?)(?:示例图片|提示词)/);
+    const tagMatch = modalText.match(/收藏[\s\n]+([\s\S]*?)(?:示例图片|提示词|赞助)/);
     if (tagMatch) {
       const tagText = tagMatch[1].trim();
-      const tagArr = tagText.split(/\s+/).filter(t => t && t.length < 15);
-      tags.push(...tagArr);
+      // 按行或空格分割，过滤掉过长的
+      const tagArr = tagText.split(/[\s\n]+/).filter(t => t && t.length >= 2 && t.length < 15 && !t.includes('：') && !t.includes(':'));
+      tags.push(...tagArr.slice(0, 10));
     }
 
     const data = {
