@@ -384,7 +384,7 @@
               btn.style.background = 'linear-gradient(135deg, #06b6d4, #3b82f6)';
               btn.style.pointerEvents = 'auto';
             }, 2000);
-            console.log('[Prompt Collector] 提取失败，弹窗内容:', modal?.innerText?.slice(0, 500));
+            console.log('[Prompt Collector] 提取失败，请检查弹窗是否包含 prompt 内容');
             return;
           }
           Object.assign(data, retryData);
