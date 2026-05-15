@@ -470,6 +470,11 @@
         // 关闭弹窗
         closeModal();
 
+        // 返回之前的画廊页（card.click() 会改变 URL）
+        try {
+          history.back();
+        } catch (e) {}
+
       } catch (err) {
         console.error('[Prompt Collector] 采集失败:', err);
         alert('采集失败: ' + err.message);
