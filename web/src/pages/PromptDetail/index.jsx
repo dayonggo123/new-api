@@ -197,6 +197,45 @@ export default function PromptDetail() {
             </div>
           )}
 
+          {/* 语言切换 */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 2,
+            borderBottom: '1px solid var(--semi-color-border)',
+            marginBottom: 16,
+          }}>
+            {SEO_LANGS.map((lang) => {
+              const hasTranslation = lang.code === 'zh'
+                || !!(seoI18n[lang.code]?.intro || seoI18n[lang.code]?.faq)
+                || !!(lang.code === 'en' ? prompt?.content_en : contentI18n[lang.code]?.content);
+              const active = activeLang === lang.code;
+              return (
+                <button
+                  key={lang.code}
+                  type='button'
+                  onClick={() => setActiveLang(lang.code)}
+                  style={{
+                    padding: '6px 12px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: hasTranslation ? 'pointer' : 'default',
+                    borderBottom: active ? '2px solid var(--semi-color-primary)' : '2px solid transparent',
+                    color: active ? 'var(--semi-color-primary)' : (hasTranslation ? 'var(--semi-color-text-2)' : '#ccc'),
+                    fontWeight: active ? 600 : 400,
+                    fontSize: 13,
+                    transition: 'all 0.2s',
+                    marginBottom: -1,
+                    opacity: hasTranslation ? 1 : 0.4,
+                  }}
+                  disabled={!hasTranslation}
+                >
+                  {lang.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Cover Image */}
           {prompt.cover_image_url && (
             <div style={{ marginBottom: 24 }}>
@@ -212,45 +251,6 @@ export default function PromptDetail() {
           {/* 多语言 SEO 内容 */}
           {(currentIntro || currentFaqList.length > 0) && (
             <div style={{ marginBottom: 24 }}>
-              {/* 语言切换 */}
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 2,
-                borderBottom: '1px solid var(--semi-color-border)',
-                marginBottom: 16,
-              }}>
-                {SEO_LANGS.map((lang) => {
-                  const hasTranslation = lang.code === 'zh'
-                    || !!(seoI18n[lang.code]?.intro || seoI18n[lang.code]?.faq)
-                    || !!(lang.code === 'en' ? prompt?.content_en : contentI18n[lang.code]?.content);
-                  const active = activeLang === lang.code;
-                  return (
-                    <button
-                      key={lang.code}
-                      type='button'
-                      onClick={() => setActiveLang(lang.code)}
-                      style={{
-                        padding: '6px 12px',
-                        border: 'none',
-                        background: 'none',
-                        cursor: hasTranslation ? 'pointer' : 'default',
-                        borderBottom: active ? '2px solid var(--semi-color-primary)' : '2px solid transparent',
-                        color: active ? 'var(--semi-color-primary)' : (hasTranslation ? 'var(--semi-color-text-2)' : '#ccc'),
-                        fontWeight: active ? 600 : 400,
-                        fontSize: 13,
-                        transition: 'all 0.2s',
-                        marginBottom: -1,
-                        opacity: hasTranslation ? 1 : 0.4,
-                      }}
-                      disabled={!hasTranslation}
-                    >
-                      {lang.label}
-                    </button>
-                  );
-                })}
-              </div>
-
               {/* Intro */}
               {currentIntro && (
                 <div style={{ background: '#eef2ff', padding: 16, borderRadius: 8, borderLeft: '4px solid #4f46e5', marginBottom: 20 }}>
