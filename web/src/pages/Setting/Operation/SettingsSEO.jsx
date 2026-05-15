@@ -129,6 +129,12 @@ export default function SettingsSEO(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('SEO AI 设置')}>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <strong>功能介绍：</strong>配置 AI 自动生成 SEO 元数据（标题、描述、关键词）和 SEO 审核引擎。保存文章/提示词时会自动调用 AI 生成 SEO 内容。<br/>
+                <strong>如何修改：</strong>填写支持 chat/completions 的 AI 服务地址和 Key。模型建议用较强的文本模型（如 gpt-4o、deepseek-v3）。配置后保存文章时会自动生成 SEO，也可在编辑页面手动点击「AI 生成 SEO」或「AI 审核 SEO」。
+              </Text>
+            </div>
             <Typography.Text
               type='tertiary'
               style={{ marginBottom: 16, display: 'block' }}

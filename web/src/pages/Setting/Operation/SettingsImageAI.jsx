@@ -134,6 +134,12 @@ export default function SettingsImageAI(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('文章图片 AI 设置')}>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <strong>功能介绍：</strong>配置 AI 图片生成引擎，用于在文章编辑中自动生成封面图或正文配图。支持 DALL-E 格式的图片生成 API。<br/>
+                <strong>如何修改：</strong>填写支持 /v1/images/generations 接口的服务地址和 Key（如 OpenAI、Azure OpenAI 等）。模型用 dall-e-3 或 gpt-image-1。尺寸和数量是默认值，编辑文章时可以在弹窗中临时调整。图片生成后会返回 URL，点击缩略图即可选用。
+              </Text>
+            </div>
             <Typography.Text
               type='tertiary'
               style={{ marginBottom: 16, display: 'block' }}

@@ -94,6 +94,12 @@ export default function SettingsSensitiveWords(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('屏蔽词过滤设置')}>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <strong>功能介绍：</strong>配置敏感词过滤，可拦截包含特定关键词的用户请求或提示词，支持在聊天和提示词提交时检测。<br/>
+                <strong>如何修改：</strong>开启开关后，在 SensitiveWords 中输入要拦截的关键词，用逗号分隔。CheckSensitiveOnPromptEnabled 控制是否在提示词提交时也进行检测。
+              </Text>
+            </div>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Switch

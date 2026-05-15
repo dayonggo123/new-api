@@ -200,6 +200,12 @@ export default function SettingsLog(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('日志设置')}>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <strong>功能介绍：</strong>控制是否记录用户请求消耗日志。开启后可在后台查看每个用户的 token 消耗、模型调用、费用等明细。<br/>
+                <strong>如何修改：</strong>开启 LogConsumeEnabled 即可记录消费日志。日志量较大时可能影响数据库性能，可根据需要开启或关闭。
+              </Text>
+            </div>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Switch

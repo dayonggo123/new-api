@@ -129,6 +129,12 @@ export default function SettingsTranslate(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('翻译 AI 设置')}>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <strong>功能介绍：</strong>配置 AI 翻译引擎，用于批量翻译提示词、文章、通知等内容。支持多语言并发翻译。<br/>
+                <strong>如何修改：</strong>填写支持 chat/completions 接口的 AI 服务地址和 Key（如 OpenAI、DeepSeek 等），模型建议用轻量快速的中文模型（如 gpt-4o-mini、deepseek-chat）。配置后可在各编辑页面点击「自动翻译」按钮使用。
+              </Text>
+            </div>
             <Typography.Text
               type='tertiary'
               style={{ marginBottom: 16, display: 'block' }}

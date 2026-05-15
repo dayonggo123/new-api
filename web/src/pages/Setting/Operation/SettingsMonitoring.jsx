@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Typography } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -29,6 +29,8 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import HttpStatusCodeRulesInput from '../../../components/settings/HttpStatusCodeRulesInput';
+
+const { Text } = Typography;
 
 export default function SettingsMonitoring(props) {
   const { t } = useTranslation();
@@ -130,6 +132,12 @@ export default function SettingsMonitoring(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('监控设置')}>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <strong>功能介绍：</strong>自动监控上游渠道健康状态，当渠道连续出错或返回特定状态码时自动禁用，恢复后自动启用。支持自动测速检测渠道可用性。<br/>
+                <strong>如何修改：</strong>启用「自动禁用渠道」后，设置触发阈值（连续失败次数）和禁用关键词/状态码。AutomaticRetryStatusCodes 是请求失败后会自动重试的状态码范围。Auto Test Channel 会定期调用测试模型检测渠道可用性。
+              </Text>
+            </div>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Switch

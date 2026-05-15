@@ -99,12 +99,12 @@ export default function SettingsSigninPoints(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('积分签到规则')}>
-            <Typography.Text
-              type='tertiary'
-              style={{ marginBottom: 16, display: 'block' }}
-            >
-              {t('配置用户每日签到获得的积分规则')}
-            </Typography.Text>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Typography.Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6, display: 'block' }}>
+                <strong>功能介绍：</strong>配置用户每日签到获得的积分规则，积分可用于兑换额度或解锁付费提示词。<br/>
+                <strong>如何修改：</strong>设置每日签到的基础积分和连续签到的递增规则。例如基础 10 分，连续签到每天额外加 2 分，设置上限防止无限累加。
+              </Typography.Text>
+            </div>
             <Row gutter={16}>
               <Col xs={24} sm={8} md={6} lg={6} xl={6}>
                 <Form.Switch

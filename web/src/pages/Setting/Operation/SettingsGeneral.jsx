@@ -241,6 +241,12 @@ export default function GeneralSettings(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('通用设置')}>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <strong>功能介绍：</strong>配置站点通用参数，包括充值链接、文档地址、额度显示方式、侧边栏默认折叠等全局行为。<br/>
+                <strong>如何修改：</strong>修改对应字段后点击「保存通用设置」即可生效。TopUpLink 是用户点击充值时跳转的链接；DocsLink 是顶部帮助文档按钮的目标地址；额度显示类型支持 USD/Token/自定义货币三种模式。
+              </Text>
+            </div>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Input

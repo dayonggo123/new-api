@@ -212,6 +212,12 @@ export default function SettingsHeaderNavModules(props) {
         text={t('顶栏管理')}
         extraText={t('控制顶栏模块显示状态，全局生效')}
       >
+        <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+          <Typography.Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6, display: 'block' }}>
+            <strong>功能介绍：</strong>控制网站顶部导航栏显示的模块入口，可启用/禁用控制台、模型广场、提示词库、文章等菜单项。<br/>
+            <strong>如何修改：</strong>点击模块卡片上的开关即可启用或禁用对应入口。禁用后该入口不会显示在顶部导航栏中，但直接访问 URL 仍可用。修改后点击「保存设置」生效。
+          </Typography.Text>
+        </div>
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           {moduleConfigs.map((module) => (
             <Col key={module.key} xs={24} sm={12} md={6} lg={6} xl={6}>

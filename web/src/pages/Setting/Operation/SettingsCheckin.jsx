@@ -101,12 +101,12 @@ export default function SettingsCheckin(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('签到设置')}>
-            <Typography.Text
-              type='tertiary'
-              style={{ marginBottom: 16, display: 'block' }}
-            >
-              {t('签到功能允许用户每日签到获取随机额度奖励')}
-            </Typography.Text>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Typography.Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6, display: 'block' }}>
+                <strong>功能介绍：</strong>启用每日签到功能，用户可在个人中心签到领取随机额度奖励，增加用户活跃度。<br/>
+                <strong>如何修改：</strong>开启「启用签到功能」后，设置每次签到的最小和最大额度范围。用户每次签到会在这个范围内随机获得额度奖励。
+              </Typography.Text>
+            </div>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Switch

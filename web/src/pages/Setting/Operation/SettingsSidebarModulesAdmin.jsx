@@ -312,6 +312,12 @@ export default function SettingsSidebarModulesAdmin(props) {
           '全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用',
         )}
       >
+        <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+          <Typography.Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6, display: 'block' }}>
+            <strong>功能介绍：</strong>控制管理员后台左侧边栏显示的菜单项。管理员隐藏的菜单，普通用户也无法看到。<br/>
+            <strong>如何修改：</strong>点击各菜单项的开关即可显示或隐藏。支持分组管理，可按「管理员功能」「运营功能」「系统功能」等分类控制。修改后点击「保存设置」生效。
+          </Typography.Text>
+        </div>
         {sectionConfigs.map((section) => (
           <div key={section.key} style={{ marginBottom: '32px' }}>
             {/* 区域标题和总开关 */}

@@ -96,6 +96,12 @@ export default function SettingsCreditLimit(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('额度设置')}>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+              <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <strong>功能介绍：</strong>配置用户额度相关参数，包括新用户注册赠送额度、邀请奖励、预扣费策略、每次请求重试次数等。<br/>
+                <strong>如何修改：</strong>QuotaForNewUser 是新用户注册时自动赠送的额度；QuotaForInviter/Invitee 是邀请人和被邀请人获得的奖励额度；PreConsumedQuota 是发起请求时先冻结的额度（防止超额使用）；RetryTimes 是请求失败后的自动重试次数。
+              </Text>
+            </div>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
