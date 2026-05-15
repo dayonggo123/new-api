@@ -156,13 +156,13 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const adminItems = useMemo(() => {
     // 运营子菜单项
     const operationSubItems = [
-      { text: t('提示词库'), itemKey: 'prompt', to: '/prompt' },
-      { text: t('SEO 趋势'), itemKey: 'seo_trends', to: '/seo-trends' },
-      { text: t('预设提示词'), itemKey: 'preset_prompt', to: '/preset-prompt' },
-      { text: t('Skill 管理'), itemKey: 'skills', to: '/skills' },
-      { text: t('文章管理'), itemKey: 'article', to: '/article' },
-      { text: t('消息管理'), itemKey: 'notification', to: '/notification' },
-      { text: t('用户管理'), itemKey: 'user', to: '/user' },
+      { text: t('提示词库'), itemKey: 'prompt', to: '/prompt', tooltip: { content: t('管理用户公开的提示词，支持分类、SEO、多语言') } },
+      { text: t('SEO 趋势'), itemKey: 'seo_trends', to: '/seo-trends', tooltip: { content: t('查看提示词 SEO 审核分数趋势和统计数据') } },
+      { text: t('预设提示词'), itemKey: 'preset_prompt', to: '/preset-prompt', tooltip: { content: t('管理内置的预设提示词模板，用户可直接使用') } },
+      { text: t('Skill 管理'), itemKey: 'skills', to: '/skills', tooltip: { content: t('管理 AI 技能模板，用于自定义翻译、SEO、审核等提示词') } },
+      { text: t('文章管理'), itemKey: 'article', to: '/article', tooltip: { content: t('管理博客文章，支持分类、多语言、AI 生成内容') } },
+      { text: t('消息管理'), itemKey: 'notification', to: '/notification', tooltip: { content: t('向用户发送系统通知和公告消息') } },
+      { text: t('用户管理'), itemKey: 'user', to: '/user', tooltip: { content: t('查看和管理注册用户，包括额度、权限、分组') } },
     ].filter((item) => {
       const configVisible = isModuleVisible('admin', item.itemKey);
       return configVisible;
