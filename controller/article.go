@@ -407,6 +407,8 @@ func UpdateArticleSEOFields(c *gin.Context) {
 		SeoTitle       string `json:"seo_title"`
 		SeoDescription string `json:"seo_description"`
 		SeoKeywords    string `json:"seo_keywords"`
+		Intro          string `json:"intro"`
+		Faq            string `json:"faq"`
 		SeoI18n        string `json:"seo_i18n"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -418,6 +420,8 @@ func UpdateArticleSEOFields(c *gin.Context) {
 		"seo_title":       req.SeoTitle,
 		"seo_description": req.SeoDescription,
 		"seo_keywords":    req.SeoKeywords,
+		"intro":           req.Intro,
+		"faq":             req.Faq,
 		"seo_i18n":        req.SeoI18n,
 	}
 	if err := model.DB.Model(&model.Article{}).Where("id = ?", req.Id).Updates(updates).Error; err != nil {

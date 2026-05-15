@@ -18,9 +18,11 @@ const articleSEOAITimeout = 60 * time.Second
 
 // ArticleSEOArticleResult AI 生成的文章 SEO 内容
 type ArticleSEOArticleResult struct {
-	SeoTitle       string `json:"seo_title"`
-	SeoDescription string `json:"seo_description"`
-	SeoKeywords    string `json:"seo_keywords"`
+	SeoTitle       string    `json:"seo_title"`
+	SeoDescription string    `json:"seo_description"`
+	SeoKeywords    string    `json:"seo_keywords"`
+	Intro          string    `json:"intro"`
+	Faq            []FaqItem `json:"faq"`
 }
 
 // GenerateSEOForArticle 调用 AI 为文章生成 SEO 元数据
@@ -105,10 +107,13 @@ func GenerateSEOForArticle(article *model.Article) (*ArticleSEOArticleResult, er
 
 // UpdateArticleSEO 更新文章的 SEO 字段
 func UpdateArticleSEO(articleId int, result *ArticleSEOArticleResult) {
+	faqJSON, _ := common.Marshal(result.Faq)
 	updates := map[string]interface{}{
 		"seo_title":       result.SeoTitle,
 		"seo_description": result.SeoDescription,
 		"seo_keywords":    result.SeoKeywords,
+		"intro":           result.Intro,
+		"faq":             string(faqJSON),
 	}
 	if err := model.DB.Model(&model.Article{}).Where("id = ?", articleId).Updates(updates).Error; err != nil {
 		logger.LogError(context.Background(), fmt.Sprintf("update article seo failed: id=%d err=%v", articleId, err))
@@ -122,9 +127,11 @@ Given an article's information, generate the following in the SAME LANGUAGE as t
 1. seo_title: A compelling SEO title (50-60 characters) that includes the main keyword and attracts clicks
 2. seo_description: A meta description (150-160 characters) that summarizes the article and encourages clicks
 3. seo_keywords: 8-12 SEO keywords separated by commas (include long-tail keywords relevant to the article topic)
+4. intro: A rich, engaging introduction paragraph (200-400 characters) that hooks the reader and summarizes the article's value. This will be displayed as a highlighted card on the article page.
+5. faq: An array of 3-5 frequently asked questions and answers related to the article topic. Each item should have "question" and "answer" fields. Answers should be concise (50-150 characters).
 
 Return ONLY valid JSON, no markdown, no explanation:
-{"seo_title":"...","seo_description":"...","seo_keywords":"kw1, kw2, ..."}`
+{"seo_title":"...","seo_description":"...","seo_keywords":"kw1, kw2, ...","intro":"...","faq":[{"question":"...","answer":"..."},...]}`
 }
 
 func buildArticleUserPromptTemplate() string {

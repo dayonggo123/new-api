@@ -36,6 +36,15 @@ function parseTags(tagsStr) {
   }
 }
 
+function parseFAQ(faqStr) {
+  if (!faqStr) return [];
+  try {
+    return JSON.parse(faqStr);
+  } catch {
+    return [];
+  }
+}
+
 function applyLanguage(article, lang) {
   if (!article || lang === 'zh' || lang === 'zh-CN' || lang === 'zh-TW') return article;
   const result = { ...article };
@@ -118,6 +127,20 @@ export default function ArticleDetail() {
       return {};
     }
   }, [article?.i18n]);
+
+  const currentIntro = useMemo(() => {
+    if (!currentArticle) return '';
+    if (activeLang === 'zh') return currentArticle.intro || '';
+    return seoI18n[activeLang]?.intro || currentArticle.intro || '';
+  }, [activeLang, currentArticle?.intro, seoI18n]);
+
+  const currentFaqList = useMemo(() => {
+    if (!currentArticle) return [];
+    const faqStr = activeLang === 'zh'
+      ? currentArticle.faq
+      : (seoI18n[activeLang]?.faq || currentArticle.faq);
+    return parseFAQ(faqStr);
+  }, [activeLang, currentArticle?.faq, seoI18n]);
 
   if (loading) {
     return (
@@ -212,8 +235,15 @@ export default function ArticleDetail() {
             </div>
           )}
 
-          {/* Summary */}
-          {currentArticle.summary && (
+          {/* Intro / Summary */}
+          {currentIntro && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ background: '#eef2ff', padding: 16, borderRadius: 8, borderLeft: '4px solid #4f46e5' }}>
+                <Text style={{ fontSize: 15, lineHeight: 1.6 }}>{currentIntro}</Text>
+              </div>
+            </div>
+          )}
+          {!currentIntro && currentArticle.summary && (
             <div style={{ marginBottom: 24, padding: 16, background: 'var(--semi-color-fill-0)', borderRadius: 8, borderLeft: '4px solid var(--semi-color-primary)' }}>
               <Text type='tertiary' size='small' style={{ fontStyle: 'italic' }}>
                 {currentArticle.summary}
@@ -229,7 +259,8 @@ export default function ArticleDetail() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {SEO_LANGS.map((lang) => {
                 const hasTranslation = lang.code === 'zh' ||
-                  (contentI18n[lang.code]?.title && contentI18n[lang.code]?.content);
+                  (contentI18n[lang.code]?.title && contentI18n[lang.code]?.content) ||
+                  !!(seoI18n[lang.code]?.intro || seoI18n[lang.code]?.faq);
                 return (
                   <Button
                     key={lang.code}
@@ -249,6 +280,23 @@ export default function ArticleDetail() {
           <div style={{ marginBottom: 32 }}>
             <MarkdownRenderer content={currentArticle.content || ''} />
           </div>
+
+          {/* FAQ */}
+          {currentFaqList.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <Title heading={4} style={{ marginBottom: 16 }}>{t('常见问题')}</Title>
+              {currentFaqList.map((item, idx) => (
+                <details key={idx} style={{ marginBottom: 12, padding: 12, background: '#f9fafb', borderRadius: 8, border: '1px solid var(--semi-color-border)' }}>
+                  <summary style={{ fontWeight: 600, color: '#4f46e5', cursor: 'pointer', fontSize: 15 }}>
+                    {item.question}
+                  </summary>
+                  <div style={{ marginTop: 8, color: '#555', lineHeight: 1.6 }}>
+                    {item.answer}
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
 
           <Divider />
         </div>

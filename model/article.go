@@ -97,6 +97,8 @@ type ArticleSEO18n struct {
 	SeoTitle       string `json:"seo_title,omitempty"`
 	SeoDescription string `json:"seo_description,omitempty"`
 	SeoKeywords    string `json:"seo_keywords,omitempty"`
+	Intro          string `json:"intro,omitempty"`
+	Faq            string `json:"faq,omitempty"`
 }
 
 // ArticleContent18n 内容多语言翻译项
@@ -123,6 +125,8 @@ type Article struct {
 	SeoTitle       string         `json:"seo_title" gorm:"type:text"`
 	SeoDescription string         `json:"seo_description" gorm:"type:text"`
 	SeoKeywords    string         `json:"seo_keywords" gorm:"type:text"`
+	Intro          string         `json:"intro" gorm:"type:text"`        // AI 生成的介绍文案
+	Faq            string         `json:"faq" gorm:"type:text"`          // AI 生成的 FAQ 问答（JSON）
 	I18n           string         `json:"i18n" gorm:"type:longtext"`     // 内容多语言 JSON
 	SeoI18n        string         `json:"seo_i18n" gorm:"type:longtext"` // SEO 多语言 JSON
 	CreatedTime    int64          `json:"created_time" gorm:"bigint"`
@@ -147,6 +151,12 @@ func (a *Article) ApplyLanguage(lang string) {
 				}
 				if t.SeoKeywords != "" {
 					a.SeoKeywords = t.SeoKeywords
+				}
+				if t.Intro != "" {
+					a.Intro = t.Intro
+				}
+				if t.Faq != "" {
+					a.Faq = t.Faq
 				}
 			}
 		}

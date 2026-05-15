@@ -652,7 +652,6 @@ func GetPromptSEOPage(c *gin.Context) {
 				faqBuilder.WriteString(fmt.Sprintf(`<details class="seo-faq-item"><summary>%s</summary><p>%s</p></details>`, q, a))
 			}
 			faqBuilder.WriteString(`</section>`)
-			faqHTML = faqBuilder.String()
 
 			faqSchema := map[string]interface{}{
 				"@context": "https://schema.org",
@@ -828,6 +827,45 @@ func GetArticleSEOPage(c *gin.Context) {
 	}
 	contentDisplay := escapeHTML(article.Content)
 	summaryDisplay := escapeHTML(article.Summary)
+	introDisplay := escapeHTML(article.Intro)
+
+	// Parse FAQ
+	var faqItems []struct {
+		Question string `json:"question"`
+		Answer   string `json:"answer"`
+	}
+	var faqSchemaJSON string
+	if article.Faq != "" {
+		_ = common.Unmarshal([]byte(article.Faq), &faqItems)
+		if len(faqItems) > 0 {
+			var faqBuilder strings.Builder
+			faqBuilder.WriteString(`<section class="seo-faq"><h2>常见问题</h2>`)
+			for _, item := range faqItems {
+				q := escapeHTML(item.Question)
+				a := escapeHTML(item.Answer)
+				faqBuilder.WriteString(fmt.Sprintf(`<details class="seo-faq-item"><summary>%s</summary><p>%s</p></details>`, q, a))
+			}
+			faqBuilder.WriteString(`</section>`)
+
+			faqSchema := map[string]interface{}{
+				"@context": "https://schema.org",
+				"@type":    "FAQPage",
+				"mainEntity": func() []map[string]interface{} {
+					var items []map[string]interface{}
+					for _, item := range faqItems {
+						items = append(items, map[string]interface{}{
+							"@type":          "Question",
+							"name":           item.Question,
+							"acceptedAnswer": map[string]string{"@type": "Answer", "text": item.Answer},
+						})
+					}
+					return items
+				}(),
+			}
+			faqSchemaBytes, _ := common.Marshal(faqSchema)
+			faqSchemaJSON = string(faqSchemaBytes)
+		}
+	}
 
 	// Schema.org JSON-LD for Article
 	schema := map[string]interface{}{
@@ -868,6 +906,9 @@ func GetArticleSEOPage(c *gin.Context) {
 	seoHead.WriteString(fmt.Sprintf(`<meta name="twitter:title" content="%s">`, title))
 	seoHead.WriteString(fmt.Sprintf(`<meta name="twitter:description" content="%s">`, description))
 	seoHead.WriteString(fmt.Sprintf(`<script type="application/ld+json">%s</script>`, string(schemaJSON)))
+	if faqSchemaJSON != "" {
+		seoHead.WriteString(fmt.Sprintf(`<script type="application/ld+json">%s</script>`, faqSchemaJSON))
+	}
 	seoHead.WriteString(`<style>.seo-content{display:none}</style>`)
 
 	// Build noscript visible content for crawlers
@@ -881,11 +922,21 @@ func GetArticleSEOPage(c *gin.Context) {
 		seoBody.WriteString(fmt.Sprintf(`<p>作者: %s</p>`, article.Author))
 	}
 	seoBody.WriteString(fmt.Sprintf(`<p>发布时间: %s</p>`, time.Unix(article.CreatedTime, 0).Format("2006-01-02")))
-	if summaryDisplay != "" {
+	if introDisplay != "" {
+		seoBody.WriteString(fmt.Sprintf(`<p style="background:#eef2ff;padding:16px;border-radius:8px;border-left:4px solid #4f46e5">%s</p>`, introDisplay))
+	} else if summaryDisplay != "" {
 		seoBody.WriteString(fmt.Sprintf(`<p style="background:#eef2ff;padding:16px;border-radius:8px;border-left:4px solid #4f46e5">%s</p>`, summaryDisplay))
 	}
 	// Article content as markdown text (escaped) — crawlers can read the raw text
 	seoBody.WriteString(fmt.Sprintf(`<h2>正文</h2><pre style="background:#f8f9fa;padding:16px;border-radius:8px;white-space:pre-wrap">%s</pre>`, contentDisplay))
+	if len(faqItems) > 0 {
+		seoBody.WriteString(`<h2>常见问题</h2>`)
+		for _, item := range faqItems {
+			q := escapeHTML(item.Question)
+			a := escapeHTML(item.Answer)
+			seoBody.WriteString(fmt.Sprintf(`<details style="margin-bottom:12px"><summary style="font-weight:600;color:#4f46e5">%s</summary><p>%s</p></details>`, q, a))
+		}
+	}
 	seoBody.WriteString(`<p><a href="/article-gallery" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">浏览更多文章</a></p>`)
 	seoBody.WriteString(`</div></noscript>`)
 
