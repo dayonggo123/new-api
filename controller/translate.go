@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,8 +46,8 @@ func BatchTranslate(c *gin.Context) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	// 并发翻译，提高速度避免网关超时
-	semaphore := make(chan struct{}, 3)
+	// 串行翻译，避免 DeepSeek 等慢模型超时
+	semaphore := make(chan struct{}, 1)
 
 	// 检查是否启用 AI 翻译
 	cfg := operation_setting.GetTranslateSetting()
@@ -264,7 +265,7 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 	return callTranslateAI(cfg, systemPrompt, userPrompt)
 }
 
-// callTranslateAI 调用 AI 模型获取文本响应
+// callTranslateAI 调用 AI 模型获取文本响应（带重试）
 func callTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, userPrompt string) string {
 	reqBody := map[string]interface{}{
 		"model": cfg.TranslateAIModel,
@@ -283,51 +284,76 @@ func callTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, user
 	}
 
 	common.SysLog(fmt.Sprintf("AI translate request: model=%s baseURL=%s", cfg.TranslateAIModel, cfg.TranslateAIBaseURL))
-	common.SysLog(fmt.Sprintf("AI translate system prompt: %s", systemPrompt))
-	common.SysLog(fmt.Sprintf("AI translate user prompt: %s", userPrompt))
 
-	client := &http.Client{Timeout: 60 * time.Second}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cfg.TranslateAIBaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
-	if err != nil {
-		common.SysLog("AI translate request error: " + err.Error())
-		return ""
+	maxRetries := 2
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			common.SysLog(fmt.Sprintf("AI translate retry attempt %d/%d", attempt, maxRetries))
+			time.Sleep(time.Duration(attempt) * 2 * time.Second) // 指数退避
+		}
+
+		client := &http.Client{Timeout: 120 * time.Second}
+		ctx, cancel := context.WithTimeout(context.Background(), 125*time.Second)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.TranslateAIBaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
+		if err != nil {
+			cancel()
+			common.SysLog("AI translate request error: " + err.Error())
+			return ""
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+cfg.TranslateAIApiKey)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			cancel()
+			common.SysLog("AI translate do error (attempt " + strconv.Itoa(attempt+1) + "): " + err.Error())
+			// 超时或网络错误时重试
+			if attempt < maxRetries {
+				continue
+			}
+			return ""
+		}
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		cancel()
+
+		if resp.StatusCode == http.StatusGatewayTimeout || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable {
+			common.SysLog(fmt.Sprintf("AI translate server error %d (attempt %d), will retry", resp.StatusCode, attempt+1))
+			if attempt < maxRetries {
+				continue
+			}
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			common.SysLog(fmt.Sprintf("AI translate non-200: %d, body: %s", resp.StatusCode, string(bodyBytes)))
+			return ""
+		}
+
+		var apiResp struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		if err := common.Unmarshal(bodyBytes, &apiResp); err != nil {
+			common.SysLog("AI translate decode error: " + err.Error())
+			return ""
+		}
+
+		if len(apiResp.Choices) == 0 {
+			common.SysLog("AI translate empty choices")
+			return ""
+		}
+
+		rawContent := apiResp.Choices[0].Message.Content
+		common.SysLog(fmt.Sprintf("AI translate success (attempt %d)", attempt+1))
+		return extractPlainText(rawContent)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+cfg.TranslateAIApiKey)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		common.SysLog("AI translate do error: " + err.Error())
-		return ""
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		common.SysLog("AI translate non-200: " + strconv.Itoa(resp.StatusCode))
-		return ""
-	}
-
-	var apiResp struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := common.DecodeJson(resp.Body, &apiResp); err != nil {
-		common.SysLog("AI translate decode error: " + err.Error())
-		return ""
-	}
-
-	if len(apiResp.Choices) == 0 {
-		common.SysLog("AI translate empty choices")
-		return ""
-	}
-
-	rawContent := apiResp.Choices[0].Message.Content
-	common.SysLog(fmt.Sprintf("AI translate raw response: %s", rawContent))
-	return extractPlainText(rawContent)
+	return ""
 }
 
 // extractPlainText 去除 AI 返回内容中可能的引号、markdown 等格式
