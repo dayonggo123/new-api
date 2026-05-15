@@ -52,6 +52,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
+import ArticleSEOManagement from '../ArticleSEOManagement';
 import { ITEMS_PER_PAGE } from '../../constants';
 import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
 
@@ -1369,6 +1370,10 @@ const ArticleManagement = () => {
               </div>
             </Spin>
           </Card>
+        </Tabs.TabPane>
+
+        <Tabs.TabPane tab={t('SEO 管理')} itemKey='seo'>
+          <ArticleSEOManagement />
         </Tabs.TabPane>
       </Tabs>
     </div>

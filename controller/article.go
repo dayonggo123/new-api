@@ -327,6 +327,62 @@ func GetPublicArticleCategories(c *gin.Context) {
 
 // ==================== Admin: SEO Management ====================
 
+func GetArticleSEOList(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+
+	articles, total, err := model.SearchArticles(keyword, 0, 0, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	articlesWithCat := model.AttachArticleCategoryInfo(articles)
+
+	// 批量获取最新审计分数
+	articleIds := make([]int, len(articlesWithCat))
+	for i, a := range articlesWithCat {
+		articleIds[i] = a.Id
+	}
+	auditScores, _ := model.GetLatestArticleSEOAuditScores(articleIds)
+
+	// 只返回 SEO 相关字段
+	type SEOItem struct {
+		Id             int    `json:"id"`
+		Title          string `json:"title"`
+		CategoryName   string `json:"category_name"`
+		SeoTitle       string `json:"seo_title"`
+		SeoDescription string `json:"seo_description"`
+		SeoKeywords    string `json:"seo_keywords"`
+		SeoI18n        string `json:"seo_i18n"`
+		AuditScore     int    `json:"audit_score"`
+		Status         int    `json:"status"`
+		CreatedTime    int64  `json:"created_time"`
+		UpdatedTime    int64  `json:"updated_time"`
+	}
+
+	items := make([]*SEOItem, len(articlesWithCat))
+	for i, a := range articlesWithCat {
+		items[i] = &SEOItem{
+			Id:             a.Id,
+			Title:          a.Title,
+			CategoryName:   a.CategoryName,
+			SeoTitle:       a.SeoTitle,
+			SeoDescription: a.SeoDescription,
+			SeoKeywords:    a.SeoKeywords,
+			SeoI18n:        a.SeoI18n,
+			AuditScore:     auditScores[a.Id],
+			Status:         a.Status,
+			CreatedTime:    a.CreatedTime,
+			UpdatedTime:    a.UpdatedTime,
+		}
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func GetArticleSEO(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

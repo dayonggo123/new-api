@@ -379,6 +379,7 @@ func SetApiRouter(router *gin.Engine) {
 		articleSEORoute := apiRouter.Group("/article/seo")
 		articleSEORoute.Use(middleware.AdminAuth())
 		{
+			articleSEORoute.GET("/list", controller.GetArticleSEOList)
 			articleSEORoute.GET("/:id", controller.GetArticleSEO)
 			articleSEORoute.PUT("/:id", controller.UpdateArticleSEOFields)
 			articleSEORoute.POST("/:id/regenerate", controller.RegenerateArticleSEO)
