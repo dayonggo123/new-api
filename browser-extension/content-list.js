@@ -27,14 +27,28 @@
 
   // 从弹窗提取内容（opennana.com 弹窗适配）
   async function extractFromModal() {
-    // opennana.com 弹窗 class 包含 modal
-    const modal = document.querySelector('[class*="modal"]');
+    // opennana.com 弹窗：优先找 animate-modal-in，再找任意含 modal 的可见元素
+    let modal = document.querySelector('[class*="animate-modal-in"]') ||
+                document.querySelector('[class*="animate-modal"]');
+    
+    // 备选：找可见的、尺寸较大的 modal
+    if (!modal || modal.offsetParent === null) {
+      const allModals = Array.from(document.querySelectorAll('div')).filter(el => {
+        const cls = el.className || '';
+        const rect = el.getBoundingClientRect();
+        return (cls.includes('modal') || cls.includes('dialog')) &&
+               rect.width > 300 && rect.height > 200 &&
+               el.offsetParent !== null;
+      });
+      modal = allModals[allModals.length - 1]; // 取最后出现的（最上层）
+    }
+
     if (!modal || modal.offsetParent === null) {
       console.log('[Prompt Collector] 未找到弹窗');
       return null;
     }
 
-    console.log('[Prompt Collector] 找到弹窗，开始提取...');
+    console.log('[Prompt Collector] 找到弹窗，class:', modal.className, '开始提取...');
 
     const modalText = modal.innerText || '';
     const lines = modalText.split('\n').map(l => l.trim()).filter(l => l);
@@ -93,14 +107,89 @@
       if (longest.length > 100) content = longest;
     }
 
-    // 提取封面图（弹窗里的大图）
+    // 提取封面图/视频（弹窗里的大图或视频）
     let coverImageUrl = '';
-    const imgs = modal.querySelectorAll('img');
-    for (const img of imgs) {
-      if (img.naturalWidth > 200) {
-        coverImageUrl = img.src;
-        break;
+
+    // 策略1：找 video 标签（视频类型）
+    const video = modal.querySelector('video');
+    if (video) {
+      coverImageUrl = video.src || video.currentSrc || video.querySelector('source')?.src || '';
+      console.log('[Prompt Collector] 找到 video:', coverImageUrl);
+    }
+
+    // 策略2：找 img 标签（图片类型）
+    if (!coverImageUrl) {
+      const imgs = Array.from(modal.querySelectorAll('img'));
+      console.log('[Prompt Collector] 弹窗内 img 数量:', imgs.length);
+      imgs.forEach((img, i) => {
+        console.log(`  img[${i}] src=`, img.src, 'dataset=', img.dataset ? Object.keys(img.dataset) : 'none');
+      });
+
+      // 获取每个 img 的最佳 src（处理懒加载和 Next.js Image）
+      const imgData = imgs.map(img => {
+        const src = img.src || img.dataset?.src || img.dataset?.original || img.dataset?.lazySrc || '';
+        // 解析 srcset 取最大图
+        let bestSrc = src;
+        const srcset = img.srcset || img.dataset?.srcset || '';
+        if (srcset) {
+          const candidates = srcset.split(',').map(s => {
+            const [url, w] = s.trim().split(' ');
+            return { url: url || s.trim(), width: parseInt(w) || 0 };
+          });
+          candidates.sort((a, b) => b.width - a.width);
+          if (candidates[0]) bestSrc = candidates[0].url;
+        }
+        return {
+          src: bestSrc,
+          isOpennana: bestSrc.includes('opennana.com') || bestSrc.includes('img.opennana'),
+          width: img.naturalWidth || img.width || 0
+        };
+      });
+
+      // 优先选 opennana 域名的图
+      const opennanaImgs = imgData.filter(d => d.isOpennana);
+      if (opennanaImgs.length > 0) {
+        coverImageUrl = opennanaImgs[0].src;
+        console.log('[Prompt Collector] 选中 opennana 图片:', coverImageUrl);
+      } else if (imgData.length > 0) {
+        coverImageUrl = imgData[0].src;
+        console.log('[Prompt Collector] 选中第一张图片:', coverImageUrl);
       }
+    }
+
+    // 策略3：找背景图
+    if (!coverImageUrl) {
+      const els = modal.querySelectorAll('*');
+      for (const el of els) {
+        const style = window.getComputedStyle(el);
+        const bg = style.backgroundImage;
+        if (bg && bg !== 'none') {
+          const match = bg.match(/url\(["']?([^"')]+)["']?\)/);
+          if (match) {
+            coverImageUrl = match[1];
+            console.log('[Prompt Collector] 找到背景图:', coverImageUrl);
+            break;
+          }
+        }
+      }
+    }
+
+    // 策略4：如果弹窗里没找到，尝试从对应的卡片找缩略图
+    if (!coverImageUrl && currentCard) {
+      console.log('[Prompt Collector] 弹窗内未找到图片，尝试从卡片查找...');
+      const cardImgs = Array.from(currentCard.querySelectorAll('img'));
+      for (const img of cardImgs) {
+        const src = img.src || img.dataset?.src || '';
+        if (src) {
+          coverImageUrl = src;
+          console.log('[Prompt Collector] 从卡片获取图片:', coverImageUrl);
+          break;
+        }
+      }
+    }
+
+    if (!coverImageUrl) {
+      console.log('[Prompt Collector] 警告: 未找到任何图片/视频');
     }
 
     // 提取标签（在"收藏"和"示例图片"之间的词）
@@ -138,6 +227,9 @@
       if (btn.offsetParent !== null) btn.click();
     });
   }
+
+  // 当前正在采集的卡片（用于备选图片提取）
+  let currentCard = null;
 
   // 创建采集按钮
   function createCollectButton(card) {
@@ -180,6 +272,7 @@
       e.stopPropagation();
       btn.textContent = '采集中...';
       btn.style.pointerEvents = 'none';
+      currentCard = card;
 
       try {
         // 点击卡片打开弹窗
@@ -187,6 +280,9 @@
 
         // 等待弹窗渲染（给一点动画时间）
         await new Promise(r => setTimeout(r, 800));
+
+        // 等待图片加载（给懒加载一点时间）
+        await new Promise(r => setTimeout(r, 600));
 
         // 提取内容
         const data = await extractFromModal();
@@ -227,6 +323,8 @@
         alert('采集失败: ' + err.message);
         btn.textContent = '采集';
         btn.style.pointerEvents = 'auto';
+      } finally {
+        currentCard = null;
       }
     });
 
