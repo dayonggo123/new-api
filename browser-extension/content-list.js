@@ -306,6 +306,13 @@
           data
         });
 
+        // 自动打开侧边栏（如果还没打开）
+        try {
+          await chrome.runtime.sendMessage({ action: 'openSidePanel' });
+        } catch (e) {
+          // 侧边栏可能已打开或不被支持，忽略错误
+        }
+
         // 关闭弹窗
         closeModal();
 

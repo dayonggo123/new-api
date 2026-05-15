@@ -22,8 +22,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'saveExtractedData': {
           // 保存提取的数据
           await chrome.storage.local.set({ [EXTRACTED_KEY]: message.data });
-          // 通知 popup 有新数据
-          chrome.runtime.sendMessage({ action: 'dataExtracted', data: message.data });
+          // 广播给所有监听者（popup / sidepanel）
+          chrome.runtime.sendMessage({ action: 'dataExtracted', data: message.data }).catch(() => {});
           sendResponse({ success: true });
           break;
         }
@@ -38,6 +38,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'clearExtractedData': {
           // 清除提取的数据
           await chrome.storage.local.remove(EXTRACTED_KEY);
+          chrome.runtime.sendMessage({ action: 'dataCleared' }).catch(() => {});
           sendResponse({ success: true });
           break;
         }
@@ -99,6 +100,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
           }
           sendResponse({ success: true });
+          break;
+        }
+
+        case 'openSidePanel': {
+          // 打开侧边栏（需要在用户手势上下文中调用）
+          try {
+            const windowId = sender.tab?.windowId;
+            if (windowId) {
+              await chrome.sidePanel.open({ windowId });
+            }
+            sendResponse({ success: true });
+          } catch (err) {
+            sendResponse({ success: false, message: err.message });
+          }
           break;
         }
 

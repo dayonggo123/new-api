@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prompt Collector - 侧边栏</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="container">
+    <!-- 头部 -->
+    <div class="header">
+      <h1>🎯 提示词采集器</h1>
+      <p class="subtitle">固定在侧边栏，采集实时显示</p>
+    </div>
+
+    <!-- 配置面板（可折叠） -->
+    <div class="config-section">
+      <div class="config-toggle" id="configToggle">
+        <span>⚙️ API 配置</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="config-body" id="configBody" style="display:none;">
+        <div class="field">
+          <label>API Base URL</label>
+          <input type="text" id="apiBaseUrl" placeholder="https://your-domain.com">
+        </div>
+        <div class="field">
+          <label>Admin JWT Token</label>
+          <input type="password" id="apiToken" placeholder="Bearer xxx...">
+        </div>
+        <div class="field">
+          <label>用户 ID（New-API-User）</label>
+          <input type="number" id="userId" placeholder="如: 1">
+        </div>
+        <div class="field">
+          <label>默认分类 ID（可选）</label>
+          <input type="number" id="defaultCategoryId" placeholder="1">
+        </div>
+        <button class="btn btn-secondary" id="saveConfigBtn">保存配置</button>
+        <div class="status" id="configStatus"></div>
+      </div>
+    </div>
+
+    <!-- 提取数据展示 -->
+    <div class="data-section" id="dataSection">
+      <div class="section-title">
+        <span>📋 提取内容</span>
+        <span class="badge" id="dataBadge" style="display:none;">新</span>
+      </div>
+
+      <!-- 封面图预览 -->
+      <div class="cover-preview" id="coverPreview" style="display:none;">
+        <img id="coverImg" src="" alt="封面图">
+      </div>
+
+      <div class="field">
+        <label>标题 <span class="required">*</span></label>
+        <input type="text" id="fieldTitle" placeholder="提示词标题">
+      </div>
+
+      <div class="field">
+        <label>Prompt 内容 <span class="required">*</span></label>
+        <textarea id="fieldContent" placeholder="提示词正文内容..." rows="5"></textarea>
+      </div>
+
+      <div class="field">
+        <label>简介</label>
+        <input type="text" id="fieldDescription" placeholder="简短描述">
+      </div>
+
+      <div class="field-row">
+        <div class="field half">
+          <label>模型</label>
+          <input type="text" id="fieldModel" placeholder="如: GPT-4o">
+        </div>
+        <div class="field half">
+          <label>媒体类型</label>
+          <select id="fieldMediaType">
+            <option value="image">图片</option>
+            <option value="video">视频</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>标签（逗号分隔）</label>
+        <input type="text" id="fieldTags" placeholder="标签1, 标签2, 标签3">
+      </div>
+
+      <div class="field">
+        <label>分类 ID</label>
+        <input type="number" id="fieldCategoryId" placeholder="从 new-api 获取的分类 ID">
+      </div>
+
+      <div class="field">
+        <label>封面图 URL</label>
+        <input type="text" id="fieldCoverImage" placeholder="https://...">
+      </div>
+
+      <div class="field">
+        <label>来源链接</label>
+        <input type="text" id="fieldSourceUrl" readonly>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="submitBtn">
+          <span class="btn-icon">⬆️</span> 提交到提示词库
+        </button>
+        <button class="btn btn-ghost" id="clearBtn">清空</button>
+      </div>
+
+      <div class="status" id="submitStatus"></div>
+    </div>
+
+    <!-- 空状态 -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">📭</div>
+      <p>暂无提取的数据</p>
+      <p class="hint">在 opennana.com 点击「采集」按钮<br>内容会实时显示在这里</p>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
