@@ -73,6 +73,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             method: message.method || 'GET',
             headers: {
               'Content-Type': 'application/json',
+              'New-API-User': message.userId || cfg.userId || '',
               ...(token ? { 'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}` } : {})
             }
           };

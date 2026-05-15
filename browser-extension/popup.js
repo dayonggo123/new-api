@@ -11,6 +11,7 @@
     configArrow: document.querySelector('.config-toggle .arrow'),
     apiBaseUrl: document.getElementById('apiBaseUrl'),
     apiToken: document.getElementById('apiToken'),
+    userId: document.getElementById('userId'),
     defaultCategoryId: document.getElementById('defaultCategoryId'),
     saveConfigBtn: document.getElementById('saveConfigBtn'),
     configStatus: document.getElementById('configStatus'),
@@ -42,6 +43,7 @@
       config = configRes.data || {};
       els.apiBaseUrl.value = config.apiBaseUrl || '';
       els.apiToken.value = config.apiToken || '';
+      if (els.userId) els.userId.value = config.userId || '';
       els.defaultCategoryId.value = config.defaultCategoryId || '';
     }
 
@@ -124,6 +126,7 @@
     const data = {
       apiBaseUrl: els.apiBaseUrl.value.trim().replace(/\/$/, ''),
       apiToken: els.apiToken.value.trim(),
+      userId: els.userId ? els.userId.value.trim() : '',
       defaultCategoryId: els.defaultCategoryId.value.trim()
     };
 
@@ -190,7 +193,8 @@
         action: 'apiRequest',
         method: 'POST',
         path: '/prompt/',
-        body: payload
+        body: payload,
+        userId: config.userId
       });
 
       if (res.success && res.data && res.data.success) {
