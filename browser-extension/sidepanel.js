@@ -22,6 +22,7 @@
     coverImg: document.getElementById('coverImg'),
     fieldTitle: document.getElementById('fieldTitle'),
     fieldContent: document.getElementById('fieldContent'),
+    fieldContentEn: document.getElementById('fieldContentEn'),
     fieldDescription: document.getElementById('fieldDescription'),
     fieldModel: document.getElementById('fieldModel'),
     fieldMediaType: document.getElementById('fieldMediaType'),
@@ -134,6 +135,7 @@
 
     els.fieldTitle.value = extractedData.title || '';
     els.fieldContent.value = extractedData.content || '';
+    els.fieldContentEn.value = extractedData.content_en || '';
     els.fieldDescription.value = extractedData.description || '';
     els.fieldModel.value = extractedData.model || '';
     els.fieldMediaType.value = extractedData.media_type || 'image';
@@ -224,13 +226,14 @@
   async function submitPrompt() {
     const title = els.fieldTitle.value.trim();
     const content = els.fieldContent.value.trim();
+    const contentEn = els.fieldContentEn.value.trim();
 
     if (!title) {
       showStatus(els.submitStatus, '❌ 标题不能为空', 'error');
       return;
     }
-    if (!content) {
-      showStatus(els.submitStatus, '❌ Prompt 内容不能为空', 'error');
+    if (!content && !contentEn) {
+      showStatus(els.submitStatus, '❌ 中文或英文 Prompt 至少填一个', 'error');
       return;
     }
     if (!config.apiBaseUrl) {
@@ -248,7 +251,8 @@
 
     const payload = {
       title,
-      content,
+      content: content || contentEn,
+      content_en: contentEn,
       description: els.fieldDescription.value.trim() || title,
       model: els.fieldModel.value.trim(),
       media_type: els.fieldMediaType.value,

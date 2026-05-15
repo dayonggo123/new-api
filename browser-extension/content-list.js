@@ -62,35 +62,51 @@
     if (modelMatch) model = modelMatch[1].trim();
 
     // 提取 prompt 内容（支持纯文本和 JSON 两种格式）
-    let content = '';
+    let content = '';      // 中文
+    let contentEn = '';    // 英文
+
+    // 辅助：按行检测语言并分离中英文
+    function splitByLanguage(text) {
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      const zh = [], en = [];
+      for (const line of lines) {
+        const chineseChars = (line.match(/[\u4e00-\u9fff]/g) || []).length;
+        const totalChars = line.replace(/\s/g, '').length;
+        if (totalChars > 0 && chineseChars / totalChars > 0.3) {
+          zh.push(line);
+        } else if (line.length > 10) {
+          en.push(line);
+        }
+      }
+      return { zh: zh.join('\n'), en: en.join('\n') };
+    }
 
     // 策略1：找 "复制" 后面的内容（JSON 或纯文本）
     // opennana 格式：复制\n{JSON...} 或 复制\n英文prompt\n中文\n复制\n中文prompt
     const copyMatch = modalText.match(/复制[\s\n]+([\s\S]*?)(?:中文[\s\n]*去 AI 生图[\s\n]*复制[\s\n]*[\s\S]*?)?(?:更多推荐|$)/);
     if (copyMatch) {
       const candidate = copyMatch[1].trim();
-      // 如果以 { 开头，是 JSON 格式，尝试提取其中的 content/data 字段
+      // 如果以 { 开头，是 JSON 格式，通常是英文 prompt
       if (candidate.startsWith('{')) {
         try {
           const jsonObj = JSON.parse(candidate);
-          // 优先取 content 或 data 字段作为实际 prompt
-          content = jsonObj.content || jsonObj.data || jsonObj.prompt || candidate;
+          contentEn = jsonObj.content || jsonObj.data || jsonObj.prompt || candidate;
         } catch (e) {
-          // JSON 解析失败，保留原始文本
-          content = candidate;
+          contentEn = candidate;
         }
       } else {
-        // 纯文本格式，取最长的连续段落
-        const paragraphs = candidate.split('\n').map(l => l.trim()).filter(l => l.length > 20);
-        content = paragraphs.join('\n');
+        // 纯文本格式，按行分离中英文
+        const split = splitByLanguage(candidate);
+        content = split.zh;
+        contentEn = split.en;
       }
     }
 
-    // 策略2：如果没找到，尝试 ENGLISH / 中文 分段提取
-    if (!content) {
-      const englishMatch = modalText.match(/ENGLISH[\s\n]*(?:去 AI 生图)?[\s\n]*复制[\s\n]*([\s\S]*?)(?:中文|去 AI 生图|更多推荐|$)/);
+    // 策略2：明确分段提取 ENGLISH / 中文
+    if (!contentEn) {
+      const englishMatch = modalText.match(/ENGLISH[\s\n]*(?:去 AI 生图)?[\s\n]*复制[\s\n]*([\s\S]*?)(?:中文|去 AI 生图|更多推荐|$)/i);
       if (englishMatch) {
-        content = englishMatch[1].trim();
+        contentEn = englishMatch[1].trim();
       }
     }
     if (!content) {
@@ -101,7 +117,7 @@
     }
 
     // 策略3：从 DOM 中找最长的文本段落
-    if (!content) {
+    if (!content && !contentEn) {
       let longest = '';
       modal.querySelectorAll('p, div, span, pre, code').forEach(el => {
         const text = (el.innerText || '').trim();
@@ -111,7 +127,11 @@
           }
         }
       });
-      if (longest.length > 100) content = longest;
+      if (longest.length > 100) {
+        const split = splitByLanguage(longest);
+        content = split.zh;
+        contentEn = split.en;
+      }
     }
 
     // 提取封面图/视频（弹窗里的大图或视频）
@@ -212,6 +232,7 @@
     const data = {
       title,
       content,
+      content_en: contentEn,
       description: title,
       cover_image_url: coverImageUrl,
       model,
