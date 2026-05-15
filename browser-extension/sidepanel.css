@@ -491,6 +491,28 @@ body {
   border: 1px solid #93c5fd;
 }
 
+/* 复选框字段 */
+.checkbox-field {
+  margin-bottom: 12px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* 空状态 */
 .empty-state {
   text-align: center;

@@ -10,6 +10,7 @@
     apiToken: document.getElementById('apiToken'),
     userId: document.getElementById('userId'),
     defaultCategoryId: document.getElementById('defaultCategoryId'),
+    autoSubmit: document.getElementById('autoSubmit'),
     saveConfigBtn: document.getElementById('saveConfigBtn'),
     configStatus: document.getElementById('configStatus'),
 
@@ -59,6 +60,7 @@
       els.apiToken.value = config.apiToken || '';
       if (els.userId) els.userId.value = config.userId || '';
       els.defaultCategoryId.value = config.defaultCategoryId || '';
+      if (els.autoSubmit) els.autoSubmit.checked = !!config.autoSubmit;
     }
 
     await loadCategories();
@@ -428,7 +430,8 @@
       apiBaseUrl: els.apiBaseUrl.value.trim().replace(/\/$/, ''),
       apiToken: els.apiToken.value.trim(),
       userId: els.userId ? els.userId.value.trim() : '',
-      defaultCategoryId: els.defaultCategoryId.value.trim()
+      defaultCategoryId: els.defaultCategoryId.value.trim(),
+      autoSubmit: els.autoSubmit ? els.autoSubmit.checked : false
     };
     const res = await chrome.runtime.sendMessage({ action: 'saveConfig', data });
     if (res.success) {

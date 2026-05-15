@@ -103,6 +103,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'getCollectedUrls': {
+          const result = await chrome.storage.local.get(BATCH_KEY);
+          const batch = result[BATCH_KEY] || [];
+          const urls = batch.map(i => i.source_url).filter(Boolean);
+          sendResponse({ success: true, urls });
+          break;
+        }
+
         case 'saveConfig': {
           await chrome.storage.local.set({ [STORAGE_KEY]: message.data });
           sendResponse({ success: true });

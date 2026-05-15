@@ -4,6 +4,10 @@
 
   const BUTTON_CLASS = 'prompt-collector-btn';
   const INJECTED_ATTR = 'data-pc-injected';
+  const COLLECTED_ATTR = 'data-pc-collected';
+
+  let config = {};
+  let collectedTitles = new Set();
 
   // 等待元素出现
   function waitForElement(selector, timeout = 5000, parent = document) {
@@ -303,9 +307,18 @@
   let currentCard = null;
 
   // 创建采集按钮
-  function createCollectButton(card) {
+  function createCollectButton(card, isCollected = false, cardTitle = '') {
     const btn = document.createElement('button');
     btn.className = BUTTON_CLASS;
+    if (isCollected) {
+      btn.textContent = '✓ 已采集';
+      btn.title = '此提示词已采集过';
+      btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+      btn.disabled = true;
+      btn.style.pointerEvents = 'none';
+      card.setAttribute(COLLECTED_ATTR, 'true');
+      return btn;
+    }
     btn.textContent = '采集';
     btn.title = '采集此提示词到 new-api';
     Object.assign(btn.style, {
@@ -372,26 +385,89 @@
         }
 
         // 追加到批量列表
-        await chrome.runtime.sendMessage({
+        const appendRes = await chrome.runtime.sendMessage({
           action: 'appendBatchData',
           data
         });
 
+        // 标记已采集（去重用）
+        collectedTitles.add(data.title);
+        card.setAttribute(COLLECTED_ATTR, 'true');
+
+        // 自动提交（如果开启了开关）
+        if (config.autoSubmit) {
+          btn.textContent = '提交中...';
+          const payload = {
+            title: data.title || '',
+            content: data.content || data.content_en || '',
+            content_en: data.content_en || '',
+            description: data.description || data.title || '',
+            model: data.model || '',
+            media_type: data.media_type || 'image',
+            tags: data.tags || '[]',
+            category_id: parseInt(data.category_id) || 0,
+            cover_image_url: data.cover_image_url || '',
+            status: 1,
+            sort_order: 0,
+            is_premium: false,
+            unlock_cost: 0,
+            author: '采集导入',
+            i18n: '{}',
+            seo_i18n: '{}'
+          };
+
+          try {
+            const submitRes = await chrome.runtime.sendMessage({
+              action: 'apiRequest',
+              method: 'POST',
+              path: '/prompt/',
+              body: payload,
+              userId: config.userId
+            });
+
+            if (submitRes.success && submitRes.data && submitRes.data.success) {
+              btn.textContent = '✅ 已入库';
+              btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+              btn.disabled = true;
+              btn.style.pointerEvents = 'none';
+              // 更新批量列表中的状态
+              if (appendRes.success && appendRes.item) {
+                await chrome.runtime.sendMessage({
+                  action: 'updateBatchItem',
+                  id: appendRes.item.id,
+                  updates: { submitted: true, error: '' }
+                });
+              }
+            } else {
+              btn.textContent = '✓ 已采集';
+              setTimeout(() => {
+                btn.textContent = '采集';
+                btn.style.pointerEvents = 'auto';
+              }, 2000);
+            }
+          } catch (submitErr) {
+            btn.textContent = '✓ 已采集';
+            setTimeout(() => {
+              btn.textContent = '采集';
+              btn.style.pointerEvents = 'auto';
+            }, 2000);
+          }
+        } else {
+          // 不自动提交，只显示已采集
+          btn.textContent = '✓ 已采集';
+          setTimeout(() => {
+            btn.textContent = '采集';
+            btn.style.pointerEvents = 'auto';
+          }, 2000);
+        }
+
         // 自动打开侧边栏（如果还没打开）
         try {
           await chrome.runtime.sendMessage({ action: 'openSidePanel' });
-        } catch (e) {
-          // 侧边栏可能已打开或不被支持，忽略错误
-        }
+        } catch (e) {}
 
         // 关闭弹窗
         closeModal();
-
-        btn.textContent = '✓ 已采集';
-        setTimeout(() => {
-          btn.textContent = '采集';
-          btn.style.pointerEvents = 'auto';
-        }, 2000);
 
       } catch (err) {
         console.error('[Prompt Collector] 采集失败:', err);
@@ -416,7 +492,11 @@
       card.style.position = 'relative';
     }
 
-    const btn = createCollectButton(card);
+    // 检查是否已采集（根据标题去重）
+    const cardTitle = (card.querySelector('h3, h4, .title, [class*="title"]')?.innerText || card.innerText?.split('\n')[0] || '').trim();
+    const isCollected = collectedTitles.has(cardTitle);
+
+    const btn = createCollectButton(card, isCollected, cardTitle);
     card.appendChild(btn);
   }
 
@@ -427,8 +507,23 @@
     cards.forEach(injectButton);
   }
 
+  // 加载配置和已采集记录
+  async function loadConfigAndHistory() {
+    try {
+      const cfgRes = await chrome.runtime.sendMessage({ action: 'getConfig' });
+      if (cfgRes.success) config = cfgRes.data || {};
+
+      const histRes = await chrome.runtime.sendMessage({ action: 'getBatchData' });
+      if (histRes.success) {
+        const batch = histRes.batch || [];
+        collectedTitles = new Set(batch.map(i => (i.title || '').trim()).filter(Boolean));
+      }
+    } catch (e) {}
+  }
+
   // 初始化
-  function init() {
+  async function init() {
+    await loadConfigAndHistory();
     scanCards();
 
     // 监听 DOM 变化（SPA 加载更多卡片）
