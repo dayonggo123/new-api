@@ -69,9 +69,16 @@
     const copyMatch = modalText.match(/复制[\s\n]+([\s\S]*?)(?:中文[\s\n]*去 AI 生图[\s\n]*复制[\s\n]*[\s\S]*?)?(?:更多推荐|$)/);
     if (copyMatch) {
       const candidate = copyMatch[1].trim();
-      // 如果以 { 开头，是 JSON 格式
+      // 如果以 { 开头，是 JSON 格式，尝试提取其中的 content/data 字段
       if (candidate.startsWith('{')) {
-        content = candidate;
+        try {
+          const jsonObj = JSON.parse(candidate);
+          // 优先取 content 或 data 字段作为实际 prompt
+          content = jsonObj.content || jsonObj.data || jsonObj.prompt || candidate;
+        } catch (e) {
+          // JSON 解析失败，保留原始文本
+          content = candidate;
+        }
       } else {
         // 纯文本格式，取最长的连续段落
         const paragraphs = candidate.split('\n').map(l => l.trim()).filter(l => l.length > 20);
@@ -220,12 +227,29 @@
 
   // 关闭弹窗
   function closeModal() {
+    // 策略1：发送 Escape 键盘事件
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    // 备选：点击关闭按钮
-    const closeBtns = document.querySelectorAll('[class*="close"], button svg[class*="x"], [aria-label*="close"], [aria-label*="关闭"]');
-    closeBtns.forEach(btn => {
-      if (btn.offsetParent !== null) btn.click();
-    });
+
+    // 策略2：点击关闭按钮（只点 button 或带 role="button" 的元素）
+    const closeSelectors = [
+      'button[class*="close"]',
+      '[class*="close"]',
+      '[aria-label*="close"]',
+      '[aria-label*="关闭"]'
+    ];
+    for (const sel of closeSelectors) {
+      const btns = document.querySelectorAll(sel);
+      for (const btn of btns) {
+        if (btn.offsetParent !== null && typeof btn.click === 'function') {
+          try {
+            btn.click();
+            return; // 成功关闭一个就退出
+          } catch (e) {
+            // 忽略错误，尝试下一个
+          }
+        }
+      }
+    }
   }
 
   // 当前正在采集的卡片（用于备选图片提取）
