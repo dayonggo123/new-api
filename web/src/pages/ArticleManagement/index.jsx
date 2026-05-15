@@ -316,9 +316,6 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
       { key: 'title', text: values.title || '' },
       { key: 'summary', text: values.summary || '' },
       { key: 'content', text: values.content || '' },
-      { key: 'seo_title', text: values.seo_title || '' },
-      { key: 'seo_description', text: values.seo_description || '' },
-      { key: 'seo_keywords', text: values.seo_keywords || '' },
     ];
     return items.filter((item) => item.text !== '');
   };
@@ -350,9 +347,6 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
               title: langResult.title || updated[langCode].title || '',
               summary: langResult.summary || updated[langCode].summary || '',
               content: langResult.content || updated[langCode].content || '',
-              seo_title: langResult.seo_title || updated[langCode].seo_title || '',
-              seo_description: langResult.seo_description || updated[langCode].seo_description || '',
-              seo_keywords: langResult.seo_keywords || updated[langCode].seo_keywords || '',
             };
           }
         });
@@ -393,9 +387,6 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
             title: langResult.title || prev[targetLang]?.title || '',
             summary: langResult.summary || prev[targetLang]?.summary || '',
             content: langResult.content || prev[targetLang]?.content || '',
-            seo_title: langResult.seo_title || prev[targetLang]?.seo_title || '',
-            seo_description: langResult.seo_description || prev[targetLang]?.seo_description || '',
-            seo_keywords: langResult.seo_keywords || prev[targetLang]?.seo_keywords || '',
           },
         }));
         showSuccess('翻译完成');
@@ -834,15 +825,6 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                         </Col>
                         <Col span={24} className='mt-2'>
                           <TextArea value={i18nData[activeLang]?.content || ''} onChange={(v) => updateI18nField(activeLang, 'content', v)} placeholder={t('正文内容 (Markdown)')} rows={8} style={{ fontFamily: 'monospace' }} />
-                        </Col>
-                        <Col span={24} className='mt-2'>
-                          <Input value={i18nData[activeLang]?.seo_title || ''} onChange={(v) => updateI18nField(activeLang, 'seo_title', v)} placeholder={t('SEO 标题')} />
-                        </Col>
-                        <Col span={24} className='mt-2'>
-                          <TextArea value={i18nData[activeLang]?.seo_description || ''} onChange={(v) => updateI18nField(activeLang, 'seo_description', v)} placeholder={t('SEO 描述')} rows={2} />
-                        </Col>
-                        <Col span={24} className='mt-2'>
-                          <TextArea value={i18nData[activeLang]?.seo_keywords || ''} onChange={(v) => updateI18nField(activeLang, 'seo_keywords', v)} placeholder={t('SEO 关键词')} rows={2} />
                         </Col>
                       </Row>
                     </div>
