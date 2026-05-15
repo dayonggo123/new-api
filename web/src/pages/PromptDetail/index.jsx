@@ -248,32 +248,12 @@ export default function PromptDetail() {
             </div>
           )}
 
-          {/* 多语言 SEO 内容 */}
-          {(currentIntro || currentFaqList.length > 0) && (
+          {/* Intro */}
+          {currentIntro && (
             <div style={{ marginBottom: 24 }}>
-              {/* Intro */}
-              {currentIntro && (
-                <div style={{ background: '#eef2ff', padding: 16, borderRadius: 8, borderLeft: '4px solid #4f46e5', marginBottom: 20 }}>
-                  <Text style={{ fontSize: 15, lineHeight: 1.6 }}>{currentIntro}</Text>
-                </div>
-              )}
-
-              {/* FAQ */}
-              {currentFaqList.length > 0 && (
-                <div>
-                  <Title heading={4} style={{ marginBottom: 16 }}>{t('常见问题')}</Title>
-                  {currentFaqList.map((item, idx) => (
-                    <details key={idx} style={{ marginBottom: 12, padding: 12, background: '#f9fafb', borderRadius: 8, border: '1px solid var(--semi-color-border)' }}>
-                      <summary style={{ fontWeight: 600, color: '#4f46e5', cursor: 'pointer', fontSize: 15 }}>
-                        {item.question}
-                      </summary>
-                      <div style={{ marginTop: 8, color: '#555', lineHeight: 1.6 }}>
-                        {item.answer}
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              )}
+              <div style={{ background: '#eef2ff', padding: 16, borderRadius: 8, borderLeft: '4px solid #4f46e5' }}>
+                <Text style={{ fontSize: 15, lineHeight: 1.6 }}>{currentIntro}</Text>
+              </div>
             </div>
           )}
 
@@ -291,6 +271,23 @@ export default function PromptDetail() {
               <pre style={{ background: '#f8f9fa', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, fontSize: 14, border: '1px solid var(--semi-color-border)' }}>
                 {currentContent}
               </pre>
+            </div>
+          )}
+
+          {/* FAQ */}
+          {currentFaqList.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <Title heading={4} style={{ marginBottom: 16 }}>{t('常见问题')}</Title>
+              {currentFaqList.map((item, idx) => (
+                <details key={idx} style={{ marginBottom: 12, padding: 12, background: '#f9fafb', borderRadius: 8, border: '1px solid var(--semi-color-border)' }}>
+                  <summary style={{ fontWeight: 600, color: '#4f46e5', cursor: 'pointer', fontSize: 15 }}>
+                    {item.question}
+                  </summary>
+                  <div style={{ marginTop: 8, color: '#555', lineHeight: 1.6 }}>
+                    {item.answer}
+                  </div>
+                </details>
+              ))}
             </div>
           )}
 
