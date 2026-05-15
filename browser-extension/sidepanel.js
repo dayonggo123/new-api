@@ -36,6 +36,7 @@
 
   let config = {};
   let extractedData = null;
+  let categoriesCache = []; // 缓存分类列表
 
   // 初始化
   async function init() {
@@ -47,6 +48,9 @@
       if (els.userId) els.userId.value = config.userId || '';
       els.defaultCategoryId.value = config.defaultCategoryId || '';
     }
+
+    // 预加载分类列表
+    await loadCategories();
 
     await loadExtractedData();
 
@@ -66,6 +70,45 @@
         flashBadge();
       }
     });
+  }
+
+  // 加载分类列表（从 new-api 获取）
+  async function loadCategories() {
+    if (!config.apiBaseUrl) return;
+    try {
+      const res = await chrome.runtime.sendMessage({
+        action: 'apiRequest',
+        method: 'GET',
+        path: '/prompt-category/all',
+        userId: config.userId
+      });
+      if (res.success && res.data && res.data.success && Array.isArray(res.data.data)) {
+        categoriesCache = res.data.data;
+        console.log('[SidePanel] 加载分类:', categoriesCache.length, '个');
+      }
+    } catch (e) {
+      console.log('[SidePanel] 加载分类失败:', e.message);
+    }
+  }
+
+  // 根据模型名称匹配分类 ID
+  function matchCategoryId(modelName) {
+    if (!modelName || categoriesCache.length === 0) return 0;
+    const normalized = modelName.trim().toLowerCase();
+    // 精确匹配
+    for (const cat of categoriesCache) {
+      if (cat.name && cat.name.trim().toLowerCase() === normalized) {
+        return cat.id;
+      }
+    }
+    // 包含匹配
+    for (const cat of categoriesCache) {
+      const catName = (cat.name || '').trim().toLowerCase();
+      if (catName.includes(normalized) || normalized.includes(catName)) {
+        return cat.id;
+      }
+    }
+    return 0;
   }
 
   // 加载提取的数据
@@ -95,7 +138,14 @@
     els.fieldModel.value = extractedData.model || '';
     els.fieldMediaType.value = extractedData.media_type || 'image';
     els.fieldTags.value = parseTags(extractedData.tags);
-    els.fieldCategoryId.value = config.defaultCategoryId || '';
+
+    // 自动匹配模型 → 分类
+    const matchedCategoryId = matchCategoryId(extractedData.model);
+    els.fieldCategoryId.value = matchedCategoryId || config.defaultCategoryId || '';
+    if (matchedCategoryId) {
+      console.log('[SidePanel] 模型 "' + extractedData.model + '" 匹配到分类 ID:', matchedCategoryId);
+    }
+
     els.fieldCoverImage.value = extractedData.cover_image_url || '';
     els.fieldSourceUrl.value = extractedData.source_url || '';
 
@@ -163,6 +213,8 @@
     if (res.success) {
       config = data;
       showStatus(els.configStatus, '✅ 配置已保存', 'success');
+      // 配置更新后重新加载分类列表
+      await loadCategories();
     } else {
       showStatus(els.configStatus, '❌ 保存失败', 'error');
     }
