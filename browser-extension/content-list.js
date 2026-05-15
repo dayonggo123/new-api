@@ -29,30 +29,41 @@
     });
   }
 
-  // 从弹窗提取内容（opennana.com 弹窗适配）
-  async function extractFromModal() {
-    // opennana.com 弹窗：优先找 animate-modal-in，再找任意含 modal 的可见元素
-    let modal = document.querySelector('[class*="animate-modal-in"]') ||
-                document.querySelector('[class*="animate-modal"]');
-    
-    // 备选：找可见的、尺寸较大的 modal
-    if (!modal || modal.offsetParent === null) {
-      const allModals = Array.from(document.querySelectorAll('div')).filter(el => {
+  // 辅助：按行检测语言并分离中英文
+  function splitByLanguage(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    const zh = [], en = [];
+    for (const line of lines) {
+      const chineseChars = (line.match(/[\u4e00-\u9fff]/g) || []).length;
+      const totalChars = line.replace(/\s/g, '').length;
+      if (totalChars > 0 && chineseChars / totalChars > 0.3) {
+        zh.push(line);
+      } else if (line.length > 10) {
+        en.push(line);
+      }
+    }
+    return { zh: zh.join('\n'), en: en.join('\n') };
+  }
+
+  // 从文档对象提取内容（支持当前页面弹窗或 fetch 的详情页 HTML）
+  async function extractFromDocument(doc = document, sourceUrl = window.location.href, cardForImage = null) {
+    // 优先找 animate-modal-in，再找任意含 modal 的元素，最后回退到 body
+    let modal = doc.querySelector('[class*="animate-modal-in"]') ||
+                doc.querySelector('[class*="animate-modal"]');
+
+    if (!modal) {
+      const allModals = Array.from(doc.querySelectorAll('div')).filter(el => {
         const cls = el.className || '';
-        const rect = el.getBoundingClientRect();
-        return (cls.includes('modal') || cls.includes('dialog')) &&
-               rect.width > 300 && rect.height > 200 &&
-               el.offsetParent !== null;
+        return (cls.includes('modal') || cls.includes('dialog'));
       });
-      modal = allModals[allModals.length - 1]; // 取最后出现的（最上层）
+      modal = allModals[allModals.length - 1];
     }
 
-    if (!modal || modal.offsetParent === null) {
-      console.log('[Prompt Collector] 未找到弹窗');
-      return null;
+    if (!modal) {
+      modal = doc.body;
     }
 
-    console.log('[Prompt Collector] 找到弹窗，class:', modal.className, '开始提取...');
+    console.log('[Prompt Collector] 提取文档，modal class:', modal.className);
 
     const modalText = modal.innerText || '';
     const lines = modalText.split('\n').map(l => l.trim()).filter(l => l);
@@ -65,32 +76,14 @@
     const modelMatch = modalText.match(/模型[：:]\s*([^\n]+)/);
     if (modelMatch) model = modelMatch[1].trim();
 
-    // 提取 prompt 内容（支持纯文本和 JSON 两种格式）
-    let content = '';      // 中文
-    let contentEn = '';    // 英文
-
-    // 辅助：按行检测语言并分离中英文
-    function splitByLanguage(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-      const zh = [], en = [];
-      for (const line of lines) {
-        const chineseChars = (line.match(/[\u4e00-\u9fff]/g) || []).length;
-        const totalChars = line.replace(/\s/g, '').length;
-        if (totalChars > 0 && chineseChars / totalChars > 0.3) {
-          zh.push(line);
-        } else if (line.length > 10) {
-          en.push(line);
-        }
-      }
-      return { zh: zh.join('\n'), en: en.join('\n') };
-    }
+    // 提取 prompt 内容
+    let content = '';
+    let contentEn = '';
 
     // 策略1：找 "复制" 后面的内容（JSON 或纯文本）
-    // opennana 格式：复制\n{JSON...} 或 复制\n英文prompt\n中文\n复制\n中文prompt
     const copyMatch = modalText.match(/复制[\s\n]+([\s\S]*?)(?:中文[\s\n]*去 AI 生图[\s\n]*复制[\s\n]*[\s\S]*?)?(?:更多推荐|$)/);
     if (copyMatch) {
       const candidate = copyMatch[1].trim();
-      // 如果以 { 开头，是 JSON 格式，通常是英文 prompt
       if (candidate.startsWith('{')) {
         try {
           const jsonObj = JSON.parse(candidate);
@@ -99,7 +92,6 @@
           contentEn = candidate;
         }
       } else {
-        // 纯文本格式，按行分离中英文
         const split = splitByLanguage(candidate);
         content = split.zh;
         contentEn = split.en;
@@ -138,28 +130,18 @@
       }
     }
 
-    // 提取封面图/视频（弹窗里的大图或视频）
+    // 提取封面图/视频
     let coverImageUrl = '';
 
-    // 策略1：找 video 标签（视频类型）
     const video = modal.querySelector('video');
     if (video) {
       coverImageUrl = video.src || video.currentSrc || video.querySelector('source')?.src || '';
-      console.log('[Prompt Collector] 找到 video:', coverImageUrl);
     }
 
-    // 策略2：找 img 标签（图片类型）
     if (!coverImageUrl) {
       const imgs = Array.from(modal.querySelectorAll('img'));
-      console.log('[Prompt Collector] 弹窗内 img 数量:', imgs.length);
-      imgs.forEach((img, i) => {
-        console.log(`  img[${i}] src=`, img.src, 'dataset=', img.dataset ? Object.keys(img.dataset) : 'none');
-      });
-
-      // 获取每个 img 的最佳 src（处理懒加载和 Next.js Image）
       const imgData = imgs.map(img => {
         const src = img.src || img.dataset?.src || img.dataset?.original || img.dataset?.lazySrc || '';
-        // 解析 srcset 取最大图
         let bestSrc = src;
         const srcset = img.srcset || img.dataset?.srcset || '';
         if (srcset) {
@@ -177,19 +159,16 @@
         };
       });
 
-      // 优先选 opennana 域名的图
       const opennanaImgs = imgData.filter(d => d.isOpennana);
       if (opennanaImgs.length > 0) {
         coverImageUrl = opennanaImgs[0].src;
-        console.log('[Prompt Collector] 选中 opennana 图片:', coverImageUrl);
       } else if (imgData.length > 0) {
         coverImageUrl = imgData[0].src;
-        console.log('[Prompt Collector] 选中第一张图片:', coverImageUrl);
       }
     }
 
-    // 策略3：找背景图
-    if (!coverImageUrl) {
+    // 策略3：找背景图（仅在当前页面模式下使用 getComputedStyle）
+    if (!coverImageUrl && doc === document) {
       const els = modal.querySelectorAll('*');
       for (const el of els) {
         const style = window.getComputedStyle(el);
@@ -198,37 +177,29 @@
           const match = bg.match(/url\(["']?([^"')]+)["']?\)/);
           if (match) {
             coverImageUrl = match[1];
-            console.log('[Prompt Collector] 找到背景图:', coverImageUrl);
             break;
           }
         }
       }
     }
 
-    // 策略4：如果弹窗里没找到，尝试从对应的卡片找缩略图
-    if (!coverImageUrl && currentCard) {
-      console.log('[Prompt Collector] 弹窗内未找到图片，尝试从卡片查找...');
-      const cardImgs = Array.from(currentCard.querySelectorAll('img'));
+    // 策略4：从传入的卡片找缩略图
+    if (!coverImageUrl && cardForImage) {
+      const cardImgs = Array.from(cardForImage.querySelectorAll('img'));
       for (const img of cardImgs) {
         const src = img.src || img.dataset?.src || '';
         if (src) {
           coverImageUrl = src;
-          console.log('[Prompt Collector] 从卡片获取图片:', coverImageUrl);
           break;
         }
       }
     }
 
-    if (!coverImageUrl) {
-      console.log('[Prompt Collector] 警告: 未找到任何图片/视频');
-    }
-
-    // 提取标签（在"收藏"和"示例图片"之间的词）
+    // 提取标签
     const tags = [];
     const tagMatch = modalText.match(/收藏[\s\n]+([\s\S]*?)(?:示例图片|提示词|赞助)/);
     if (tagMatch) {
       const tagText = tagMatch[1].trim();
-      // 按行或空格分割，过滤掉过长的
       const tagArr = tagText.split(/[\s\n]+/).filter(t => t && t.length >= 2 && t.length < 15 && !t.includes('：') && !t.includes(':'));
       tags.push(...tagArr.slice(0, 10));
     }
@@ -240,9 +211,9 @@
       description: title,
       cover_image_url: coverImageUrl,
       model,
-      media_type: window.location.href.includes('video') ? 'video' : 'image',
+      media_type: sourceUrl.includes('video') ? 'video' : 'image',
       tags: JSON.stringify(tags.slice(0, 10)),
-      source_url: window.location.href,
+      source_url: sourceUrl,
       category_id: getCategoryId(model),
       status: 1
     };
@@ -251,56 +222,57 @@
     return data;
   }
 
-  // 关闭弹窗
+  // 兼容旧调用
+  async function extractFromModal() {
+    return extractFromDocument(document, window.location.href, currentCard);
+  }
+
+  // 临时冻结 history 导航（防止 React 卸载时触发 router.back）
+  function freezeHistory(durationMs = 1000) {
+    const originalBack = history.back.bind(history);
+    const originalGo = history.go.bind(history);
+    const originalForward = history.forward.bind(history);
+    const nav = window.navigation;
+    const originalNavBack = nav && nav.back ? nav.back.bind(nav) : null;
+
+    history.back = () => console.log('[PC] 拦截 history.back');
+    history.go = () => console.log('[PC] 拦截 history.go');
+    history.forward = () => console.log('[PC] 拦截 history.forward');
+    if (originalNavBack) nav.back = () => console.log('[PC] 拦截 navigation.back');
+
+    setTimeout(() => {
+      history.back = originalBack;
+      history.go = originalGo;
+      history.forward = originalForward;
+      if (originalNavBack) nav.back = originalNavBack;
+    }, durationMs);
+  }
+
+  // 关闭弹窗（隐藏 DOM 而非移除，避免触发 React useEffect 清理中的 router.back）
   function closeModal() {
-    // 策略1：发送 Escape 键盘事件
+    freezeHistory(1500);
     try {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    } catch (e) {}
-
-    // 策略2：点击遮罩层背景（opennana 弹窗外层通常是 fixed inset-0）
-    const backdrops = document.querySelectorAll('div.fixed.inset-0');
-    for (const el of backdrops) {
-      if (el.offsetParent !== null && el.childElementCount > 0) {
-        try {
-          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-          return;
-        } catch (e) {}
-      }
-    }
-
-    // 策略3：对所有可能的关闭按钮触发 click 事件（不用 btn.click()，避免 crash）
-    const closeSelectors = [
-      'button svg',
-      'button',
-      '[class*="close"]',
-      '[aria-label*="close"]',
-      '[aria-label*="关闭"]'
-    ];
-    for (const sel of closeSelectors) {
-      const els = document.querySelectorAll(sel);
-      for (const el of els) {
-        if (el.offsetParent !== null) {
-          try {
-            el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            // 不 return，多点几个确保关闭
-          } catch (e) {}
-        }
-      }
-    }
-
-    // 策略4：兜底——直接移除弹窗 DOM（opennana 用 animate-modal-in）
-    try {
-      const modals = document.querySelectorAll('[class*="animate-modal-in"]');
-      for (const m of modals) {
-        m.remove();
-      }
-      // 同时移除遮罩层
-      document.querySelectorAll('div.fixed.inset-0').forEach(el => {
-        if (el.childElementCount === 0 || !el.querySelector('[class*="modal"]')) {
-          el.remove();
+      document.querySelectorAll('[class*="animate-modal-in"]').forEach(m => {
+        m.style.display = 'none';
+        const parent = m.parentElement;
+        if (parent && parent !== document.body) {
+          const style = window.getComputedStyle(parent);
+          if (style.position === 'fixed') {
+            parent.style.display = 'none';
+          }
         }
       });
+
+      document.querySelectorAll('div.fixed.inset-0').forEach(el => {
+        const hasModal = el.querySelector('[class*="modal"]');
+        const hiddenModal = el.querySelector('[class*="animate-modal-in"]');
+        if (!hasModal || hiddenModal) {
+          el.style.display = 'none';
+        }
+      });
+
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     } catch (e) {}
   }
 
@@ -360,17 +332,32 @@
       currentCard = card;
 
       try {
-        // 点击卡片打开弹窗
-        card.click();
+        // 优先尝试 fetch 详情页 HTML，不触碰历史记录，不打开弹窗
+        let data = null;
+        const linkEl = card.tagName === 'A' ? card : card.querySelector('a');
+        const href = linkEl?.getAttribute('href');
+        const detailUrl = href && href.startsWith('/') ? new URL(href, window.location.origin).href : null;
 
-        // 等待弹窗渲染（给一点动画时间）
-        await new Promise(r => setTimeout(r, 800));
+        if (detailUrl) {
+          try {
+            const res = await fetch(detailUrl, { credentials: 'same-origin' });
+            const html = await res.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            data = await extractFromDocument(doc, detailUrl, card);
+            console.log('[PC] fetch 详情页成功:', detailUrl);
+          } catch (fetchErr) {
+            console.log('[PC] fetch 详情页失败，回退到弹窗模式:', fetchErr);
+          }
+        }
 
-        // 等待图片加载（给懒加载一点时间）
-        await new Promise(r => setTimeout(r, 600));
-
-        // 提取内容
-        const data = await extractFromModal();
+        // 如果 fetch 失败或没提取到内容，回退到点击卡片打开弹窗
+        if (!data || (!data.content && !data.content_en)) {
+          card.click();
+          await new Promise(r => setTimeout(r, 800));
+          await new Promise(r => setTimeout(r, 600));
+          data = await extractFromModal();
+        }
 
         if (!data || (!data.content && !data.content_en)) {
           // 如果没找到内容，再等一下再试一次
@@ -472,13 +459,10 @@
           await chrome.runtime.sendMessage({ action: 'openSidePanel' });
         } catch (e) {}
 
-        // 关闭弹窗
-        closeModal();
-
-        // 返回之前的画廊页（card.click() 会改变 URL）
-        try {
-          history.back();
-        } catch (e) {}
+        // 注意：不自动关闭弹窗，也不修改 URL。
+        // opennana.com 的 Next.js 弹窗路由很复杂，任何自动关闭操作（Escape/点击关闭/移除 DOM）
+        // 都可能触发 router.back() 导致页面跳到其他详情页。
+        // 让用户手动点击 X 关闭弹窗是最安全的方式。
 
       } catch (err) {
         console.error('[Prompt Collector] 采集失败:', err);

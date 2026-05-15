@@ -191,13 +191,6 @@ export default function PromptGallery() {
         pathname='/prompt-gallery'
       />
 
-      <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
-        <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
-          <strong>功能介绍：</strong>管理用户公开的提示词，支持分类筛选、标签筛选、搜索、排序<br/>
-          <strong>如何操作：</strong>点击「新建提示词」创建，点击卡片编辑，可设置分类/标签/SEO/多语言
-        </Text>
-      </div>
-
       {/* Header */}
       <div className='gallery-header'>
         <div className='header-content'>
