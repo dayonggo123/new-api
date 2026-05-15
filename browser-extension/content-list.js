@@ -25,116 +25,78 @@
     });
   }
 
-  // 从弹窗提取内容
+  // 从弹窗提取内容（opennana.com 弹窗适配）
   async function extractFromModal() {
-    // opennana.com 的弹窗通常是一个固定定位的 overlay
-    const modalSelectors = [
-      '[role="dialog"]',
-      '[class*="modal"]',
-      '[class*="overlay"]:not([class*="hidden"])',
-      '[class*="dialog"]',
-      'div.fixed.inset-0'
-    ];
-
-    let modal = null;
-    for (const sel of modalSelectors) {
-      modal = document.querySelector(sel);
-      if (modal && modal.offsetParent !== null) break;
-    }
-
-    if (!modal) {
+    // opennana.com 弹窗 class 包含 modal
+    const modal = document.querySelector('[class*="modal"]');
+    if (!modal || modal.offsetParent === null) {
       console.log('[Prompt Collector] 未找到弹窗');
       return null;
     }
 
     console.log('[Prompt Collector] 找到弹窗，开始提取...');
 
-    // 提取标题（弹窗里的 h2/h3 或第一个大标题）
-    let title = '';
-    const titleSelectors = ['h2', 'h3', '[class*="title"]', '[class*="heading"]'];
-    for (const sel of titleSelectors) {
-      const el = modal.querySelector(sel);
-      if (el && el.textContent.trim()) {
-        title = el.textContent.trim();
-        break;
-      }
-    }
-
-    // 提取 prompt 正文
-    let content = '';
     const modalText = modal.innerText || '';
+    const lines = modalText.split('\n').map(l => l.trim()).filter(l => l);
 
-    // 策略1：查找包含 "Prompt" 标签附近的文本块
-    const allBlocks = modal.querySelectorAll('pre, code, textarea, p, div, span');
-    for (const el of allBlocks) {
-      const text = el.innerText?.trim() || '';
-      const prev = el.previousElementSibling;
-      const prevText = prev ? (prev.innerText?.trim().toLowerCase() || '') : '';
-      const parentPrev = el.parentElement?.previousElementSibling;
-      const parentPrevText = parentPrev ? (parentPrev.innerText?.trim().toLowerCase() || '') : '';
-
-      if (
-        (prevText.includes('prompt') || prevText.includes('提示词') || prevText.includes('咒语') ||
-         parentPrevText.includes('prompt') || parentPrevText.includes('提示词')) &&
-        text.length > 30 && text.length < 5000
-      ) {
-        content = text;
-        break;
-      }
-    }
-
-    // 策略2：如果策略1没找到，找弹窗里最长的文本块
-    if (!content) {
-      let longest = '';
-      for (const el of allBlocks) {
-        const text = el.innerText?.trim() || '';
-        if (text.length > longest.length && text.length > 100 && text.length < 5000) {
-          // 排除导航、按钮文字等
-          if (!el.closest('button, nav, header, [role="tablist"]')) {
-            longest = text;
-          }
-        }
-      }
-      if (longest.length > 100) content = longest;
-    }
-
-    // 策略3：从 innerText 中按关键词截取
-    if (!content) {
-      const lines = modalText.split('\n').map(l => l.trim()).filter(l => l.length > 30);
-      if (lines.length > 0) {
-        content = lines[0];
-      }
-    }
+    // 提取标题（第一行非空文本）
+    const title = lines[0] || '';
 
     // 提取模型
     let model = '';
-    const modelPatterns = [
-      /模型[：:]\s*([^\n]+)/i,
-      /模型\s*([^\n]+)/i,
-      /Model[：:]\s*([^\n]+)/i
-    ];
-    for (const p of modelPatterns) {
-      const m = modalText.match(p);
-      if (m) { model = m[1].trim(); break; }
+    const modelMatch = modalText.match(/模型[：:]\s*([^\n]+)/);
+    if (modelMatch) model = modelMatch[1].trim();
+
+    // 提取 prompt 内容
+    let content = '';
+
+    // 策略1：找 ENGLISH 和 中文 之间的英文 prompt
+    const englishMatch = modalText.match(/ENGLISH[\s\n]*(?:去 AI 生图)?[\s\n]*复制[\s\n]*([\s\S]*?)(?:中文|去 AI 生图|更多推荐|$)/);
+    if (englishMatch) {
+      content = englishMatch[1].trim();
     }
-    if (!model) {
-      const knownModels = ['GPT Image 2', 'Nano Banana Pro', 'Nano Banana 2', 'Nano Banana', 'Seedance 2.0', 'Seedance', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Flux', 'Kling', 'Runway', 'Pika', 'Sora'];
-      for (const km of knownModels) {
-        if (modalText.includes(km)) { model = km; break; }
+
+    // 策略2：如果没找到英文，找 中文 标签后的中文 prompt
+    if (!content) {
+      const chineseMatch = modalText.match(/中文[\s\n]*(?:去 AI 生图)?[\s\n]*复制[\s\n]*([\s\S]*?)(?:更多推荐|$)/);
+      if (chineseMatch) {
+        content = chineseMatch[1].trim();
       }
     }
 
-    // 提取封面图
-    let coverImageUrl = '';
-    const img = modal.querySelector('img[src*="opennana.com"], img[src*="img.opennana"]');
-    if (img) coverImageUrl = img.src;
+    // 策略3：从 DOM 中找最长的文本段落
+    if (!content) {
+      let longest = '';
+      modal.querySelectorAll('p, div, span').forEach(el => {
+        const text = (el.innerText || '').trim();
+        if (text.length > longest.length && text.length > 100 && text.length < 3000) {
+          if (!el.closest('button, [class*="close"]')) {
+            longest = text;
+          }
+        }
+      });
+      if (longest.length > 100) content = longest;
+    }
 
-    // 提取标签
+    // 提取封面图（弹窗里的大图）
+    let coverImageUrl = '';
+    const imgs = modal.querySelectorAll('img');
+    for (const img of imgs) {
+      if (img.naturalWidth > 200) {
+        coverImageUrl = img.src;
+        break;
+      }
+    }
+
+    // 提取标签（来源后面的标签列表）
     const tags = [];
-    modal.querySelectorAll('[class*="tag"], [class*="label"], [class*="chip"]').forEach(el => {
-      const text = el.innerText?.trim() || '';
-      if (text && text.length < 20 && !tags.includes(text)) tags.push(text);
-    });
+    // opennana 的标签在来源和模型信息附近
+    const tagMatch = modalText.match(/来源[：:]\s*@[^\n]+[\s\n]*模型[：:]\s*[^\n]+[\s\n]*收藏?[\s\n]*([\s\S]*?)(?:示例图片|提示词)/);
+    if (tagMatch) {
+      const tagText = tagMatch[1].trim();
+      const tagArr = tagText.split(/\s+/).filter(t => t && t.length < 15);
+      tags.push(...tagArr);
+    }
 
     const data = {
       title,
