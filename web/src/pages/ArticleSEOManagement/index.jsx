@@ -74,7 +74,7 @@ const DEFAULT_LANG = 'zh';
 const emptySeoI18n = () => {
   const obj = {};
   LANGUAGES.forEach((lang) => {
-    obj[lang.code] = { seo_title: '', seo_description: '', seo_keywords: '' };
+    obj[lang.code] = { seo_title: '', seo_description: '', seo_keywords: '', intro: '' };
   });
   return obj;
 };
@@ -90,6 +90,7 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
     seo_title: '',
     seo_description: '',
     seo_keywords: '',
+    intro: '',
   });
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState(emptySeoI18n());
@@ -117,6 +118,7 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
           seo_title: data.seo_title || '',
           seo_description: data.seo_description || '',
           seo_keywords: data.seo_keywords || '',
+          intro: data.intro || '',
         });
       } else {
         showError(message);
@@ -138,6 +140,7 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
       { key: 'seo_title', text: values.seo_title || '' },
       { key: 'seo_description', text: values.seo_description || '' },
       { key: 'seo_keywords', text: values.seo_keywords || '' },
+      { key: 'intro', text: values.intro || '' },
     ];
     return items.filter((item) => item.text !== '');
   };
@@ -169,6 +172,7 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
               seo_title: langResult.seo_title || updated[langCode].seo_title || '',
               seo_description: langResult.seo_description || updated[langCode].seo_description || '',
               seo_keywords: langResult.seo_keywords || updated[langCode].seo_keywords || '',
+              intro: langResult.intro || updated[langCode].intro || '',
             };
           }
         });
@@ -209,6 +213,7 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
             seo_title: langResult.seo_title || prev[targetLang]?.seo_title || '',
             seo_description: langResult.seo_description || prev[targetLang]?.seo_description || '',
             seo_keywords: langResult.seo_keywords || prev[targetLang]?.seo_keywords || '',
+            intro: langResult.intro || prev[targetLang]?.intro || '',
           },
         }));
         showSuccess('翻译完成');
@@ -237,6 +242,8 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
         seo_title: values.seo_title || '',
         seo_description: values.seo_description || '',
         seo_keywords: values.seo_keywords || '',
+        intro: values.intro || '',
+        faq: data.faq || '',
         seo_i18n: JSON.stringify(i18nData),
       });
       const { success, message } = res.data;
@@ -392,6 +399,15 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
                         showClear
                       />
                     </Col>
+                    <Col span={24}>
+                      <Form.TextArea
+                        field='intro'
+                        label={t('介绍文案')}
+                        placeholder={t('200-400 字符的吸引性介绍，用于页面展示')}
+                        rows={4}
+                        showClear
+                      />
+                    </Col>
                   </Row>
                 </div>
 
@@ -444,6 +460,19 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
                             value={i18nData[activeLang]?.seo_keywords || ''}
                             onChange={(v) => updateI18nField(activeLang, 'seo_keywords', v)}
                             placeholder={t('输入翻译后的 SEO 关键词')}
+                          />
+                        </div>
+                      </Col>
+                      <Col span={24}>
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
+                            {t('介绍文案')}
+                          </label>
+                          <TextArea
+                            value={i18nData[activeLang]?.intro || ''}
+                            onChange={(v) => updateI18nField(activeLang, 'intro', v)}
+                            placeholder={t('输入翻译后的介绍文案')}
+                            rows={4}
                           />
                         </div>
                       </Col>
