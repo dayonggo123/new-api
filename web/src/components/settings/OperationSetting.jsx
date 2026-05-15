@@ -30,6 +30,7 @@ import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsSigninPoints from '../../pages/Setting/Operation/SettingsSigninPoints';
 import SettingsSEO from '../../pages/Setting/Operation/SettingsSEO';
 import SettingsTranslate from '../../pages/Setting/Operation/SettingsTranslate';
+import SettingsImageAI from '../../pages/Setting/Operation/SettingsImageAI';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {

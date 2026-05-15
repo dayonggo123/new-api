@@ -361,6 +361,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/admin/articles", middleware.AdminAuth(), controller.GetArticles)
 		apiRouter.POST("/admin/articles", middleware.AdminAuth(), controller.CreateArticle)
 		apiRouter.POST("/admin/articles/generate", middleware.AdminAuth(), controller.GenerateArticle)
+		apiRouter.POST("/admin/articles/generate-images", middleware.AdminAuth(), controller.GenerateArticleImages)
 		apiRouter.GET("/admin/articles/:id", middleware.AdminAuth(), controller.GetArticle)
 		apiRouter.PUT("/admin/articles/:id", middleware.AdminAuth(), controller.UpdateArticle)
 		apiRouter.DELETE("/admin/articles/:id", middleware.AdminAuth(), controller.DeleteArticle)

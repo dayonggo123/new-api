@@ -199,6 +199,76 @@ const CategoryEditModal = ({ visible, onCancel, category, refresh }) => {
           )}
         </Form>
       </Spin>
+
+      {/* AI 生成图片 Modal */}
+      <Modal
+        title={t('AI 生成图片')}
+        visible={imageGenModalVisible}
+        onCancel={() => setImageGenModalVisible(false)}
+        footer={null}
+        width={600}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('提示词')}</Text>
+          <TextArea
+            value={imageGenPrompt}
+            onChange={(v) => setImageGenPrompt(v)}
+            placeholder={t('描述你想要生成的图片')}
+            rows={3}
+          />
+        </div>
+        <Row gutter={12} style={{ marginBottom: 16 }}>
+          <Col span={8}>
+            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('数量')}</Text>
+            <Select value={String(imageGenN)} onChange={(v) => setImageGenN(parseInt(v))}>
+              <Select.Option value='1'>1</Select.Option>
+              <Select.Option value='2'>2</Select.Option>
+              <Select.Option value='3'>3</Select.Option>
+              <Select.Option value='4'>4</Select.Option>
+            </Select>
+          </Col>
+          <Col span={8}>
+            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('尺寸')}</Text>
+            <Select value={imageGenSize} onChange={(v) => setImageGenSize(v)}>
+              <Select.Option value='1024x1024'>1024x1024</Select.Option>
+              <Select.Option value='1024x1792'>1024x1792</Select.Option>
+              <Select.Option value='1792x1024'>1792x1024</Select.Option>
+              <Select.Option value='512x512'>512x512</Select.Option>
+              <Select.Option value='256x256'>256x256</Select.Option>
+            </Select>
+          </Col>
+          <Col span={8}>
+            <Text type='tertiary' size='small' style={{ marginBottom: 4, display: 'block' }}>{t('用途')}</Text>
+            <Select value={imageGenTarget} onChange={(v) => setImageGenTarget(v)}>
+              <Select.Option value='cover'>{t('封面图')}</Select.Option>
+              <Select.Option value='content'>{t('正文配图')}</Select.Option>
+            </Select>
+          </Col>
+        </Row>
+        <div style={{ marginBottom: 16 }}>
+          <Button type='primary' loading={imageGenLoading} onClick={handleGenerateImages} block>
+            {t('生成图片')}
+          </Button>
+        </div>
+        {imageGenUrls.length > 0 && (
+          <div>
+            <Text type='tertiary' size='small' style={{ marginBottom: 8, display: 'block' }}>{t('点击选择图片')}</Text>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {imageGenUrls.map((url, idx) => (
+                <div
+                  key={idx}
+                  style={{ cursor: 'pointer', border: '2px solid transparent', borderRadius: 8, overflow: 'hidden', width: 120, height: 120 }}
+                  onClick={() => handleSelectImage(url)}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--semi-color-primary)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent'; }}
+                >
+                  <img src={url} alt={`gen-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
     </SideSheet>
   );
 };
@@ -214,6 +284,13 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
   const [i18nData, setI18nData] = useState(emptyI18n());
   const [translating, setTranslating] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
+  const [imageGenModalVisible, setImageGenModalVisible] = useState(false);
+  const [imageGenLoading, setImageGenLoading] = useState(false);
+  const [imageGenPrompt, setImageGenPrompt] = useState('');
+  const [imageGenN, setImageGenN] = useState(1);
+  const [imageGenSize, setImageGenSize] = useState('1024x1024');
+  const [imageGenTarget, setImageGenTarget] = useState('cover');
+  const [imageGenUrls, setImageGenUrls] = useState([]);
   const formApiRef = useRef(null);
   const isEdit = article?.id !== undefined;
 
@@ -414,6 +491,58 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
     }
   };
 
+  const handleOpenImageGen = () => {
+    if (!formApiRef.current) return;
+    const values = formApiRef.current.getValues();
+    const prompt = values.title || values.summary || '';
+    setImageGenPrompt(prompt);
+    setImageGenN(1);
+    setImageGenSize('1024x1024');
+    setImageGenTarget('cover');
+    setImageGenUrls([]);
+    setImageGenModalVisible(true);
+  };
+
+  const handleGenerateImages = async () => {
+    if (!imageGenPrompt.trim()) {
+      showError('请输入图片生成提示词');
+      return;
+    }
+    setImageGenLoading(true);
+    setImageGenUrls([]);
+    try {
+      const res = await API.post('/api/admin/articles/generate-images', {
+        prompt: imageGenPrompt,
+        n: parseInt(imageGenN) || 1,
+        size: imageGenSize,
+      });
+      const { success, data, message } = res.data;
+      if (success && data?.urls) {
+        setImageGenUrls(data.urls);
+        showSuccess(`成功生成 ${data.urls.length} 张图片`);
+      } else {
+        showError(message || '生成失败');
+      }
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setImageGenLoading(false);
+    }
+  };
+
+  const handleSelectImage = (url) => {
+    if (!formApiRef.current) return;
+    if (imageGenTarget === 'cover') {
+      formApiRef.current.setValues({ cover_image_url: url });
+    } else {
+      const currentContent = formApiRef.current.getValue('content') || '';
+      const markdownImage = `\n![${imageGenPrompt.slice(0, 20)}](${url})\n`;
+      formApiRef.current.setValues({ content: currentContent + markdownImage });
+      setPreviewContent(currentContent + markdownImage);
+    }
+    setImageGenModalVisible(false);
+  };
+
   const updateI18nField = (langCode, field, value) => {
     setI18nData((prev) => ({
       ...prev,
@@ -534,7 +663,14 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                       <Form.Input field='author' label={t('作者')} placeholder={t('作者名称')} />
                     </Col>
                     <Col span={12}>
-                      <Form.Input field='cover_image_url' label={t('封面图 URL')} placeholder={t('封面图片地址')} />
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                        <div style={{ flex: 1 }}>
+                          <Form.Input field='cover_image_url' label={t('封面图 URL')} placeholder={t('封面图片地址')} />
+                        </div>
+                        <Button type='tertiary' size='small' onClick={handleOpenImageGen} style={{ marginBottom: 8 }}>
+                          {t('AI 生成')}
+                        </Button>
+                      </div>
                     </Col>
                     <Col span={24}>
                       <Form.Input field='tags' label={t('标签')} placeholder={t('JSON 数组格式，如 ["tag1", "tag2"]')} />

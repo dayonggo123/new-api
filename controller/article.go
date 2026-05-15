@@ -421,3 +421,32 @@ func GenerateArticle(c *gin.Context) {
 		"data":    result,
 	})
 }
+
+// ==================== Admin: AI Generate Images ====================
+
+type GenerateArticleImagesRequest struct {
+	Prompt string `json:"prompt" binding:"required"`
+	N      int    `json:"n"`
+	Size   string `json:"size"`
+}
+
+func GenerateArticleImages(c *gin.Context) {
+	var req GenerateArticleImagesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result, err := service.GenerateImagesForArticle(req.Prompt, req.N, req.Size)
+	if err != nil {
+		logger.LogError(context.Background(), fmt.Sprintf("generate article images failed: %v", err))
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "AI 生成图片失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    result,
+	})
+}
