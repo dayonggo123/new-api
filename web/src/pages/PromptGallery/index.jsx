@@ -8,6 +8,7 @@ import {
   Tag,
   Empty,
   Spin,
+  Typography,
 } from '@douyinfe/semi-ui';
 import {
   IconSearch,
@@ -19,6 +20,8 @@ import {
 import './style.css';
 import SEO from '../../components/seo/SEO';
 import { WebPageSchema } from '../../components/seo/SchemaOrg';
+
+const { Text } = Typography;
 
 const FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%23f0f0f0%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22%3E%E6%9A%82%E6%97%A0%E5%9B%BE%E7%89%87%3C/text%3E%3C/svg%3E';
 
@@ -187,6 +190,13 @@ export default function PromptGallery() {
         pageDescription={t('浏览和发现优质 AI 提示词，涵盖图像生成、文本创作、代码辅助等多个领域。')}
         pathname='/prompt-gallery'
       />
+
+      <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+        <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <strong>功能介绍：</strong>管理用户公开的提示词，支持分类筛选、标签筛选、搜索、排序<br/>
+          <strong>如何操作：</strong>点击「新建提示词」创建，点击卡片编辑，可设置分类/标签/SEO/多语言
+        </Text>
+      </div>
 
       {/* Header */}
       <div className='gallery-header'>

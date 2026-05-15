@@ -457,6 +457,12 @@ export default function PresetPrompt() {
 
   return (
     <div className='mt-[60px] px-4 py-6'>
+      <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+        <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <strong>功能介绍：</strong>管理内置的预设提示词模板，用户可在前端直接使用<br/>
+          <strong>如何操作：</strong>点击「新建」创建模板，填写标题/内容/分类/模型，设置是否启用
+        </Text>
+      </div>
       <Card
         title={
           <div className='flex items-center justify-between'>

@@ -122,6 +122,12 @@ const SEOTrends = () => {
 
   return (
     <div className='mt-[60px] px-2'>
+      <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+        <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <strong>功能介绍：</strong>查看所有提示词的 SEO 审核统计数据、分数趋势、低分提示词列表<br/>
+          <strong>如何操作：</strong>进入「提示词库」→ 编辑单个提示词 → SEO 标签页 → 点击「AI 审核 SEO」生成评分
+        </Text>
+      </div>
       <Spin spinning={loading}>
         {/* 统计卡片 */}
         {stats && (

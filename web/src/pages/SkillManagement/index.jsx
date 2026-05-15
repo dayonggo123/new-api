@@ -205,6 +205,12 @@ export default function SkillManagement() {
 
   return (
     <div style={{ padding: 24 }}>
+      <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+        <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <strong>功能介绍：</strong>管理 AI 技能模板（System Prompt + User Prompt），用于自定义翻译、SEO生成、SEO审核等场景的提示词<br/>
+          <strong>如何操作：</strong>点击「新建 Skill」创建，skill_id 是系统识别键（如 batch-translate、article-seo、seo-audit），修改后会影响对应功能的 AI 行为
+        </Text>
+      </div>
       <Card
         title={t('Skill 管理')}
         headerExtraContent={

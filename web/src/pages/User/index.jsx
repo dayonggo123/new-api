@@ -18,11 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Tabs } from '@douyinfe/semi-ui';
+import { Tabs, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import UsersTable from '../../components/table/users';
 import TierManagement from '../TierManagement';
 import TagManagement from '../TagManagement';
+
+const { Text } = Typography;
 
 const User = () => {
   const { t } = useTranslation();
@@ -30,6 +32,12 @@ const User = () => {
 
   return (
     <div className='mt-[60px] px-2'>
+      <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+        <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <strong>功能介绍：</strong>查看和管理注册用户，包括额度、权限、分组、状态<br/>
+          <strong>如何操作：</strong>搜索用户，点击编辑修改额度/分组/状态，可查看用户的消费记录和 token 使用情况
+        </Text>
+      </div>
       <Tabs
         type='card'
         activeKey={activeKey}

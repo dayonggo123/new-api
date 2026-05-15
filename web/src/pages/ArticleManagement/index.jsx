@@ -1128,6 +1128,12 @@ const ArticleManagement = () => {
 
   return (
     <div className='mt-[60px] px-2'>
+      <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+        <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <strong>功能介绍：</strong>管理博客文章，支持分类、多语言、AI 生成内容、AI 生成图片、SEO 自动生成和审核<br/>
+          <strong>如何操作：</strong>点击「新建文章」创建，填写基本信息/正文/SEO/多语言，可使用「AI 生成 SEO」和「AI 审核 SEO」优化 SEO，「AI 生成」按钮可生成封面图
+        </Text>
+      </div>
       <EditArticleModal
         visible={showEdit}
         onCancel={() => {

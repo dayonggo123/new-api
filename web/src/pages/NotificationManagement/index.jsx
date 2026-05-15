@@ -518,6 +518,12 @@ export default function NotificationManagement() {
 
   return (
     <div style={{ padding: '84px 20px 20px' }}>
+      <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+        <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <strong>功能介绍：</strong>向所有用户或特定用户组发送系统通知和公告消息<br/>
+          <strong>如何操作：</strong>点击「新建通知」创建，填写标题/内容/目标用户组，保存后用户会在前端收到通知
+        </Text>
+      </div>
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
