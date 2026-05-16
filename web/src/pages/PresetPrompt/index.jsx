@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Button,
   Card,
@@ -75,6 +75,7 @@ export default function PresetPrompt() {
   const [i18nData, setI18nData] = useState(emptyI18n());
   const [translating, setTranslating] = useState(false);
   const [translateProgress, setTranslateProgress] = useState(0);
+  const pollRef = useRef(null);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -118,6 +119,12 @@ export default function PresetPrompt() {
     loadData();
     loadCategories();
   }, [loadData, loadCategories]);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const handleAdd = () => {
     setEditingItem(null);
@@ -203,29 +210,60 @@ export default function PresetPrompt() {
     setTranslating(true);
     setTranslateProgress(0);
     try {
-      const res = await API.post('/api/translate/batch', {
+      const res = await API.post('/api/translate/queue', {
         items,
         source_lang: DEFAULT_LANG,
         target_langs: targetLangs,
       });
-      const { success, data: result, message } = res.data;
-      if (success && result) {
-        const updated = { ...i18nData };
-        Object.keys(result).forEach((langCode) => {
-          if (updated[langCode]) {
-            updated[langCode] = { ...updated[langCode], ...result[langCode] };
-          }
-        });
-        setI18nData(updated);
-        showSuccess(t('翻译完成'));
-      } else {
-        showError(message || t('翻译失败'));
+      if (!res.data.success) {
+        showError(res.data.message || t('翻译失败'));
+        setTranslating(false);
+        return;
       }
+      const queueId = res.data.data.queue_id;
+      pollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) return;
+          if (queue.results) {
+            Object.entries(queue.results).forEach(([langCode, langResult]) => {
+              if (langResult) {
+                setI18nData((prev) => {
+                  const updated = { ...prev };
+                  if (updated[langCode]) {
+                    updated[langCode] = { ...updated[langCode], ...langResult };
+                  }
+                  return updated;
+                });
+              }
+            });
+          }
+          if (queue.progress) {
+            setTranslateProgress(Math.round((queue.progress.current / queue.progress.total) * 100));
+          }
+          if (queue.status === 'done') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setTranslateProgress(100);
+            showSuccess(t('自动翻译完成'));
+            setTranslating(false);
+          } else if (queue.status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showError(queue.error || t('翻译失败'));
+            setTranslating(false);
+          }
+        } catch (err) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          showError(err.message || t('翻译服务不可用'));
+          setTranslating(false);
+        }
+      }, 2000);
     } catch (err) {
-      showError(err.message);
-    } finally {
+      showError(err.message || t('翻译服务不可用'));
       setTranslating(false);
-      setTranslateProgress(100);
     }
   };
 

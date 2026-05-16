@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -60,6 +61,8 @@ func GenerateSEOForArticle(article *model.Article) (*ArticleSEOArticleResult, er
 		return nil, err
 	}
 
+	common.SysLog(fmt.Sprintf("[SEO] article=%d model=%s baseURL=%s", article.Id, cfg.SeoAIModel, cfg.SeoAIBaseURL))
+
 	client := &http.Client{Timeout: articleSEOAITimeout}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cfg.SeoAIBaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -76,6 +79,8 @@ func GenerateSEOForArticle(article *model.Article) (*ArticleSEOArticleResult, er
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		common.SysLog(fmt.Sprintf("[SEO] article=%d API error: status=%d body=%s", article.Id, resp.StatusCode, string(body)))
 		return nil, fmt.Errorf("ai api returned status %d", resp.StatusCode)
 	}
 
@@ -95,13 +100,16 @@ func GenerateSEOForArticle(article *model.Article) (*ArticleSEOArticleResult, er
 	}
 
 	content := apiResp.Choices[0].Message.Content
+	common.SysLog(fmt.Sprintf("[SEO] article=%d raw response: %s", article.Id, content))
 	content = extractJSONFromMarkdown(content)
 
 	var result ArticleSEOArticleResult
 	if err := common.Unmarshal([]byte(content), &result); err != nil {
+		common.SysLog(fmt.Sprintf("[SEO] article=%d json parse error: %v, content=%s", article.Id, err, content))
 		return nil, fmt.Errorf("parse seo json failed: %w, content=%s", err, content)
 	}
 
+	common.SysLog(fmt.Sprintf("[SEO] article=%d parsed: title=%q intro=%q faq_len=%d", article.Id, result.SeoTitle, result.Intro, len(result.Faq)))
 	return &result, nil
 }
 
@@ -115,8 +123,11 @@ func UpdateArticleSEO(articleId int, result *ArticleSEOArticleResult) {
 		"intro":           result.Intro,
 		"faq":             string(faqJSON),
 	}
+	common.SysLog(fmt.Sprintf("[SEO] article=%d updating db: intro=%q faq=%q", articleId, result.Intro, string(faqJSON)))
 	if err := model.DB.Model(&model.Article{}).Where("id = ?", articleId).Updates(updates).Error; err != nil {
 		logger.LogError(context.Background(), fmt.Sprintf("update article seo failed: id=%d err=%v", articleId, err))
+	} else {
+		common.SysLog(fmt.Sprintf("[SEO] article=%d db updated successfully", articleId))
 	}
 }
 

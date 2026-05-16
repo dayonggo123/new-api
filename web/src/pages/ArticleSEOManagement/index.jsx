@@ -84,6 +84,7 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const formApiRef = useRef(null);
+  const pollRef = useRef(null);
   const [data, setData] = useState({
     title: '',
     category_name: '',
@@ -135,6 +136,12 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
     }
   }, [visible, articleId]);
 
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
   const buildTranslateItems = (values) => {
     const items = [
       { key: 'seo_title', text: values.seo_title || '' },
@@ -156,34 +163,61 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
     const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
     setTranslating(true);
     try {
-      const res = await API.post('/api/translate/batch', {
+      const res = await API.post('/api/translate/queue', {
         items,
         source_lang: DEFAULT_LANG,
         target_langs: targetLangs,
       });
-      const { success, data: result, message } = res.data;
-      if (success && result) {
-        const updated = { ...i18nData };
-        Object.keys(result).forEach((langCode) => {
-          if (updated[langCode]) {
-            const langResult = result[langCode];
-            updated[langCode] = {
-              ...updated[langCode],
-              seo_title: langResult.seo_title || updated[langCode].seo_title || '',
-              seo_description: langResult.seo_description || updated[langCode].seo_description || '',
-              seo_keywords: langResult.seo_keywords || updated[langCode].seo_keywords || '',
-              intro: langResult.intro || updated[langCode].intro || '',
-            };
-          }
-        });
-        setI18nData(updated);
-        showSuccess('翻译完成');
-      } else {
-        showError(message || '翻译失败');
+      if (!res.data.success) {
+        showError(res.data.message || '翻译失败');
+        setTranslating(false);
+        return;
       }
+      const queueId = res.data.data.queue_id;
+      pollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) return;
+          if (queue.results) {
+            Object.entries(queue.results).forEach(([langCode, langResult]) => {
+              if (langResult) {
+                setI18nData((prev) => {
+                  const updated = { ...prev };
+                  if (updated[langCode]) {
+                    updated[langCode] = {
+                      ...updated[langCode],
+                      seo_title: langResult.seo_title || updated[langCode].seo_title || '',
+                      seo_description: langResult.seo_description || updated[langCode].seo_description || '',
+                      seo_keywords: langResult.seo_keywords || updated[langCode].seo_keywords || '',
+                      intro: langResult.intro || updated[langCode].intro || '',
+                    };
+                  }
+                  return updated;
+                });
+              }
+            });
+          }
+          if (queue.status === 'done') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showSuccess('自动翻译完成');
+            setTranslating(false);
+          } else if (queue.status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showError(queue.error || '翻译失败');
+            setTranslating(false);
+          }
+        } catch (err) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          showError(err.message || '翻译服务不可用');
+          setTranslating(false);
+        }
+      }, 2000);
     } catch (err) {
-      showError(err.message);
-    } finally {
+      showError(err.message || '翻译服务不可用');
       setTranslating(false);
     }
   };

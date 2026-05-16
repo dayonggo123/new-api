@@ -404,6 +404,8 @@ func SetApiRouter(router *gin.Engine) {
 
 		// Translate Routes (Admin only)
 		apiRouter.POST("/translate/batch", middleware.AdminAuth(), controller.BatchTranslate)
+		apiRouter.POST("/translate/queue", middleware.AdminAuth(), controller.StartTranslateQueue)
+		apiRouter.GET("/translate/queue/:id", middleware.AdminAuth(), controller.GetTranslateQueue)
 			// Admin Tier Routes
 			apiRouter.GET("/admin/tiers", middleware.AdminAuth(), controller.AdminGetTiers)
 			apiRouter.POST("/admin/tiers", middleware.AdminAuth(), controller.AdminCreateTier)

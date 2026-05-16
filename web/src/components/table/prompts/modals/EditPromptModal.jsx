@@ -76,6 +76,7 @@ const EditPromptModal = (props) => {
   const [i18nData, setI18nData] = useState({});
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
+  const pollRef = useRef(null);
 
   const PRESET_TAGS = [
     '电影感', '超写实', 'photography', 'nature', 'portrait', 'landscape',
@@ -172,6 +173,12 @@ const EditPromptModal = (props) => {
     }
   }, [props.editingPrompt.id]);
 
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
   const handleAutoTranslate = async () => {
     const currentContent = formApiRef.current?.getValue('content');
     if (!currentContent || currentContent.trim() === '') {
@@ -179,33 +186,56 @@ const EditPromptModal = (props) => {
       return;
     }
     setTranslating(true);
+    const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
     try {
-      const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
-      const res = await API.post('/api/translate/batch', {
+      const res = await API.post('/api/translate/queue', {
         items: [{ key: 'content', text: currentContent.trim() }],
         source_lang: DEFAULT_LANG,
         target_langs: targetLangs,
       });
-      if (res.data.success && res.data.data) {
-        const updated = { ...i18nData };
-        Object.keys(res.data.data).forEach((langCode) => {
-          if (res.data.data[langCode]?.content) {
-            updated[langCode] = res.data.data[langCode].content;
-          }
-        });
-        // 英文同步到 content_en 字段
-        if (updated.en) {
-          formApiRef.current?.setValue('content_en', updated.en);
-        }
-        setI18nData(updated);
-        showSuccess(t('翻译完成'));
-      } else {
-        showError(t('翻译失败'));
+      if (!res.data.success) {
+        showError(res.data.message || t('翻译失败'));
+        setTranslating(false);
+        return;
       }
+      const queueId = res.data.data.queue_id;
+      pollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) return;
+          if (queue.results) {
+            Object.entries(queue.results).forEach(([langCode, result]) => {
+              if (result && result.content) {
+                setI18nData((prev) => ({ ...prev, [langCode]: result.content }));
+                if (langCode === 'en') {
+                  formApiRef.current?.setValue('content_en', result.content);
+                }
+              }
+            });
+          }
+          if (queue.status === 'done') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showSuccess(t('自动翻译完成'));
+            setTranslating(false);
+          } else if (queue.status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showError(queue.error || t('翻译失败'));
+            setTranslating(false);
+          }
+        } catch (err) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          showError(err.message || t('翻译服务不可用'));
+          setTranslating(false);
+        }
+      }, 2000);
     } catch (err) {
       showError(err.message || t('翻译服务不可用'));
+      setTranslating(false);
     }
-    setTranslating(false);
   };
 
   const handleRetranslate = async (targetLang) => {

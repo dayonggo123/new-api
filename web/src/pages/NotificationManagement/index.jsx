@@ -83,6 +83,7 @@ export default function NotificationManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [formApi, setFormApi] = useState(null);
   const contentRef = useRef(null);
+  const pollRef = useRef(null);
   const [targetType, setTargetType] = useState('all');
   const [useTemplate, setUseTemplate] = useState(false);
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
@@ -143,6 +144,12 @@ export default function NotificationManagement() {
   }, [loadData]);
 
   useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     loadTiers();
     loadTags();
   }, [loadTiers, loadTags]);
@@ -194,33 +201,57 @@ export default function NotificationManagement() {
       return;
     }
 
+    const targetLangs = ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'];
     setTranslating(true);
     try {
-      const res = await API.post('/api/translate/batch', {
+      const res = await API.post('/api/translate/queue', {
         items,
         source_lang: 'ZH',
-        target_langs: ['EN', 'FR', 'RU', 'JA', 'VI', 'ZH-TW', 'ES', 'DE', 'KO', 'PT', 'IT'],
+        target_langs: targetLangs,
       });
-      if (res.data.success) {
-        // 后端返回的语言 key 是大写的（EN/FR/…），但 i18nData 和 Form 字段都用小写
-        const normalized = {};
-        Object.entries(res.data.data).forEach(([lang, fields]) => {
-          normalized[lang.toLowerCase()] = fields;
-        });
-        setI18nData(normalized);
-        // 同步翻译结果到表单字段
-        Object.entries(normalized).forEach(([lang, fields]) => {
-          Object.entries(fields).forEach(([key, value]) => {
-            formApi.setValue(`${key}_${lang}`, value);
-          });
-        });
-        showSuccess('翻译完成，已填充到各语言 Tab');
-      } else {
+      if (!res.data.success) {
         showError(res.data.message || '翻译失败');
+        setTranslating(false);
+        return;
       }
+      const queueId = res.data.data.queue_id;
+      pollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) return;
+          if (queue.results) {
+            const normalized = {};
+            Object.entries(queue.results).forEach(([lang, fields]) => {
+              normalized[lang.toLowerCase()] = fields;
+            });
+            setI18nData((prev) => ({ ...prev, ...normalized }));
+            Object.entries(normalized).forEach(([lang, fields]) => {
+              Object.entries(fields).forEach(([key, value]) => {
+                formApi.setValue(`${key}_${lang}`, value);
+              });
+            });
+          }
+          if (queue.status === 'done') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showSuccess('自动翻译完成');
+            setTranslating(false);
+          } else if (queue.status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showError(queue.error || '翻译失败');
+            setTranslating(false);
+          }
+        } catch (err) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          showError(err.message || '翻译服务不可用');
+          setTranslating(false);
+        }
+      }, 2000);
     } catch (err) {
       showError(err.message || '翻译服务不可用');
-    } finally {
       setTranslating(false);
     }
   };

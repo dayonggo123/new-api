@@ -90,6 +90,10 @@ func getLangName(code string) string {
 	if name, ok := langCodeToName[code]; ok {
 		return name
 	}
+	// 兼容大小写（如 ZH、EN）
+	if name, ok := langCodeToName[strings.ToLower(code)]; ok {
+		return name
+	}
 	return code
 }
 
@@ -145,6 +149,8 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLangName)
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLangName)
+	// 兼容旧模板中使用 {{language}} 的写法
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{language}}", targetLangName)
 	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsBuilder.String())
@@ -260,6 +266,8 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLangName)
 	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
+	// 兼容旧模板中使用 {{language}} 的写法
+	userPrompt = strings.ReplaceAll(userPrompt, "{{language}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{prompt}}", text)
 
 	return callTranslateAI(cfg, systemPrompt, userPrompt)
@@ -370,3 +378,122 @@ func extractPlainText(content string) string {
 	return strings.TrimSpace(content)
 }
 
+// ============== Translate Queue ==============
+
+type TranslateQueue struct {
+	ID        string                       `json:"id"`
+	Status    string                       `json:"status"` // running, done, failed
+	Progress  QueueProgress                `json:"progress"`
+	Results   map[string]map[string]string `json:"results"`
+	Error     string                       `json:"error"`
+	CreatedAt time.Time                    `json:"created_at"`
+}
+
+type QueueProgress struct {
+	Current     int    `json:"current"`
+	Total       int    `json:"total"`
+	CurrentLang string `json:"current_lang"`
+}
+
+var (
+	translateQueueMap = make(map[string]*TranslateQueue)
+	queueMutex        sync.RWMutex
+)
+
+// StartTranslateQueue 启动异步翻译队列
+func StartTranslateQueue(c *gin.Context) {
+	var req BatchTranslateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	queueID := fmt.Sprintf("tq_%d", time.Now().UnixNano())
+	queue := &TranslateQueue{
+		ID:        queueID,
+		Status:    "running",
+		Progress:  QueueProgress{Current: 0, Total: len(req.TargetLangs)},
+		Results:   make(map[string]map[string]string),
+		CreatedAt: time.Now(),
+	}
+
+	queueMutex.Lock()
+	translateQueueMap[queueID] = queue
+	queueMutex.Unlock()
+
+	go executeTranslateQueue(queue, req.Items, req.SourceLang, req.TargetLangs)
+
+	common.SysLog(fmt.Sprintf("[TranslateQueue] started: %s langs=%v", queueID, req.TargetLangs))
+	common.ApiSuccess(c, gin.H{"queue_id": queueID})
+}
+
+// GetTranslateQueue 查询翻译队列状态
+func GetTranslateQueue(c *gin.Context) {
+	queueID := c.Param("id")
+	queueMutex.RLock()
+	queue, ok := translateQueueMap[queueID]
+	queueMutex.RUnlock()
+
+	if !ok {
+		common.ApiErrorMsg(c, "queue not found or expired")
+		return
+	}
+
+	common.ApiSuccess(c, queue)
+}
+
+func executeTranslateQueue(queue *TranslateQueue, items []TranslateItem, sourceLang string, targetLangs []string) {
+	cfg := operation_setting.GetTranslateSetting()
+	if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+		queueMutex.Lock()
+		queue.Status = "failed"
+		queue.Error = "AI translation not configured"
+		queueMutex.Unlock()
+		return
+	}
+
+	for i, lang := range targetLangs {
+		queueMutex.Lock()
+		queue.Progress.Current = i + 1
+		queue.Progress.CurrentLang = getLangName(lang)
+		queueMutex.Unlock()
+
+		common.SysLog(fmt.Sprintf("[TranslateQueue] %s translating %s (%d/%d)", queue.ID, lang, i+1, len(targetLangs)))
+		translations := translateBatchWithAI(cfg, items, sourceLang, lang)
+		if len(translations) > 0 {
+			queueMutex.Lock()
+			queue.Results[lang] = translations
+			queueMutex.Unlock()
+			common.SysLog(fmt.Sprintf("[TranslateQueue] %s %s done keys=%v", queue.ID, lang, len(translations)))
+		} else {
+			queueMutex.Lock()
+			queue.Status = "failed"
+			queue.Error = fmt.Sprintf("translation failed for %s", getLangName(lang))
+			queueMutex.Unlock()
+			common.SysLog(fmt.Sprintf("[TranslateQueue] %s %s failed", queue.ID, lang))
+			return
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	queueMutex.Lock()
+	queue.Status = "done"
+	queueMutex.Unlock()
+	common.SysLog(fmt.Sprintf("[TranslateQueue] %s completed", queue.ID))
+}
+
+func init() {
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		for range ticker.C {
+			queueMutex.Lock()
+			for id, q := range translateQueueMap {
+				if time.Since(q.CreatedAt) > 10*time.Minute {
+					delete(translateQueueMap, id)
+				}
+			}
+			queueMutex.Unlock()
+		}
+	}()
+}
