@@ -961,6 +961,9 @@ const ArticleManagement = () => {
   const [editingArticle, setEditingArticle] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [aiGeneratedData, setAiGeneratedData] = useState(null);
+  const [selectedArticleKeys, setSelectedArticleKeys] = useState([]);
+  const [batchTranslating, setBatchTranslating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
 
   // AI Generate state
   const [showAIGenerate, setShowAIGenerate] = useState(false);
@@ -1057,6 +1060,86 @@ const ArticleManagement = () => {
     } catch (error) {
       showError(error.message);
     }
+  };
+
+  const handleBatchTranslate = async () => {
+    if (selectedArticleKeys.length === 0) {
+      showError(t('请先选择要翻译的文章'));
+      return;
+    }
+    setBatchTranslating(true);
+    setBatchProgress({ current: 0, total: selectedArticleKeys.length });
+    const targetLangs = ['en', 'fr', 'ru', 'ja', 'vi', 'ko', 'es', 'de', 'it', 'pt', 'ar'];
+
+    for (let i = 0; i < selectedArticleKeys.length; i++) {
+      const id = selectedArticleKeys[i];
+      setBatchProgress({ current: i + 1, total: selectedArticleKeys.length });
+      try {
+        const detailRes = await API.get(`/api/admin/articles/${id}`);
+        if (!detailRes.data.success) continue;
+        const item = detailRes.data.data;
+        const items = [];
+        if (item.title?.trim()) items.push({ key: 'title', text: item.title.trim() });
+        if (item.summary?.trim()) items.push({ key: 'summary', text: item.summary.trim() });
+        if (item.content?.trim()) items.push({ key: 'content', text: item.content.trim() });
+        if (items.length === 0) continue;
+
+        const queueRes = await API.post('/api/translate/queue', {
+          items,
+          source_lang: 'zh',
+          target_langs: targetLangs,
+        });
+        if (!queueRes.data.success) continue;
+        const queueId = queueRes.data.data.queue_id;
+
+        let results = null;
+        let attempts = 0;
+        const maxAttempts = 150;
+        while (attempts < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) break;
+          if (queue.status === 'done') {
+            results = queue.results;
+            break;
+          } else if (queue.status === 'failed') break;
+          attempts++;
+        }
+        if (!results) continue;
+
+        const i18n = {};
+        Object.entries(results).forEach(([langCode, result]) => {
+          if (result) i18n[langCode] = result;
+        });
+
+        const payload = {
+          category_id: item.category_id,
+          title: item.title,
+          slug: item.slug,
+          content: item.content,
+          summary: item.summary || '',
+          cover_image_url: item.cover_image_url || '',
+          author: item.author || '',
+          tags: item.tags || '',
+          status: item.status,
+          is_featured: item.is_featured,
+          seo_title: item.seo_title || '',
+          seo_description: item.seo_description || '',
+          seo_keywords: item.seo_keywords || '',
+          i18n: JSON.stringify(i18n),
+          id: item.id,
+        };
+        await API.put(`/api/admin/articles/${id}`, payload);
+      } catch (err) {
+        console.error(`Batch translate failed for article ${id}:`, err);
+      }
+    }
+
+    showSuccess(t('批量翻译完成'));
+    setBatchTranslating(false);
+    setSelectedArticleKeys([]);
+    loadArticles();
   };
 
   const handleDeleteCategory = async (id) => {
@@ -1286,6 +1369,28 @@ const ArticleManagement = () => {
               </Button>
             </div>
 
+            {selectedArticleKeys.length > 0 && (
+              <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Text size="small">已选择 {selectedArticleKeys.length} 篇文章</Text>
+                <Button
+                  type="primary"
+                  size="small"
+                  loading={batchTranslating}
+                  onClick={handleBatchTranslate}
+                >
+                  批量自动翻译
+                </Button>
+                {batchTranslating && (
+                  <Text size="small" type="tertiary">
+                    翻译中 {batchProgress.current}/{batchProgress.total}
+                  </Text>
+                )}
+                <Button theme="light" size="small" onClick={() => setSelectedArticleKeys([])}>
+                  取消选择
+                </Button>
+              </div>
+            )}
+
             <Spin spinning={articleLoading}>
               <Table
                 columns={articleColumns}
@@ -1293,6 +1398,10 @@ const ArticleManagement = () => {
                 pagination={false}
                 emptyText={t('暂无数据')}
                 size='small'
+                rowSelection={{
+                  selectedRowKeys: selectedArticleKeys,
+                  onChange: setSelectedArticleKeys,
+                }}
               />
               <div className='flex justify-end mt-4'>
                 <Pagination

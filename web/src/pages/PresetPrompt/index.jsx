@@ -76,6 +76,9 @@ export default function PresetPrompt() {
   const [translating, setTranslating] = useState(false);
   const [translateProgress, setTranslateProgress] = useState(0);
   const pollRef = useRef(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [batchTranslating, setBatchTranslating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
 
   const loadCategories = useCallback(async () => {
     try {
@@ -265,6 +268,88 @@ export default function PresetPrompt() {
       showError(err.message || t('翻译服务不可用'));
       setTranslating(false);
     }
+  };
+
+  const handleBatchTranslate = async () => {
+    if (selectedRowKeys.length === 0) {
+      showError(t('请先选择要翻译的条目'));
+      return;
+    }
+    setBatchTranslating(true);
+    setBatchProgress({ current: 0, total: selectedRowKeys.length });
+    const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
+
+    for (let i = 0; i < selectedRowKeys.length; i++) {
+      const id = selectedRowKeys[i];
+      setBatchProgress({ current: i + 1, total: selectedRowKeys.length });
+      try {
+        // 获取详情
+        const detailRes = await API.get(`/api/preset-prompt/${id}`);
+        if (!detailRes.data.success) continue;
+        const item = detailRes.data.data;
+        const items = [
+          { key: 'name', text: item.name || '' },
+          { key: 'system_prompt', text: item.system_prompt || '' },
+          { key: 'user_prompt', text: item.user_prompt || '' },
+          { key: 'description', text: item.description || '' },
+          { key: 'category', text: item.category || '' },
+        ].filter((it) => it.text !== '');
+        if (items.length === 0) continue;
+
+        // 创建翻译队列
+        const queueRes = await API.post('/api/translate/queue', {
+          items,
+          source_lang: DEFAULT_LANG,
+          target_langs: targetLangs,
+        });
+        if (!queueRes.data.success) continue;
+        const queueId = queueRes.data.data.queue_id;
+
+        // 轮询到完成
+        let results = null;
+        let attempts = 0;
+        const maxAttempts = 150; // 最多等5分钟
+        while (attempts < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) break;
+          if (queue.status === 'done') {
+            results = queue.results;
+            break;
+          } else if (queue.status === 'failed') {
+            break;
+          }
+          attempts++;
+        }
+        if (!results) continue;
+
+        // 保存翻译结果
+        const i18n = {};
+        Object.entries(results).forEach(([langCode, result]) => {
+          if (result) i18n[langCode] = result;
+        });
+        const payload = {
+          name: item.name,
+          system_prompt: item.system_prompt || '',
+          user_prompt: item.user_prompt || '',
+          description: item.description || '',
+          category: item.category || '',
+          status: item.status || 1,
+          sort_order: item.sort_order || 0,
+          i18n: JSON.stringify(i18n),
+          id: item.id,
+        };
+        await API.put('/api/preset-prompt', payload);
+      } catch (err) {
+        console.error(`Batch translate failed for ${id}:`, err);
+      }
+    }
+
+    showSuccess(t('批量翻译完成'));
+    setBatchTranslating(false);
+    setSelectedRowKeys([]);
+    loadData();
   };
 
   const handleRetranslate = async (targetLang) => {
@@ -548,9 +633,36 @@ export default function PresetPrompt() {
           </Button>
         </div>
 
+        {selectedRowKeys.length > 0 && (
+          <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Text size='small'>已选择 {selectedRowKeys.length} 项</Text>
+            <Button
+              type='primary'
+              size='small'
+              icon={<IconLanguage />}
+              loading={batchTranslating}
+              onClick={handleBatchTranslate}
+            >
+              批量自动翻译
+            </Button>
+            {batchTranslating && (
+              <Text size='small' type='tertiary'>
+                翻译中 {batchProgress.current}/{batchProgress.total}
+              </Text>
+            )}
+            <Button theme='light' size='small' onClick={() => setSelectedRowKeys([])}>
+              取消选择
+            </Button>
+          </div>
+        )}
+
         <Table
           columns={columns}
           dataSource={data}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+          }}
           loading={loading}
           pagination={false}
           rowKey='id'
