@@ -435,6 +435,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		// App Release Public Routes (no auth required)
 		apiRouter.GET("/public/releases/latest", controller.GetLatestAppRelease)
+		apiRouter.GET("/public/releases/latest.json", controller.GetLatestReleaseJSON)
 		apiRouter.GET("/public/releases/download/:platform/:arch", controller.DownloadAppRelease)
 
 		// App Release Admin Routes

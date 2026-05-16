@@ -17,10 +17,12 @@ type AppRelease struct {
 	FilePath     string `json:"-" gorm:"not null;size:500"`
 	FileSize     int64  `json:"file_size" gorm:"not null"`
 	DownloadUrl  string `json:"download_url" gorm:"not null;size:500"`
-	ReleaseNotes string `json:"release_notes" gorm:"type:text"`
-	IsLatest     bool   `json:"is_latest" gorm:"default:false"`
-	IsForce      bool   `json:"is_force" gorm:"default:false"`
-	CreatedAt    int64  `json:"created_at" gorm:"bigint"`
+	ReleaseNotes   string `json:"release_notes" gorm:"type:text"`
+	Signature      string `json:"signature" gorm:"type:text"`       // Ed25519 签名内容（base64）
+	SignaturePath  string `json:"-" gorm:"size:500"`                // 签名文件本地路径
+	IsLatest       bool   `json:"is_latest" gorm:"default:false"`
+	IsForce        bool   `json:"is_force" gorm:"default:false"`
+	CreatedAt      int64  `json:"created_at" gorm:"bigint"`
 }
 
 func (AppRelease) TableName() string {

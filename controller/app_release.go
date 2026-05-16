@@ -51,6 +51,38 @@ func GetLatestAppRelease(c *gin.Context) {
 	})
 }
 
+// GetLatestReleaseJSON 返回 Tauri updater 格式的 latest.json
+func GetLatestReleaseJSON(c *gin.Context) {
+	releases, err := model.GetLatestAppReleases()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(releases) == 0 {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	latest := releases[0]
+
+	// Tauri updater platform key: windows-x86_64, darwin-x86_64, darwin-aarch64, linux-x86_64
+	platforms := make(map[string]gin.H)
+	for _, r := range releases {
+		platformKey := fmt.Sprintf("%s-%s", r.Platform, r.Arch)
+		platforms[platformKey] = gin.H{
+			"signature": r.Signature,
+			"url":       r.DownloadUrl,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"version":   latest.Version,
+		"notes":     latest.ReleaseNotes,
+		"pub_date":  time.Unix(latest.CreatedAt, 0).Format(time.RFC3339),
+		"platforms": platforms,
+	})
+}
+
 // DownloadAppRelease 下载安装包
 func DownloadAppRelease(c *gin.Context) {
 	platform := c.Param("platform")
@@ -121,6 +153,19 @@ func UploadAppRelease(c *gin.Context) {
 		return
 	}
 
+	// 获取签名文件（可选）
+	var sigContent string
+	if sigFile, err := c.FormFile("signature_file"); err == nil {
+		sigPath := filepath.Join(appReleaseDownloadDir, sigFile.Filename)
+		if err := c.SaveUploadedFile(sigFile, sigPath); err == nil {
+			data, _ := os.ReadFile(sigPath)
+			sigContent = string(data)
+			_ = os.Remove(sigPath) // 读取后删除临时文件
+		}
+	} else if sigText := c.PostForm("signature"); sigText != "" {
+		sigContent = sigText
+	}
+
 	// 创建下载目录
 	if err := os.MkdirAll(appReleaseDownloadDir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create download directory: %v", err)})
@@ -163,6 +208,7 @@ func UploadAppRelease(c *gin.Context) {
 		FileSize:     fileInfo.Size(),
 		DownloadUrl:  downloadURL,
 		ReleaseNotes: releaseNotes,
+		Signature:    sigContent,
 		IsForce:      isForce,
 	}
 
