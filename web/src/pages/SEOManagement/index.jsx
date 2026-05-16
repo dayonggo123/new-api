@@ -79,6 +79,16 @@ const emptySeoI18n = () => {
   return obj;
 };
 
+const safeParseFAQ = (faqStr) => {
+  if (!faqStr || faqStr === 'null' || faqStr === '[]') return [];
+  try {
+    const parsed = JSON.parse(faqStr);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -143,17 +153,6 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
-
-  // 安全解析 FAQ JSON
-  const safeParseFAQ = (faqStr) => {
-    if (!faqStr || faqStr === 'null' || faqStr === '[]') return [];
-    try {
-      const parsed = JSON.parse(faqStr);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  };
 
   // 构建翻译 items，含 FAQ 扁平化
   const buildTranslateItems = (values) => {
