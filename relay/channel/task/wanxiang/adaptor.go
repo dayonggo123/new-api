@@ -26,6 +26,7 @@ import (
 
 type submitRequest struct {
 	Model  string                 `json:"model"`
+	Prompt string                 `json:"prompt,omitempty"`
 	Params map[string]interface{} `json:"params"`
 }
 
@@ -265,11 +266,6 @@ func (a *TaskAdaptor) GetChannelName() string {
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*submitRequest, error) {
 	params := make(map[string]interface{})
 
-	// Prompt
-	if req.Prompt != "" {
-		params["prompt"] = req.Prompt
-	}
-
 	// Images
 	images := req.Images
 	if len(images) == 0 && req.Image != "" {
@@ -305,6 +301,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 
 	return &submitRequest{
 		Model:  info.UpstreamModelName,
+		Prompt: req.Prompt,
 		Params: params,
 	}, nil
 }
