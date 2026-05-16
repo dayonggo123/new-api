@@ -547,6 +547,9 @@ const SEOManagement = () => {
   const [auditId, setAuditId] = useState(null);
   const [auditHistory, setAuditHistory] = useState([]);
   const [stats, setStats] = useState(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [batchTranslating, setBatchTranslating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
 
   const loadData = useCallback(
     async (page = activePage, size = pageSize, search = keyword) => {
@@ -706,6 +709,101 @@ const SEOManagement = () => {
     setAuditing((prev) => ({ ...prev, [id]: false }));
   };
 
+  const handleBatchTranslate = async () => {
+    if (selectedRowKeys.length === 0) {
+      showError(t('请先选择要翻译的提示词'));
+      return;
+    }
+    setBatchTranslating(true);
+    setBatchProgress({ current: 0, total: selectedRowKeys.length });
+    const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
+
+    for (let i = 0; i < selectedRowKeys.length; i++) {
+      const id = selectedRowKeys[i];
+      setBatchProgress({ current: i + 1, total: selectedRowKeys.length });
+      try {
+        // 获取详情
+        const detailRes = await API.get(`/api/prompt/${id}`);
+        if (!detailRes.data.success) continue;
+        const item = detailRes.data.data;
+
+        const items = [
+          { key: 'seo_keywords', text: item.seo_keywords || '' },
+          { key: 'intro', text: item.intro || '' },
+        ].filter((it) => it.text !== '');
+        if (items.length === 0) continue;
+
+        // 创建翻译队列
+        const queueRes = await API.post('/api/translate/queue', {
+          items,
+          source_lang: DEFAULT_LANG,
+          target_langs: targetLangs,
+        });
+        if (!queueRes.data.success) continue;
+        const queueId = queueRes.data.data.queue_id;
+
+        // 轮询到完成
+        let results = null;
+        let attempts = 0;
+        const maxAttempts = 150;
+        while (attempts < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) break;
+          if (queue.status === 'done') {
+            results = queue.results;
+            break;
+          } else if (queue.status === 'failed') break;
+          attempts++;
+        }
+        if (!results) continue;
+
+        // 保存翻译结果到 seo_i18n
+        const seoI18n = {};
+        Object.entries(results).forEach(([langCode, result]) => {
+          if (result) {
+            seoI18n[langCode] = {
+              seo_keywords: result.seo_keywords || '',
+              intro: result.intro || '',
+            };
+          }
+        });
+
+        const payload = {
+          title: item.title,
+          content: item.content,
+          content_en: item.content_en || '',
+          description: item.description || '',
+          cover_image_url: item.cover_image_url || '',
+          author: item.author || '',
+          model: item.model || '',
+          category_id: item.category_id,
+          media_type: item.media_type || 'image',
+          variables: item.variables || '',
+          tags: item.tags || '[]',
+          sort_order: item.sort_order || 0,
+          status: item.status,
+          seo_title: item.seo_title || '',
+          seo_description: item.seo_description || '',
+          seo_keywords: item.seo_keywords || '',
+          intro: item.intro || '',
+          faq: item.faq || '',
+          seo_i18n: JSON.stringify(seoI18n),
+          id: item.id,
+        };
+        await API.put('/api/prompt', payload);
+      } catch (err) {
+        console.error(`Batch SEO translate failed for prompt ${id}:`, err);
+      }
+    }
+
+    showSuccess(t('批量 SEO 翻译完成'));
+    setBatchTranslating(false);
+    setSelectedRowKeys([]);
+    loadData();
+  };
+
   const truncate = (text, maxLen = 60) => {
     if (!text) return '-';
     return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
@@ -837,6 +935,28 @@ const SEOManagement = () => {
               }
             />
           </div>
+          {selectedRowKeys.length > 0 && (
+            <div className="flex items-center gap-2" style={{ padding: '6px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
+              <Text size="small">已选择 {selectedRowKeys.length} 项</Text>
+              <Button
+                type="primary"
+                size="small"
+                icon={<IconLanguage />}
+                loading={batchTranslating}
+                onClick={handleBatchTranslate}
+              >
+                批量自动翻译 SEO
+              </Button>
+              {batchTranslating && (
+                <Text size="small" type="tertiary">
+                  翻译中 {batchProgress.current}/{batchProgress.total}
+                </Text>
+              )}
+              <Button theme="light" size="small" onClick={() => setSelectedRowKeys([])}>
+                取消选择
+              </Button>
+            </div>
+          )}
         </div>
 
         <Spin spinning={loading}>
@@ -847,6 +967,19 @@ const SEOManagement = () => {
                   className='border-b'
                   style={{ borderColor: 'var(--semi-color-border)' }}
                 >
+                  <th className="text-left py-2 px-3 font-medium w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedRowKeys.length === items.length && items.length > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedRowKeys(items.map((i) => i.id));
+                        } else {
+                          setSelectedRowKeys([]);
+                        }
+                      }}
+                    />
+                  </th>
                   <th className='text-left py-2 px-3 font-medium w-16'>
                     {t('ID')}
                   </th>
@@ -886,6 +1019,19 @@ const SEOManagement = () => {
                     className='border-b hover:bg-gray-50'
                     style={{ borderColor: 'var(--semi-color-border)' }}
                   >
+                    <td className="py-2 px-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedRowKeys.includes(item.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRowKeys((prev) => [...prev, item.id]);
+                          } else {
+                            setSelectedRowKeys((prev) => prev.filter((k) => k !== item.id));
+                          }
+                        }}
+                      />
+                    </td>
                     <td className='py-2 px-3'>{item.id}</td>
                     <td className='py-2 px-3 font-medium'>
                       <div className='flex items-center gap-1'>
@@ -961,7 +1107,7 @@ const SEOManagement = () => {
                 {items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className='py-8 text-center text-gray-400'
                     >
                       <Empty description={t('暂无数据')} />
