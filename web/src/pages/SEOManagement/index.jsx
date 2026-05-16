@@ -144,26 +144,37 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
     };
   }, []);
 
+  // 安全解析 FAQ JSON
+  const safeParseFAQ = (faqStr) => {
+    if (!faqStr || faqStr === 'null' || faqStr === '[]') return [];
+    try {
+      const parsed = JSON.parse(faqStr);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
   // 构建翻译 items，含 FAQ 扁平化
   const buildTranslateItems = (values) => {
     const items = [
       { key: 'seo_keywords', text: values.seo_keywords || '' },
       { key: 'intro', text: values.intro || '' },
     ];
-    try {
-      const faqArr = JSON.parse(values.faq || '[]');
-      if (Array.isArray(faqArr)) {
-        faqArr.forEach((item, idx) => {
-          if (item.question) items.push({ key: `faq_${idx}_question`, text: item.question });
-          if (item.answer) items.push({ key: `faq_${idx}_answer`, text: item.answer });
-        });
-      }
-    } catch (e) {}
+    const faqArr = safeParseFAQ(values.faq);
+    faqArr.forEach((item, idx) => {
+      if (item.question) items.push({ key: `faq_${idx}_question`, text: item.question });
+      if (item.answer) items.push({ key: `faq_${idx}_answer`, text: item.answer });
+    });
     return items.filter((item) => item.text !== '');
   };
 
   // 从翻译结果重组 FAQ JSON
+  // 兼容 AI 返回的两种格式：
+  // 1. 扁平 key: faq_0_question / faq_0_answer
+  // 2. 整体 key: faq (JSON 字符串或数组)
   const reassembleFaq = (langResult) => {
+    // 先尝试扁平 key 格式
     const faqMap = {};
     Object.keys(langResult).forEach((key) => {
       const m = key.match(/^faq_(\d+)_(question|answer)$/);
@@ -175,8 +186,21 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
       }
     });
     const indices = Object.keys(faqMap).map(Number).sort((a, b) => a - b);
-    if (indices.length === 0) return null;
-    return JSON.stringify(indices.map((idx) => faqMap[idx]));
+    if (indices.length > 0) {
+      return JSON.stringify(indices.map((idx) => faqMap[idx]));
+    }
+    // 回退：AI 可能直接返回 faq 字段（JSON 字符串或数组）
+    if (langResult.faq) {
+      try {
+        const parsed = JSON.parse(langResult.faq);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return JSON.stringify(parsed);
+        }
+      } catch {
+        // 不是 JSON 字符串，可能是已经翻译好的纯文本，忽略
+      }
+    }
+    return null;
   };
 
   const handleAutoTranslate = async () => {
@@ -730,8 +754,14 @@ const SEOManagement = () => {
         const items = [
           { key: 'seo_keywords', text: item.seo_keywords || '' },
           { key: 'intro', text: item.intro || '' },
-        ].filter((it) => it.text !== '');
-        if (items.length === 0) continue;
+        ];
+        const faqArr = safeParseFAQ(item.faq);
+        faqArr.forEach((f, idx) => {
+          if (f.question) items.push({ key: `faq_${idx}_question`, text: f.question });
+          if (f.answer) items.push({ key: `faq_${idx}_answer`, text: f.answer });
+        });
+        const validItems = items.filter((it) => it.text !== '');
+        if (validItems.length === 0) continue;
 
         // 创建翻译队列
         const queueRes = await API.post('/api/translate/queue', {
@@ -763,9 +793,11 @@ const SEOManagement = () => {
         const seoI18n = {};
         Object.entries(results).forEach(([langCode, result]) => {
           if (result) {
+            const newFaq = reassembleFaq(result);
             seoI18n[langCode] = {
               seo_keywords: result.seo_keywords || '',
               intro: result.intro || '',
+              ...(newFaq ? { faq: newFaq } : {}),
             };
           }
         });
