@@ -300,6 +300,7 @@ func migrateDB() error {
 		&ArticleCategory{},
 		&Article{},
 		&ArticleSEOAudit{},
+		&AppRelease{},
 	)
 	if err != nil {
 		return err

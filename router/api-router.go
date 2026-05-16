@@ -433,6 +433,16 @@ func SetApiRouter(router *gin.Engine) {
 		// Preset Prompt Public Routes (optional auth for auto language detection)
 		apiRouter.GET("/public/preset-prompts", middleware.TryUserAuth(), controller.GetPublicPresetPrompts)
 
+		// App Release Public Routes (no auth required)
+		apiRouter.GET("/public/releases/latest", controller.GetLatestAppRelease)
+		apiRouter.GET("/public/releases/download/:platform/:arch", controller.DownloadAppRelease)
+
+		// App Release Admin Routes
+		apiRouter.GET("/admin/releases", middleware.AdminAuth(), controller.GetAllAppReleases)
+		apiRouter.POST("/admin/releases", middleware.AdminAuth(), controller.UploadAppRelease)
+		apiRouter.DELETE("/admin/releases/:id", middleware.AdminAuth(), controller.DeleteAppRelease)
+		apiRouter.PUT("/admin/releases/:id/latest", middleware.AdminAuth(), controller.MarkAppReleaseAsLatest)
+
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)

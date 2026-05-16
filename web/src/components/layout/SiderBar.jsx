@@ -162,6 +162,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       { text: t('Skill 管理'), itemKey: 'skills', to: '/skills', tooltip: { content: t('管理 AI 技能模板，用于自定义翻译、SEO、审核等提示词') } },
       { text: t('文章管理'), itemKey: 'article', to: '/article', tooltip: { content: t('管理博客文章，支持分类、多语言、AI 生成内容') } },
       { text: t('消息管理'), itemKey: 'notification', to: '/notification', tooltip: { content: t('向用户发送系统通知和公告消息') } },
+      { text: t('安装包管理'), itemKey: 'app_release', to: '/app-release', tooltip: { content: t('管理桌面应用安装包版本，支持多平台上传和下载') } },
       { text: t('用户管理'), itemKey: 'user', to: '/user', tooltip: { content: t('查看和管理注册用户，包括额度、权限、分组') } },
     ].filter((item) => {
       const configVisible = isModuleVisible('admin', item.itemKey);

@@ -46,6 +46,7 @@ import ImageStudio from './pages/ImageStudio';
 import NotificationManagement from './pages/NotificationManagement';
 import PresetPrompt from './pages/PresetPrompt';
 import SkillManagement from './pages/SkillManagement';
+import AppReleaseManagement from './pages/AppReleaseManagement';
 import TierManagement from './pages/TierManagement';
 import TagManagement from './pages/TagManagement';
 import TopUp from './pages/TopUp';
@@ -214,6 +215,14 @@ function App() {
           element={
             <AdminRoute>
               <NotificationManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/app-release'
+          element={
+            <AdminRoute>
+              <AppReleaseManagement />
             </AdminRoute>
           }
         />
