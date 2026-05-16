@@ -444,6 +444,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/admin/releases", middleware.AdminAuth(), controller.GetAllAppReleases)
 		apiRouter.POST("/admin/releases", middleware.AdminAuth(), controller.UploadAppRelease)
 		apiRouter.DELETE("/admin/releases/:id", middleware.AdminAuth(), controller.DeleteAppRelease)
+		apiRouter.PUT("/admin/releases/:id", middleware.AdminAuth(), controller.UpdateAppRelease)
 		apiRouter.PUT("/admin/releases/:id/latest", middleware.AdminAuth(), controller.MarkAppReleaseAsLatest)
 
 		logRoute := apiRouter.Group("/log")

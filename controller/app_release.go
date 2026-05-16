@@ -254,6 +254,60 @@ func DeleteAppRelease(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"message": "删除成功"})
 }
 
+// UpdateAppRelease 编辑版本信息（不可修改 platform/arch/file）
+func UpdateAppRelease(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	if id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+		return
+	}
+
+	release, err := model.GetAppReleaseById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var req struct {
+		Version      string `json:"version"`
+		Tag          string `json:"tag"`
+		ReleaseNotes string `json:"release_notes"`
+		Signature    string `json:"signature"`
+		IsForce      *bool  `json:"is_force"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	updates := make(map[string]interface{})
+	if req.Version != "" {
+		updates["version"] = req.Version
+	}
+	if req.Tag != "" {
+		updates["tag"] = req.Tag
+	}
+	updates["release_notes"] = req.ReleaseNotes
+	updates["signature"] = req.Signature
+	if req.IsForce != nil {
+		updates["is_force"] = *req.IsForce
+	}
+
+	if len(updates) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
+		return
+	}
+
+	if err := model.DB.Model(release).Updates(updates).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 重新查询返回完整数据
+	release, _ = model.GetAppReleaseById(id)
+	common.ApiSuccess(c, release)
+}
+
 // MarkAppReleaseAsLatest 标记为最新版
 func MarkAppReleaseAsLatest(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))

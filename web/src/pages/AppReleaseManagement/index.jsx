@@ -22,6 +22,7 @@ import {
   IconDelete,
   IconTickCircle,
   IconUpload,
+  IconEdit,
 } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
@@ -55,6 +56,9 @@ export default function AppReleaseManagement() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadData = useCallback(
     async (page = activePage, size = pageSize) => {
@@ -131,6 +135,9 @@ export default function AppReleaseManagement() {
       if (values.release_notes) {
         formData.append('release_notes', values.release_notes);
       }
+      if (values.signature) {
+        formData.append('signature', values.signature);
+      }
       formData.append('is_force', values.is_force ? 'true' : 'false');
 
       const res = await API.post('/api/admin/releases', formData, {
@@ -148,6 +155,32 @@ export default function AppReleaseManagement() {
       showError(error?.message || error);
     }
     setUploading(false);
+  };
+
+  const handleEdit = async (values) => {
+    if (!editingRecord) return;
+    setSavingEdit(true);
+    try {
+      const payload = {
+        version: values.version,
+        tag: values.tag,
+        release_notes: values.release_notes || '',
+        signature: values.signature || '',
+        is_force: values.is_force,
+      };
+      const res = await API.put(`/api/admin/releases/${editingRecord.id}`, payload);
+      if (res.data.success) {
+        showSuccess(t('保存成功'));
+        setShowEdit(false);
+        setEditingRecord(null);
+        loadData();
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(error?.message || error);
+    }
+    setSavingEdit(false);
   };
 
   const columns = [
@@ -200,7 +233,7 @@ export default function AppReleaseManagement() {
     },
     {
       title: t('操作'),
-      width: 180,
+      width: 220,
       render: (_, record) => (
         <Space>
           {!record.is_latest && (
@@ -213,6 +246,17 @@ export default function AppReleaseManagement() {
               {t('设为最新')}
             </Button>
           )}
+          <Button
+            type='tertiary'
+            size='small'
+            icon={<IconEdit />}
+            onClick={() => {
+              setEditingRecord(record);
+              setShowEdit(true);
+            }}
+          >
+            {t('编辑')}
+          </Button>
           <Button
             type='danger'
             size='small'
@@ -345,6 +389,12 @@ export default function AppReleaseManagement() {
                 placeholder={t('支持 Markdown')}
                 rows={4}
               />
+              <Form.TextArea
+                field='signature'
+                label={t('签名内容')}
+                placeholder={t('粘贴 .sig 文件内容')}
+                rows={4}
+              />
               <Form.Switch
                 field='is_force'
                 label={t('强制升级')}
@@ -377,6 +427,106 @@ export default function AppReleaseManagement() {
             </div>
           )}
         </Form>
+      </SideSheet>
+
+      {/* Edit SideSheet */}
+      <SideSheet
+        title={t('编辑版本')}
+        visible={showEdit}
+        onCancel={() => { setShowEdit(false); setEditingRecord(null); }}
+        width={560}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button theme='light' onClick={() => { setShowEdit(false); setEditingRecord(null); }}>
+                {t('取消')}
+              </Button>
+              <Button
+                theme='solid'
+                loading={savingEdit}
+                onClick={() => {
+                  const form = document.getElementById('release-edit-form');
+                  if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                }}
+              >
+                {t('保存')}
+              </Button>
+            </Space>
+          </div>
+        }
+      >
+        {editingRecord && (
+          <Form
+            id='release-edit-form'
+            onSubmit={handleEdit}
+            initValues={{
+              version: editingRecord.version,
+              tag: editingRecord.tag,
+              release_notes: editingRecord.release_notes || '',
+              signature: editingRecord.signature || '',
+              is_force: editingRecord.is_force,
+            }}
+          >
+            {({ formApi }) => (
+              <div className='p-2'>
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <Form.Input
+                      field='version'
+                      label={t('版本号')}
+                      placeholder='1.2.3'
+                      rules={[{ required: true, message: t('请输入版本号') }]}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Input
+                      field='tag'
+                      label={t('Tag')}
+                      placeholder='v1.2.3'
+                      rules={[{ required: true, message: t('请输入 Tag') }]}
+                    />
+                  </Col>
+                </Row>
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text type='secondary' size='small' style={{ display: 'block', marginBottom: 4 }}>
+                        {t('平台')}
+                      </Text>
+                      <Tag color={PLATFORM_COLORS[editingRecord.platform] || 'default'}>
+                        {editingRecord.platform}
+                      </Tag>
+                    </div>
+                  </Col>
+                  <Col span={12}>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text type='secondary' size='small' style={{ display: 'block', marginBottom: 4 }}>
+                        {t('架构')}
+                      </Text>
+                      <Text>{editingRecord.arch}</Text>
+                    </div>
+                  </Col>
+                </Row>
+                <Form.TextArea
+                  field='release_notes'
+                  label={t('更新日志')}
+                  placeholder={t('支持 Markdown')}
+                  rows={4}
+                />
+                <Form.TextArea
+                  field='signature'
+                  label={t('签名内容')}
+                  placeholder={t('粘贴 .sig 文件内容')}
+                  rows={4}
+                />
+                <Form.Switch
+                  field='is_force'
+                  label={t('强制升级')}
+                />
+              </div>
+            )}
+          </Form>
+        )}
       </SideSheet>
     </div>
   );
