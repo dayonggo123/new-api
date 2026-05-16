@@ -354,16 +354,20 @@ export default function AppReleaseManagement() {
                   {t('安装包文件')}
                 </Text>
                 <Upload
-                  action='#'
                   accept='.exe,.dmg,.zip,.tar.gz,.deb,.rpm,.AppImage'
-                  beforeUpload={(file) => {
-                    setUploadFile(file.fileInstance);
-                    return false;
+                  limit={1}
+                  customRequest={({ file, onSuccess, onError }) => {
+                    if (file?.fileInstance) {
+                      setUploadFile(file.fileInstance);
+                      onSuccess();
+                    } else {
+                      onError();
+                    }
                   }}
                   onRemove={() => {
                     setUploadFile(null);
                   }}
-                  fileList={uploadFile ? [{ name: uploadFile.name, uid: uploadFile.name, status: 'success' }] : []}
+                  fileList={uploadFile ? [{ name: uploadFile.name, uid: uploadFile.name, status: 'success', fileInstance: uploadFile }] : []}
                 >
                   <Button icon={<IconUpload />} type='tertiary'>
                     {t('选择文件')}
