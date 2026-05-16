@@ -28,18 +28,20 @@ const SEO_LANGS = [
 ];
 
 function parseTags(tagsStr) {
-  if (!tagsStr) return [];
+  if (!tagsStr || tagsStr === 'null') return [];
   try {
-    return JSON.parse(tagsStr);
+    const parsed = JSON.parse(tagsStr);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
 function parseFAQ(faqStr) {
-  if (!faqStr) return [];
+  if (!faqStr || faqStr === 'null') return [];
   try {
-    return JSON.parse(faqStr);
+    const parsed = JSON.parse(faqStr);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }

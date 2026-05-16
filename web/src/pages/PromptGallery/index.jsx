@@ -40,9 +40,10 @@ export default function PromptGallery() {
   }
 
   function parseTags(tagsStr) {
-    if (!tagsStr) return [];
+    if (!tagsStr || tagsStr === 'null') return [];
     try {
-      return JSON.parse(tagsStr);
+      const parsed = JSON.parse(tagsStr);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
