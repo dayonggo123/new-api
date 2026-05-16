@@ -194,6 +194,11 @@ export const CHANNEL_OPTIONS = [
     color: 'purple',
     label: 'GeminiGen',
   },
+  {
+    value: 59,
+    color: 'blue',
+    label: '万象Ai',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
