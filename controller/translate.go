@@ -264,6 +264,8 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLangName)
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLangName)
+	// 兼容旧模板中使用 {{language}} 的写法
+	systemPrompt = strings.ReplaceAll(systemPrompt, "{{language}}", targetLangName)
 	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
 	// 兼容旧模板中使用 {{language}} 的写法
