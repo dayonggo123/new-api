@@ -771,28 +771,13 @@ const SEOManagement = () => {
         });
 
         const payload = {
-          title: item.title,
-          content: item.content,
-          content_en: item.content_en || '',
-          description: item.description || '',
-          cover_image_url: item.cover_image_url || '',
-          author: item.author || '',
-          model: item.model || '',
-          category_id: item.category_id,
-          media_type: item.media_type || 'image',
-          variables: item.variables || '',
-          tags: item.tags || '[]',
-          sort_order: item.sort_order || 0,
-          status: item.status,
-          seo_title: item.seo_title || '',
-          seo_description: item.seo_description || '',
+          id: item.id,
           seo_keywords: item.seo_keywords || '',
           intro: item.intro || '',
           faq: item.faq || '',
           seo_i18n: JSON.stringify(seoI18n),
-          id: item.id,
         };
-        await API.put('/api/prompt', payload);
+        await API.put(`/api/prompt/seo/${item.id}`, payload);
       } catch (err) {
         console.error(`Batch SEO translate failed for prompt ${id}:`, err);
       }
