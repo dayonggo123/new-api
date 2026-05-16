@@ -34,6 +34,7 @@ export const usePromptsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [tokenCount, setTokenCount] = useState(0);
   const [selectedKeys, setSelectedKeys] = useState([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
   // Categories state
   const [categories, setCategories] = useState([]);
@@ -187,13 +188,101 @@ export const usePromptsData = () => {
     }
   };
 
+  // Batch translate state
+  const [batchTranslating, setBatchTranslating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+
   // Row selection configuration
   const rowSelection = {
-    onSelect: (record, selected) => {},
-    onSelectAll: (selected, selectedRows) => {},
-    onChange: (selectedRowKeys, selectedRows) => {
-      setSelectedKeys(selectedRows);
+    selectedRowKeys,
+    onChange: (keys, rows) => {
+      setSelectedRowKeys(keys);
+      setSelectedKeys(rows);
     },
+  };
+
+  // Batch translate handler
+  const handleBatchTranslate = async () => {
+    if (selectedRowKeys.length === 0) {
+      showError(t('请先选择要翻译的提示词'));
+      return;
+    }
+    setBatchTranslating(true);
+    setBatchProgress({ current: 0, total: selectedRowKeys.length });
+    const targetLangs = ['en', 'fr', 'ru', 'ja', 'vi', 'ko', 'es', 'de', 'it', 'pt', 'ar'];
+
+    for (let i = 0; i < selectedRowKeys.length; i++) {
+      const id = selectedRowKeys[i];
+      setBatchProgress({ current: i + 1, total: selectedRowKeys.length });
+      try {
+        const detailRes = await API.get(`/api/prompt/${id}`);
+        if (!detailRes.data.success) continue;
+        const item = detailRes.data.data;
+        const items = [
+          { key: 'title', text: item.title || '' },
+          { key: 'content', text: item.content || '' },
+          { key: 'content_en', text: item.content_en || '' },
+          { key: 'description', text: item.description || '' },
+        ].filter((it) => it.text !== '');
+        if (items.length === 0) continue;
+
+        const queueRes = await API.post('/api/translate/queue', {
+          items,
+          source_lang: 'zh',
+          target_langs: targetLangs,
+        });
+        if (!queueRes.data.success) continue;
+        const queueId = queueRes.data.data.queue_id;
+
+        let results = null;
+        let attempts = 0;
+        const maxAttempts = 150;
+        while (attempts < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) break;
+          if (queue.status === 'done') {
+            results = queue.results;
+            break;
+          } else if (queue.status === 'failed') break;
+          attempts++;
+        }
+        if (!results) continue;
+
+        const i18n = {};
+        Object.entries(results).forEach(([langCode, result]) => {
+          if (result) i18n[langCode] = result;
+        });
+
+        const payload = {
+          title: item.title,
+          content: item.content,
+          content_en: item.content_en || '',
+          description: item.description || '',
+          cover_image_url: item.cover_image_url || '',
+          author: item.author || '',
+          model: item.model || '',
+          category_id: item.category_id,
+          media_type: item.media_type || 'image',
+          variables: item.variables || '',
+          tags: item.tags || '[]',
+          sort_order: item.sort_order || 0,
+          status: item.status,
+          i18n: JSON.stringify(i18n),
+          id: item.id,
+        };
+        await API.put('/api/prompt', payload);
+      } catch (err) {
+        console.error(`Batch translate failed for prompt ${id}:`, err);
+      }
+    }
+
+    showSuccess(t('批量翻译完成'));
+    setBatchTranslating(false);
+    setSelectedRowKeys([]);
+    setSelectedKeys([]);
+    refresh();
   };
 
   // Close edit modal
@@ -225,6 +314,11 @@ export const usePromptsData = () => {
     pageSize,
     tokenCount,
     selectedKeys,
+    selectedRowKeys,
+    setSelectedRowKeys,
+    batchTranslating,
+    batchProgress,
+    handleBatchTranslate,
     categories,
 
     // Edit state
@@ -250,6 +344,7 @@ export const usePromptsData = () => {
     setActivePage,
     setPageSize,
     setSelectedKeys,
+    setSelectedRowKeys,
     setEditingPrompt,
     setShowEdit,
     setFormApi,

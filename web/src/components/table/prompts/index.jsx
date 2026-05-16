@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { Button } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import PromptsTable from './PromptsTable';
 import PromptsActions from './PromptsActions';
@@ -54,6 +55,13 @@ const PromptsPage = () => {
     compactMode,
     setCompactMode,
 
+    // Batch translate
+    selectedRowKeys,
+    setSelectedRowKeys,
+    batchTranslating,
+    batchProgress,
+    handleBatchTranslate,
+
     // Translation
     t,
   } = promptsData;
@@ -77,6 +85,27 @@ const PromptsPage = () => {
         }
         actionsArea={
           <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
+            {selectedRowKeys.length > 0 && (
+              <div style={{ marginBottom: 8, padding: '6px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                <span className='text-sm'>已选择 {selectedRowKeys.length} 项</span>
+                <Button
+                  type='primary'
+                  size='small'
+                  loading={batchTranslating}
+                  onClick={handleBatchTranslate}
+                >
+                  批量自动翻译
+                </Button>
+                {batchTranslating && (
+                  <span className='text-xs text-gray-400'>
+                    翻译中 {batchProgress.current}/{batchProgress.total}
+                  </span>
+                )}
+                <Button theme='light' size='small' onClick={() => { setSelectedRowKeys([]); }}>
+                  取消选择
+                </Button>
+              </div>
+            )}
             <PromptsActions
               setEditingPrompt={setEditingPrompt}
               setShowEdit={setShowEdit}
