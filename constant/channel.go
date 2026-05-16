@@ -121,7 +121,7 @@ var ChannelBaseURLs = []string{
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
 	"https://api.geminigen.ai",                  //58
-	"https://api.lk888.ai",                      //59
+	"https://api.lk888.ai/api",                  //59
 }
 
 var ChannelTypeNames = map[int]string{
