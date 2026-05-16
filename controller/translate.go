@@ -373,8 +373,8 @@ func extractPlainText(content string) string {
 	if len(content) >= 2 && content[0] == '"' && content[len(content)-1] == '"' {
 		content = content[1 : len(content)-1]
 	}
-	// 去除首尾的代码块标记
-	if len(content) >= 3 && content[0] == '`' && content[len(content)-1] == '`' {
+	// 去除首尾的单反引号，但保留 markdown 代码块 (```)
+	if len(content) >= 3 && content[0] == '`' && content[len(content)-1] == '`' && !strings.HasPrefix(content, "```") {
 		content = content[1 : len(content)-1]
 	}
 	return strings.TrimSpace(content)

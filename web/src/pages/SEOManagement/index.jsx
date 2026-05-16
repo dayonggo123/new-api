@@ -742,13 +742,20 @@ const SEOManagement = () => {
     setBatchProgress({ current: 0, total: selectedRowKeys.length });
     const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
 
+    let successCount = 0;
+    let failCount = 0;
+    let skipCount = 0;
+
     for (let i = 0; i < selectedRowKeys.length; i++) {
       const id = selectedRowKeys[i];
       setBatchProgress({ current: i + 1, total: selectedRowKeys.length });
       try {
         // 获取详情
         const detailRes = await API.get(`/api/prompt/${id}`);
-        if (!detailRes.data.success) continue;
+        if (!detailRes.data.success) {
+          failCount++;
+          continue;
+        }
         const item = detailRes.data.data;
 
         const items = [
@@ -761,15 +768,21 @@ const SEOManagement = () => {
           if (f.answer) items.push({ key: `faq_${idx}_answer`, text: f.answer });
         });
         const validItems = items.filter((it) => it.text !== '');
-        if (validItems.length === 0) continue;
+        if (validItems.length === 0) {
+          skipCount++;
+          continue;
+        }
 
         // 创建翻译队列
         const queueRes = await API.post('/api/translate/queue', {
-          items,
+          items: validItems,
           source_lang: DEFAULT_LANG,
           target_langs: targetLangs,
         });
-        if (!queueRes.data.success) continue;
+        if (!queueRes.data.success) {
+          failCount++;
+          continue;
+        }
         const queueId = queueRes.data.data.queue_id;
 
         // 轮询到完成
@@ -787,7 +800,10 @@ const SEOManagement = () => {
           } else if (queue.status === 'failed') break;
           attempts++;
         }
-        if (!results) continue;
+        if (!results) {
+          failCount++;
+          continue;
+        }
 
         // 保存翻译结果到 seo_i18n
         const seoI18n = {};
@@ -809,13 +825,25 @@ const SEOManagement = () => {
           faq: item.faq || '',
           seo_i18n: JSON.stringify(seoI18n),
         };
-        await API.put(`/api/prompt/seo/${item.id}`, payload);
+        const saveRes = await API.put(`/api/prompt/seo/${item.id}`, payload);
+        if (saveRes.data.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
       } catch (err) {
         console.error(`Batch SEO translate failed for prompt ${id}:`, err);
+        failCount++;
       }
     }
 
-    showSuccess(t('批量 SEO 翻译完成'));
+    if (successCount > 0) {
+      showSuccess(`${t('批量 SEO 翻译完成')}: ${successCount} 成功` + (failCount > 0 ? `, ${failCount} 失败` : '') + (skipCount > 0 ? `, ${skipCount} 跳过(无内容)` : ''));
+    } else if (failCount > 0) {
+      showError(`${t('批量 SEO 翻译失败')}: ${failCount} 失败` + (skipCount > 0 ? `, ${skipCount} 跳过(无内容)` : ''));
+    } else if (skipCount > 0) {
+      showError(`${skipCount} 项无 SEO 内容可翻译`);
+    }
     setBatchTranslating(false);
     setSelectedRowKeys([]);
     loadData();
