@@ -56,7 +56,7 @@ const routerMap = {
   seo_trends: '/console/seo-trends',
   notification: '/console/notification',
   article: '/console/article',
-
+  app_release: '/console/app-release',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
