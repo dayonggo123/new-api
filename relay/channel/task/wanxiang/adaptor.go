@@ -33,8 +33,6 @@ import (
 type submitRequest struct {
 	Model  string                 `json:"model"`
 	Prompt string                 `json:"prompt,omitempty"`
-	Image  string                 `json:"image,omitempty"`   // single reference image URL
-	Images []string               `json:"images,omitempty"`  // multiple reference image URLs
 	Params map[string]interface{} `json:"params,omitempty"`
 }
 
@@ -476,7 +474,11 @@ func extractMultipartImagesAsURLs(c *gin.Context) ([]string, error) {
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*submitRequest, error) {
 	params := make(map[string]interface{})
 
-	// Images — put in multiple places for upstream compatibility
+	// Images — must be inside params, not root level.
+	// Different models use different parameter names:
+	//   - image models: params.images (array)
+	//   - video models: params.img_url (single string)
+	// We populate all known names to maximize compatibility.
 	images := req.Images
 	if len(images) == 0 && req.Image != "" {
 		images = []string{req.Image}
@@ -484,6 +486,8 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	if len(images) > 0 {
 		params["images"] = images
 		params["image"] = images[0]
+		params["img_url"] = images[0]
+		params["image_url"] = images[0]
 	}
 
 	// Size → aspectRatio + imageSize mapping
@@ -532,17 +536,11 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		}
 	}
 
-	// Build request with images at both root and params level for max compatibility
-	sr := &submitRequest{
+	return &submitRequest{
 		Model:  info.UpstreamModelName,
 		Prompt: req.Prompt,
 		Params: params,
-	}
-	if len(images) > 0 {
-		sr.Image = images[0]
-		sr.Images = images
-	}
-	return sr, nil
+	}, nil
 }
 
 func mapSizeToAspectRatio(size string) string {
