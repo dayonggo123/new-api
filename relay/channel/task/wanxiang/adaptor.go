@@ -47,7 +47,7 @@ type statusResponse struct {
 	ResultURL      string      `json:"result_url"`
 	ResultType     string      `json:"result_type"`
 	Cost           float64     `json:"cost"`
-	Error          string      `json:"error"`
+	Error          interface{} `json:"error"`
 	Refunded       bool        `json:"refunded"`
 	RefundedAmount float64     `json:"refunded_amount"`
 	CreatedAt      string      `json:"created_at"`
@@ -192,8 +192,12 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		}
 	case "failed":
 		taskInfo.Status = model.TaskStatusFailure
-		if sResp.Error != "" {
-			taskInfo.Reason = sResp.Error
+		if sResp.Error != nil {
+			if errStr, ok := sResp.Error.(string); ok && errStr != "" {
+				taskInfo.Reason = errStr
+			} else {
+				taskInfo.Reason = sResp.Status
+			}
 		} else if sResp.Status != "" {
 			taskInfo.Reason = sResp.Status
 		}
@@ -235,14 +239,21 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		openAIVideo.SetMetadata("type", sResp.ResultType)
 	}
 
-	if sResp.State == "failed" && (sResp.Error != "" || sResp.Status != "") {
-		msg := sResp.Error
-		if msg == "" {
+	if sResp.State == "failed" {
+		msg := ""
+		if sResp.Error != nil {
+			if errStr, ok := sResp.Error.(string); ok {
+				msg = errStr
+			}
+		}
+		if msg == "" && sResp.Status != "" {
 			msg = sResp.Status
 		}
-		openAIVideo.Error = &dto.OpenAIVideoError{
-			Message: msg,
-			Code:    "task_failed",
+		if msg != "" {
+			openAIVideo.Error = &dto.OpenAIVideoError{
+				Message: msg,
+				Code:    "task_failed",
+			}
 		}
 	}
 
