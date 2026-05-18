@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +20,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -104,13 +101,15 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		len(req.Images), req.Image, c.GetHeader("Content-Type")))
 
 	// If no images in task_request but original request is multipart,
-	// extract files from raw body, save to local uploads to get URLs.
+	// extract image data from raw body and convert to base64 data URLs.
+	// WanXiangAI upstream does not support downloading external HTTP URLs,
+	// so we must embed image content directly as data URLs in the JSON body.
 	if len(req.Images) == 0 && req.Image == "" && strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
-		if urls, err := extractMultipartImagesAsURLs(c); err == nil && len(urls) > 0 {
-			req.Images = urls
-			common.SysLog(fmt.Sprintf("[WanXiang] extracted %d images from multipart as local URLs", len(urls)))
+		if dataURLs, err := extractMultipartImagesAsDataURLs(c); err == nil && len(dataURLs) > 0 {
+			req.Images = dataURLs
+			common.SysLog(fmt.Sprintf("[WanXiang] extracted %d images from multipart as data URLs", len(dataURLs)))
 		} else if err != nil {
-			common.SysLog(fmt.Sprintf("[WanXiang] extractMultipartImagesAsURLs failed: %v", err))
+			common.SysLog(fmt.Sprintf("[WanXiang] extractMultipartImagesAsDataURLs failed: %v", err))
 		} else {
 			common.SysLog("[WanXiang] no image files found in multipart")
 		}
@@ -352,21 +351,22 @@ func extractMultipartImagesAsBase64(c *gin.Context) ([]string, error) {
 	return dataURLs, nil
 }
 
-// extractMultipartImagesAsURLs parses the original multipart body and returns image URLs.
+// extractMultipartImagesAsDataURLs parses the original multipart body and returns
+// base64 data URLs for all image references.
 // Handles TWO downstream patterns:
 //   1. Text values (data URL / HTTP URL) in formData.Value["ref_images"] / ["images"]
 //   2. Binary file parts in formData.File["ref_images"] / ["images"] / ["files"]
-//      → saved to ./uploads/wanxiang-temp/ and converted to publicly accessible URLs.
-func extractMultipartImagesAsURLs(c *gin.Context) ([]string, error) {
+//      → read bytes and encode as data:{mime};base64,{data} URL.
+func extractMultipartImagesAsDataURLs(c *gin.Context) ([]string, error) {
 	formData, err := common.ParseMultipartFormReusable(c)
 	if err != nil {
 		return nil, err
 	}
 	defer formData.RemoveAll()
 
-	var urls []string
+	var dataURLs []string
 
-	// ── Case 1: text values (data URL, HTTP URL, etc.) ──
+	// ── Case 1: text values (already data URL or HTTP URL) ──
 	for _, fieldName := range []string{"ref_images", "images"} {
 		if values, ok := formData.Value[fieldName]; ok {
 			for _, val := range values {
@@ -375,32 +375,14 @@ func extractMultipartImagesAsURLs(c *gin.Context) ([]string, error) {
 					if len(preview) > 60 {
 						preview = preview[:60] + "..."
 					}
-					urls = append(urls, val)
+					dataURLs = append(dataURLs, val)
 					common.SysLog(fmt.Sprintf("[WanXiang] extracted text image from %s: %s", fieldName, preview))
 				}
 			}
 		}
 	}
 
-	// ── Case 2: binary file parts ──
-	tempDir := "./uploads/wanxiang-temp"
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		return nil, fmt.Errorf("mkdir failed: %w", err)
-	}
-
-	scheme := "https"
-	if c.Request.TLS == nil {
-		scheme = "http"
-	}
-	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	host := c.GetHeader("X-Forwarded-Host")
-	if host == "" {
-		host = c.Request.Host
-	}
-	baseURL := scheme + "://" + host
-
+	// ── Case 2: binary file parts → base64 data URL ──
 	for _, fieldName := range []string{"ref_images", "images", "files"} {
 		if fileHeaders, ok := formData.File[fieldName]; ok {
 			for _, fh := range fileHeaders {
@@ -421,32 +403,14 @@ func extractMultipartImagesAsURLs(c *gin.Context) ([]string, error) {
 					ct = http.DetectContentType(data)
 				}
 
-				ext := "bin"
-				switch {
-				case strings.Contains(ct, "png"):
-					ext = "png"
-				case strings.Contains(ct, "jpeg"), strings.Contains(ct, "jpg"):
-					ext = "jpg"
-				case strings.Contains(ct, "gif"):
-					ext = "gif"
-				case strings.Contains(ct, "webp"):
-					ext = "webp"
-				}
-
-				filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
-				filePath := filepath.Join(tempDir, filename)
-				if err := os.WriteFile(filePath, data, 0644); err != nil {
-					common.SysLog(fmt.Sprintf("[WanXiang] write file failed: %v", err))
-					continue
-				}
-
-				url := fmt.Sprintf("%s/uploads/wanxiang-temp/%s", baseURL, filename)
-				urls = append(urls, url)
-				common.SysLog(fmt.Sprintf("[WanXiang] saved temp image: %s -> %s", filename, url))
+				b64 := base64.StdEncoding.EncodeToString(data)
+				dataURL := fmt.Sprintf("data:%s;base64,%s", ct, b64)
+				dataURLs = append(dataURLs, dataURL)
+				common.SysLog(fmt.Sprintf("[WanXiang] encoded file part from %s as data URL (%d bytes -> %d chars)", fieldName, len(data), len(dataURL)))
 			}
 		}
 	}
-	return urls, nil
+	return dataURLs, nil
 }
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*submitRequest, error) {
