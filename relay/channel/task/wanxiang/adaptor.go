@@ -103,7 +103,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	common.SysLog(fmt.Sprintf("[wanxiang] upstream model=%s, request body=%s", info.UpstreamModelName, string(data)))
 	return bytes.NewReader(data), nil
 }
 
@@ -276,12 +275,21 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		params["images"] = images
 	}
 
-	// Size → aspectRatio mapping (common OpenAI image sizes)
+	// Size → aspectRatio + imageSize mapping
+	// Gemini imageSize values: 0.5K, 1K, 2K, 4K
 	if req.Size != "" {
 		aspectRatio := mapSizeToAspectRatio(req.Size)
 		if aspectRatio != "" {
 			params["aspectRatio"] = aspectRatio
 		}
+		imageSize := mapSizeToImageSize(req.Size)
+		if imageSize != "" {
+			params["imageSize"] = imageSize
+		}
+	}
+	// imageSize is required for Gemini image models, default to 1K
+	if _, ok := params["imageSize"]; !ok {
+		params["imageSize"] = "1K"
 	}
 
 	// Duration
@@ -323,6 +331,19 @@ func mapSizeToAspectRatio(size string) string {
 		return "16:9"
 	case "1080x1920":
 		return "9:16"
+	default:
+		return ""
+	}
+}
+
+func mapSizeToImageSize(size string) string {
+	switch size {
+	case "256x256", "512x512":
+		return "0.5K"
+	case "1024x1024", "1024x1536", "1536x1024":
+		return "1K"
+	case "1024x1792", "1792x1024", "1920x1080", "1080x1920":
+		return "2K"
 	default:
 		return ""
 	}
