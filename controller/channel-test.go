@@ -641,8 +641,9 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
-	// Auto-detect video models (WanXiangAI Veo series) when endpointType is not specified
-	if endpointType == "" && strings.Contains(model, "veo") {
+	// Auto-detect WanXiangAI media generation models when endpointType is not specified
+	// WanXiangAI image models (gemini-*) and video models (veo*) both use /v1/media/generate
+	if endpointType == "" && (strings.Contains(model, "veo") || strings.Contains(model, "gemini")) {
 		return &dto.ImageRequest{
 			Model:  model,
 			Prompt: "a beautiful sunset over ocean",
