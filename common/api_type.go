@@ -1,8 +1,16 @@
 package common
 
-import "github.com/QuantumNous/new-api/constant"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
+)
 
 func ChannelType2APIType(channelType int) (int, bool) {
+	return ChannelType2APITypeWithModel(channelType, "")
+}
+
+func ChannelType2APITypeWithModel(channelType int, modelName string) (int, bool) {
 	apiType := -1
 	switch channelType {
 	case constant.ChannelTypeOpenAI:
@@ -78,7 +86,12 @@ func ChannelType2APIType(channelType int) (int, bool) {
 	case constant.ChannelTypeVeo:
 		apiType = constant.APITypeVeo
 	case constant.ChannelTypeWanXiangAI:
-		apiType = constant.APITypeOpenAI
+		// WanXiangAI media models (image/video) use APITypeVeo for task-based generation
+		if modelName != "" && (strings.Contains(modelName, "veo") || strings.Contains(modelName, "gemini")) {
+			apiType = constant.APITypeVeo
+		} else {
+			apiType = constant.APITypeOpenAI
+		}
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

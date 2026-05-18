@@ -272,7 +272,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	// 更新请求中的模型名称
 	request.SetModelName(testModel)
 
-	apiType, _ := common.ChannelType2APIType(channel.Type)
+	apiType, _ := common.ChannelType2APITypeWithModel(channel.Type, testModel)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
 		apiType != constant.APITypeOpenAI &&
 		apiType != constant.APITypeCodex {
