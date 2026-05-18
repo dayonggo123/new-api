@@ -34,7 +34,7 @@ type submitResponse struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
 	Data struct {
-		TaskID string `json:"task_id"`
+		TaskID interface{} `json:"task_id"`
 	} `json:"data"`
 }
 
@@ -103,7 +103,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	common.SysLog(fmt.Sprintf("[wanxiang] req body=%s, url=%s, key=%s...", string(data), info.ChannelBaseUrl, info.ApiKey[:10]))
 	return bytes.NewReader(data), nil
 }
 
@@ -147,7 +146,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov.CreatedAt = time.Now().Unix()
 	ov.Model = info.OriginModelName
 	c.JSON(http.StatusOK, ov)
-	return sResp.Data.TaskID, responseBody, nil
+	return fmt.Sprintf("%v", sResp.Data.TaskID), responseBody, nil
 }
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
