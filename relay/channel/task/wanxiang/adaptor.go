@@ -39,19 +39,19 @@ type submitResponse struct {
 }
 
 type statusResponse struct {
-	TaskID         string  `json:"task_id"`
-	State          string  `json:"state"`
-	Status         string  `json:"status"`
-	IsFinal        bool    `json:"is_final"`
-	Progress       string  `json:"progress"`
-	ResultURL      string  `json:"result_url"`
-	ResultType     string  `json:"result_type"`
-	Cost           float64 `json:"cost"`
-	Error          string  `json:"error"`
-	Refunded       bool    `json:"refunded"`
-	RefundedAmount float64 `json:"refunded_amount"`
-	CreatedAt      string  `json:"created_at"`
-	CompletedAt    string  `json:"completed_at"`
+	TaskID         interface{} `json:"task_id"`
+	State          string      `json:"state"`
+	Status         string      `json:"status"`
+	IsFinal        bool        `json:"is_final"`
+	Progress       string      `json:"progress"`
+	ResultURL      string      `json:"result_url"`
+	ResultType     string      `json:"result_type"`
+	Cost           float64     `json:"cost"`
+	Error          string      `json:"error"`
+	Refunded       bool        `json:"refunded"`
+	RefundedAmount float64     `json:"refunded_amount"`
+	CreatedAt      string      `json:"created_at"`
+	CompletedAt    string      `json:"completed_at"`
 }
 
 // ============================
