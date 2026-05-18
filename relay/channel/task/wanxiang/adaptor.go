@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -146,7 +147,23 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov.CreatedAt = time.Now().Unix()
 	ov.Model = info.OriginModelName
 	c.JSON(http.StatusOK, ov)
-	return fmt.Sprintf("%v", sResp.Data.TaskID), responseBody, nil
+
+	// task_id from upstream is a number; json unmarshal to interface{} gives float64.
+	// Must convert carefully to avoid scientific notation like "2.1949885e+07".
+	var upstreamTaskID string
+	switch v := sResp.Data.TaskID.(type) {
+	case string:
+		upstreamTaskID = v
+	case float64:
+		upstreamTaskID = strconv.FormatInt(int64(v), 10)
+	case int:
+		upstreamTaskID = strconv.Itoa(v)
+	case int64:
+		upstreamTaskID = strconv.FormatInt(v, 10)
+	default:
+		upstreamTaskID = fmt.Sprintf("%v", v)
+	}
+	return upstreamTaskID, responseBody, nil
 }
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
