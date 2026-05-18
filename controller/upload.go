@@ -14,13 +14,21 @@ import (
 	"github.com/google/uuid"
 )
 
-const uploadDir = "./uploads"
+const (
+	uploadDir       = "./uploads"
+	permanentDir    = "./uploads/permanent"
+)
 
 // UploadImages handles POST /uapi/v1/upload_images
 // Accepts multipart form with "images" field (multiple files)
+// Query param: permanent=true  saves files to ./uploads/permanent/ (long-term retention)
 // Returns URLs for the uploaded files
 func UploadImages(c *gin.Context) {
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+	dir := uploadDir
+	if c.Query("permanent") == "true" {
+		dir = permanentDir
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("failed to create upload directory: %v", err),
 		})
@@ -71,14 +79,18 @@ func UploadImages(c *gin.Context) {
 		// Generate unique filename preserving extension
 		ext := extFromMime(contentType)
 		filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
-		filePath := filepath.Join(uploadDir, filename)
+		filePath := filepath.Join(dir, filename)
 
 		if err := os.WriteFile(filePath, data, 0644); err != nil {
 			common.SysLog(fmt.Sprintf("failed to write uploaded file: %v", err))
 			continue
 		}
 
-		url := fmt.Sprintf("%s/uploads/%s", baseURL, filename)
+		urlPath := filename
+		if dir == permanentDir {
+			urlPath = "permanent/" + filename
+		}
+		url := fmt.Sprintf("%s/uploads/%s", baseURL, urlPath)
 		urls = append(urls, url)
 	}
 
@@ -209,11 +221,12 @@ func UploadVideos(c *gin.Context) {
 }
 
 // UploadImagesJSON handles POST /uapi/v1/upload_images/json
-// Accepts JSON body: {"images": ["data:image/png;base64,xxxxx", ...]}
+// Accepts JSON body: {"images": ["data:image/png;base64,xxxxx", ...], "permanent": true}
 // Returns: {"urls": ["https://host/uploads/uuid.png", ...]}
 func UploadImagesJSON(c *gin.Context) {
 	var body struct {
-		Images []string `json:"images"`
+		Images    []string `json:"images"`
+		Permanent bool     `json:"permanent"`
 	}
 	if err := c.BindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON body: " + err.Error()})
@@ -224,7 +237,11 @@ func UploadImagesJSON(c *gin.Context) {
 		return
 	}
 
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+	dir := uploadDir
+	if body.Permanent {
+		dir = permanentDir
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create upload directory: " + err.Error()})
 		return
 	}
@@ -242,12 +259,16 @@ func UploadImagesJSON(c *gin.Context) {
 		}
 
 		filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
-		filePath := filepath.Join(uploadDir, filename)
+		filePath := filepath.Join(dir, filename)
 		if err := os.WriteFile(filePath, data, 0644); err != nil {
 			common.SysLog(fmt.Sprintf("upload json: failed to write file: %v", err))
 			continue
 		}
-		urls = append(urls, fmt.Sprintf("%s/uploads/%s", baseURL, filename))
+		urlPath := filename
+		if dir == permanentDir {
+			urlPath = "permanent/" + filename
+		}
+		urls = append(urls, fmt.Sprintf("%s/uploads/%s", baseURL, urlPath))
 	}
 
 	if len(urls) == 0 {

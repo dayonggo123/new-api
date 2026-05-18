@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -42,6 +43,10 @@ func cleanUploads(retentionDays int) {
 		}
 		// Skip the proxy index file
 		if info.Name() == "_index.json" {
+			return nil
+		}
+		// Skip permanent uploads (prompt covers, article images, etc.)
+		if strings.Contains(path, "/permanent/") || strings.Contains(path, "\\permanent\\") {
 			return nil
 		}
 		if info.ModTime().Before(cutoff) {
