@@ -336,6 +336,12 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		}
 	}
 
+	// Video models require quality param; image models accept it too.
+	// Default to "sd" if not specified. User can override via metadata.
+	if _, ok := params["quality"]; !ok {
+		params["quality"] = "sd"
+	}
+
 	return &submitRequest{
 		Model:  info.UpstreamModelName,
 		Prompt: req.Prompt,
