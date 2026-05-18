@@ -103,6 +103,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	common.SysLog(fmt.Sprintf("[wanxiang] req body=%s, url=%s, key=%s...", string(data), info.ChannelBaseUrl, info.ApiKey[:10]))
 	return bytes.NewReader(data), nil
 }
 
