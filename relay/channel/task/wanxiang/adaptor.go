@@ -103,6 +103,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	common.SysLog(fmt.Sprintf("[wanxiang] upstream model=%s, request body=%s", info.UpstreamModelName, string(data)))
 	return bytes.NewReader(data), nil
 }
 
