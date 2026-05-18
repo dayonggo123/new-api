@@ -66,6 +66,15 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeGemini {
 		return string(constant.EndpointTypeGemini)
 	}
+	// 万象AI媒体生成模型自动检测
+	if channel != nil && channel.Type == constant.ChannelTypeWanXiangAI {
+		lowerModel := strings.ToLower(modelName)
+		if strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") ||
+			strings.Contains(lowerModel, "nano") || strings.Contains(lowerModel, "banana") ||
+			strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video") {
+			return string(constant.EndpointTypeOpenAIVideo)
+		}
+	}
 	return normalized
 }
 
@@ -144,6 +153,24 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/responses/compact"
 		}
 	}
+
+	// WanXiangAI media generation models: use task API path so Path2RelayMode returns Unknown
+	// and genBaseRelayInfo falls back to the relay_mode set below.
+	isWanXiangMedia := false
+	if channel != nil {
+		lowerModel := strings.ToLower(testModel)
+		hasMediaKeyword := strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") ||
+			strings.Contains(lowerModel, "nano") || strings.Contains(lowerModel, "banana") ||
+			strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
+		isWanXiangChannel := channel.Type == constant.ChannelTypeWanXiangAI
+		isWanXiangBaseURL := strings.Contains(channel.GetBaseURL(), "lk888.ai") ||
+			strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai")
+		isWanXiangMedia = (isWanXiangChannel || isWanXiangBaseURL) && hasMediaKeyword
+	}
+	if isWanXiangMedia {
+		requestPath = "/v1/media/generate"
+	}
+
 	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
 		testModel = ratio_setting.WithCompactModelSuffix(testModel)
 	}
@@ -258,6 +285,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	info.IsChannelTest = true
 	info.InitChannelMeta(c)
+	// Ensure ChannelType is correctly set even if context read failed
+	if info.ChannelMeta != nil {
+		info.ChannelMeta.ChannelType = channel.Type
+	}
 
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
@@ -273,6 +304,12 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	request.SetModelName(testModel)
 
 	apiType, _ := common.ChannelType2APITypeWithModel(channel.Type, testModel)
+	// WanXiangAI media generation models should use Veo adaptor regardless of model name
+	// (model mapping may not be configured in channel test, e.g. "Nano Banana Pro" -> no mapping)
+	if channel.Type == constant.ChannelTypeWanXiangAI &&
+		(info.RelayMode == relayconstant.RelayModeVideoSubmit || info.RelayMode == relayconstant.RelayModeImagesGenerations) {
+		apiType = constant.APITypeVeo
+	}
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
 		apiType != constant.APITypeOpenAI &&
 		apiType != constant.APITypeCodex {
@@ -648,7 +685,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 
 	// Auto-detect WanXiangAI media generation models when endpointType is not specified
 	// WanXiangAI image models (gemini-*) and video models (veo*) both use /v1/media/generate
-	if endpointType == "" && (strings.Contains(model, "veo") || strings.Contains(model, "gemini")) {
+	lowerModel := strings.ToLower(model)
+	isWanXiangChannel := channel != nil && channel.Type == constant.ChannelTypeWanXiangAI
+	isWanXiangBaseURL := channel != nil && (strings.Contains(channel.GetBaseURL(), "lk888.ai") ||
+		strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai"))
+	hasMediaKeyword := strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") ||
+		strings.Contains(lowerModel, "nano") || strings.Contains(lowerModel, "banana") ||
+		strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
+	isWanXiangMedia := (isWanXiangChannel || isWanXiangBaseURL) && hasMediaKeyword
+	if endpointType == "" && (isWanXiangMedia || strings.Contains(model, "veo") || strings.Contains(model, "gemini")) {
 		return &dto.ImageRequest{
 			Model:  model,
 			Prompt: "a beautiful sunset over ocean",

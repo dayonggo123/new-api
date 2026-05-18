@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"net/textproto"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -22,6 +24,7 @@ import (
 )
 
 type Adaptor struct {
+	channelType int
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
@@ -33,10 +36,32 @@ func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
+	a.channelType = info.ChannelType
+}
+
+func isWanXiangAI(info *relaycommon.RelayInfo) bool {
+	if info.ChannelType == constant.ChannelTypeWanXiangAI {
+		return true
+	}
+	// Fallback: detect by baseURL for cases where channel type may be misconfigured
+	if strings.Contains(info.ChannelBaseUrl, "lk888.ai") {
+		return true
+	}
+	// Fallback: detect by request path for channel test scenarios
+	if strings.Contains(info.RequestURLPath, "/v1/media/generate") {
+		return true
+	}
+	return false
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseURL := strings.TrimSuffix(info.ChannelBaseUrl, "/")
+
+	// WanXiangAI uses its own task endpoint
+	if isWanXiangAI(info) {
+		return baseURL + "/v1/media/generate", nil
+	}
+
 	model := info.UpstreamModelName
 	// 如果 model 为空（如 GET 任务查询），尝试从请求路径中提取
 	if model == "" && info.RequestURLPath != "" {
@@ -92,6 +117,12 @@ var modelToPath = map[string]string{
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
+	if isWanXiangAI(info) {
+		header.Set("Content-Type", "application/json")
+		header.Set("Accept", "application/json")
+		header.Set("Authorization", "Bearer "+info.ApiKey)
+		return nil
+	}
 	header.Set("x-api-key", info.ApiKey)
 	if info.ApiKey != "" {
 		header.Set("Authorization", "Bearer "+info.ApiKey)
@@ -419,8 +450,76 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if model == "" {
 		model = info.UpstreamModelName
 	}
+
+	// WanXiangAI uses JSON body instead of multipart
+	if isWanXiangAI(info) {
+		return a.buildWanXiangJSONBody(model, request.Prompt, request.Size)
+	}
+
 	buf, _, err := buildMultipartBody(model, request.Prompt, request.Size, "", "", "", nil)
 	return buf, err
+}
+
+func (a *Adaptor) buildWanXiangJSONBody(model, prompt, size string) (any, error) {
+	params := make(map[string]interface{})
+
+	// imageSize mapping
+	imageSize := "1K"
+	switch {
+	case strings.HasPrefix(size, "480") || strings.HasPrefix(size, "720"):
+		imageSize = "1K"
+	case strings.HasPrefix(size, "1080"):
+		imageSize = "2K"
+	case strings.Contains(size, "x"):
+		// Default for size like "1024x1024"
+		imageSize = "1K"
+	case strings.HasPrefix(size, "0.5"):
+		imageSize = "0.5K"
+	case strings.HasPrefix(size, "1K"):
+		imageSize = "1K"
+	case strings.HasPrefix(size, "2K"):
+		imageSize = "2K"
+	case strings.HasPrefix(size, "4K"):
+		imageSize = "4K"
+	}
+	params["imageSize"] = imageSize
+
+	// aspectRatio
+	if size != "" {
+		parts := strings.Split(size, "x")
+		if len(parts) == 2 {
+			w, _ := strconv.Atoi(parts[0])
+			h, _ := strconv.Atoi(parts[1])
+			if w > 0 && h > 0 {
+				ratio := float64(w) / float64(h)
+				switch {
+				case ratio > 1.3:
+					params["aspectRatio"] = "16:9"
+				case ratio < 0.8:
+					params["aspectRatio"] = "9:16"
+				default:
+					params["aspectRatio"] = "1:1"
+				}
+			}
+		}
+	}
+
+	// quality for veo3.1-lite
+	if model == "veo3.1-lite" {
+		params["quality"] = "sd"
+	}
+
+	// generation_mode for veo3.1 non-lite
+	if strings.Contains(model, "veo3.1") && !strings.Contains(model, "lite") {
+		params["generation_mode"] = "fast"
+	}
+
+	body := map[string]interface{}{
+		"model":  model,
+		"prompt": prompt,
+		"params": params,
+	}
+	return body, nil
 }
 
 var imageModels = map[string]bool{
@@ -500,6 +599,11 @@ func buildMultipartBody(model, prompt, resolution, mode, aspectRatio, duration s
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	// WanXiangAI uses standard JSON API request, not multipart
+	if isWanXiangAI(info) {
+		return channel.DoApiRequest(a, c, info, requestBody)
+	}
+
 	if buf, ok := requestBody.(*bytes.Buffer); ok && buf.Len() > 0 {
 		contentType := "multipart/form-data; boundary=" + extractBoundaryFromMultipartBody(buf)
 		c.Set("veo_multipart_content_type", contentType)
@@ -721,6 +825,30 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return nil, types.NewError(fmt.Errorf("bad status: %d body: %s", resp.StatusCode, string(body)), types.ErrorCodeBadResponse)
 	}
 
+	// WanXiangAI response format: {code, msg, data: {task_id}}
+	if a.channelType == constant.ChannelTypeWanXiangAI {
+		var wxResp wanxiangSubmitResponse
+		if unmarshalErr := common.Unmarshal(body, &wxResp); unmarshalErr != nil {
+			return nil, types.NewError(fmt.Errorf("unmarshal failed: %w body: %s", unmarshalErr, string(body)), types.ErrorCodeBadResponseBody)
+		}
+		if wxResp.Code != 200 {
+			return nil, types.NewError(fmt.Errorf("submit failed: %s", wxResp.Msg), types.ErrorCodeBadResponse)
+		}
+
+		openaiResp := dto.NewOpenAIVideo()
+		openaiResp.ID = info.PublicTaskID
+		if openaiResp.ID == "" {
+			openaiResp.ID = fmt.Sprintf("task_%v", wxResp.Data.TaskID)
+		}
+		openaiResp.Model = info.OriginModelName
+		openaiResp.CreatedAt = info.StartTime.Unix()
+
+		c.JSON(http.StatusOK, openaiResp)
+
+		usage = &dto.Usage{}
+		return usage, nil
+	}
+
 	var submitResp submitResponse
 	if err := common.Unmarshal(body, &submitResp); err != nil {
 		return nil, types.NewError(fmt.Errorf("unmarshal failed: %w body: %s", err, string(body)), types.ErrorCodeBadResponseBody)
@@ -761,6 +889,14 @@ type submitResponse struct {
 	MediaType        string `json:"media_type"`
 	CreatedAt        string `json:"created_at"`
 	DelaySeconds     int    `json:"delay_seconds"`
+}
+
+type wanxiangSubmitResponse struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		TaskID interface{} `json:"task_id"`
+	} `json:"data"`
 }
 
 var ModelList = []string{
