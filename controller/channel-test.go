@@ -241,6 +241,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
 	}
 
+	// For WanXiangAI media generation models, force RelayModeVideoSubmit
+	if channel.Type == constant.ChannelTypeWanXiangAI {
+		c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
+	}
+
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
 	if err != nil {
@@ -427,7 +432,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 	// For OpenAIVideo GeminiGen channel test, extract real boundary from multipart body and call DoFormRequestWithContentType
-	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && info.ChannelType == constant.ChannelTypeVeo
+	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && (info.ChannelType == constant.ChannelTypeVeo || info.ChannelType == constant.ChannelTypeWanXiangAI)
 	var resp any
 	if isOpenAIVideoTest {
 		if multipartBuf, ok := convertedRequest.(*bytes.Buffer); ok {
