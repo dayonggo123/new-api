@@ -269,7 +269,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	}
 
 	// For WanXiangAI media generation models, force RelayModeVideoSubmit
-	if channel.Type == constant.ChannelTypeWanXiangAI {
+	if channel.Type == constant.ChannelTypeWanXiangAI || isWanXiangMedia {
 		c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
 	}
 
@@ -306,7 +306,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	apiType, _ := common.ChannelType2APITypeWithModel(channel.Type, testModel)
 	// WanXiangAI media generation models should use Veo adaptor regardless of model name
 	// (model mapping may not be configured in channel test, e.g. "Nano Banana Pro" -> no mapping)
-	if channel.Type == constant.ChannelTypeWanXiangAI &&
+	if (channel.Type == constant.ChannelTypeWanXiangAI || isWanXiangMedia) &&
 		(info.RelayMode == relayconstant.RelayModeVideoSubmit || info.RelayMode == relayconstant.RelayModeImagesGenerations) {
 		apiType = constant.APITypeVeo
 	}
@@ -469,7 +469,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 	// For OpenAIVideo GeminiGen channel test, extract real boundary from multipart body and call DoFormRequestWithContentType
-	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && (info.ChannelType == constant.ChannelTypeVeo || info.ChannelType == constant.ChannelTypeWanXiangAI)
+	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && (info.ChannelType == constant.ChannelTypeVeo || info.ChannelType == constant.ChannelTypeWanXiangAI || isWanXiangMedia)
 	var resp any
 	if isOpenAIVideoTest {
 		if multipartBuf, ok := convertedRequest.(*bytes.Buffer); ok {

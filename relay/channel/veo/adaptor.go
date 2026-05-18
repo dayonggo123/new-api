@@ -826,7 +826,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	// WanXiangAI response format: {code, msg, data: {task_id}}
-	if a.channelType == constant.ChannelTypeWanXiangAI {
+	if isWanXiangAI(info) {
 		var wxResp wanxiangSubmitResponse
 		if unmarshalErr := common.Unmarshal(body, &wxResp); unmarshalErr != nil {
 			return nil, types.NewError(fmt.Errorf("unmarshal failed: %w body: %s", unmarshalErr, string(body)), types.ErrorCodeBadResponseBody)

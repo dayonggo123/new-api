@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"slices"
@@ -269,6 +270,19 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(models), nil
 	}
 
+	if channel.Type == constant.ChannelTypeWanXiangAI {
+		key, _, apiErr := channel.GetNextEnabledKey()
+		if apiErr != nil {
+			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		}
+		key = strings.TrimSpace(key)
+		models, err := fetchWanXiangAIModels(baseURL, key, channel.GetSetting().Proxy)
+		if err != nil {
+			return nil, err
+		}
+		return normalizeModelNames(models), nil
+	}
+
 	var url string
 	switch channel.Type {
 	case constant.ChannelTypeAli:
@@ -324,6 +338,63 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	})
 
 	return normalizeModelNames(ids), nil
+}
+
+type wanxiangModelsResponse struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data []struct {
+		Name        string   `json:"name"`
+		DisplayName string   `json:"display_name"`
+		Type        string   `json:"type"`
+		Tags        []string `json:"tags"`
+		Description string   `json:"description"`
+	} `json:"data"`
+}
+
+func fetchWanXiangAIModels(baseURL, apiKey, proxyURL string) ([]string, error) {
+	url := fmt.Sprintf("%s/v1/skills/models", strings.TrimSuffix(baseURL, "/"))
+
+	client, err := service.GetHttpClientWithProxy(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("创建HTTP客户端失败: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("服务器返回错误 %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	var result wanxiangModelsResponse
+	if err := common.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v", err)
+	}
+
+	models := make([]string, 0, len(result.Data))
+	for _, item := range result.Data {
+		if item.Name != "" {
+			models = append(models, item.Name)
+		}
+	}
+	return models, nil
 }
 
 func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
