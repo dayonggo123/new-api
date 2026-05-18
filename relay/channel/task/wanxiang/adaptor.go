@@ -2,9 +2,12 @@ package wanxiang
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -95,6 +99,22 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, fmt.Errorf("request not found in context")
 	}
 	req := v.(relaycommon.TaskSubmitReq)
+
+	common.SysLog(fmt.Sprintf("[WanXiang] BuildRequestBody: images=%d image=%q content-type=%q",
+		len(req.Images), req.Image, c.GetHeader("Content-Type")))
+
+	// If no images in task_request but original request is multipart,
+	// extract files from raw body, save to local uploads to get URLs.
+	if len(req.Images) == 0 && req.Image == "" && strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
+		if urls, err := extractMultipartImagesAsURLs(c); err == nil && len(urls) > 0 {
+			req.Images = urls
+			common.SysLog(fmt.Sprintf("[WanXiang] extracted %d images from multipart as local URLs", len(urls)))
+		} else if err != nil {
+			common.SysLog(fmt.Sprintf("[WanXiang] extractMultipartImagesAsURLs failed: %v", err))
+		} else {
+			common.SysLog("[WanXiang] no image files found in multipart")
+		}
+	}
 
 	body, err := a.convertToRequestPayload(&req, info)
 	if err != nil {
@@ -295,6 +315,139 @@ func (a *TaskAdaptor) GetChannelName() string {
 // ============================
 // helpers
 // ============================
+
+// extractMultipartImagesAsBase64 parses the original multipart body and converts
+// uploaded image files to base64 data URLs. This is needed when switching channels
+// because task_request only stores text fields, and file data is lost.
+func extractMultipartImagesAsBase64(c *gin.Context) ([]string, error) {
+	formData, err := common.ParseMultipartFormReusable(c)
+	if err != nil {
+		return nil, err
+	}
+	defer formData.RemoveAll()
+
+	var dataURLs []string
+	// Check common image field names used by downstream clients
+	for _, fieldName := range []string{"ref_images", "images", "files"} {
+		if fileHeaders, ok := formData.File[fieldName]; ok {
+			for _, fh := range fileHeaders {
+				f, err := fh.Open()
+				if err != nil {
+					continue
+				}
+				data, err := io.ReadAll(f)
+				f.Close()
+				if err != nil {
+					continue
+				}
+				ct := fh.Header.Get("Content-Type")
+				if ct == "" || ct == "application/octet-stream" {
+					ct = http.DetectContentType(data)
+				}
+				b64 := base64.StdEncoding.EncodeToString(data)
+				dataURLs = append(dataURLs, fmt.Sprintf("data:%s;base64,%s", ct, b64))
+			}
+		}
+	}
+	return dataURLs, nil
+}
+
+// extractMultipartImagesAsURLs parses the original multipart body and returns image URLs.
+// Handles TWO downstream patterns:
+//   1. Text values (data URL / HTTP URL) in formData.Value["ref_images"] / ["images"]
+//   2. Binary file parts in formData.File["ref_images"] / ["images"] / ["files"]
+//      → saved to ./uploads/wanxiang-temp/ and converted to publicly accessible URLs.
+func extractMultipartImagesAsURLs(c *gin.Context) ([]string, error) {
+	formData, err := common.ParseMultipartFormReusable(c)
+	if err != nil {
+		return nil, err
+	}
+	defer formData.RemoveAll()
+
+	var urls []string
+
+	// ── Case 1: text values (data URL, HTTP URL, etc.) ──
+	for _, fieldName := range []string{"ref_images", "images"} {
+		if values, ok := formData.Value[fieldName]; ok {
+			for _, val := range values {
+				if val != "" {
+					preview := val
+					if len(preview) > 60 {
+						preview = preview[:60] + "..."
+					}
+					urls = append(urls, val)
+					common.SysLog(fmt.Sprintf("[WanXiang] extracted text image from %s: %s", fieldName, preview))
+				}
+			}
+		}
+	}
+
+	// ── Case 2: binary file parts ──
+	tempDir := "./uploads/wanxiang-temp"
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return nil, fmt.Errorf("mkdir failed: %w", err)
+	}
+
+	scheme := "https"
+	if c.Request.TLS == nil {
+		scheme = "http"
+	}
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	baseURL := scheme + "://" + host
+
+	for _, fieldName := range []string{"ref_images", "images", "files"} {
+		if fileHeaders, ok := formData.File[fieldName]; ok {
+			for _, fh := range fileHeaders {
+				f, err := fh.Open()
+				if err != nil {
+					common.SysLog(fmt.Sprintf("[WanXiang] open file failed: %v", err))
+					continue
+				}
+				data, err := io.ReadAll(f)
+				f.Close()
+				if err != nil {
+					common.SysLog(fmt.Sprintf("[WanXiang] read file failed: %v", err))
+					continue
+				}
+
+				ct := fh.Header.Get("Content-Type")
+				if ct == "" || ct == "application/octet-stream" {
+					ct = http.DetectContentType(data)
+				}
+
+				ext := "bin"
+				switch {
+				case strings.Contains(ct, "png"):
+					ext = "png"
+				case strings.Contains(ct, "jpeg"), strings.Contains(ct, "jpg"):
+					ext = "jpg"
+				case strings.Contains(ct, "gif"):
+					ext = "gif"
+				case strings.Contains(ct, "webp"):
+					ext = "webp"
+				}
+
+				filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
+				filePath := filepath.Join(tempDir, filename)
+				if err := os.WriteFile(filePath, data, 0644); err != nil {
+					common.SysLog(fmt.Sprintf("[WanXiang] write file failed: %v", err))
+					continue
+				}
+
+				url := fmt.Sprintf("%s/uploads/wanxiang-temp/%s", baseURL, filename)
+				urls = append(urls, url)
+				common.SysLog(fmt.Sprintf("[WanXiang] saved temp image: %s -> %s", filename, url))
+			}
+		}
+	}
+	return urls, nil
+}
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*submitRequest, error) {
 	params := make(map[string]interface{})
