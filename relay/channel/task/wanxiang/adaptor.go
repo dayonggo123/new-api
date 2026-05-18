@@ -279,9 +279,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	// WanXiangAI has a dynamic model list; return empty to avoid stale caching.
-	// Users should configure models manually or fetch via /v1/skills/models.
-	return []string{}
+	return []string{
+		"gemini-3-pro-image-preview",
+		"gemini-3.1-flash-image-preview",
+		"veo3.1",
+		"veo3.1-lite",
+		"veo3.1-4k",
+	}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {
