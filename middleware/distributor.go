@@ -295,6 +295,23 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
 		}
+	} else if strings.Contains(c.Request.URL.Path, "/v1/media/generate") {
+		// WanXiangAI media generation routes
+		relayMode := relayconstant.RelayModeUnknown
+		if c.Request.Method == http.MethodPost {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			modelRequest.Model = req.Model
+			relayMode = relayconstant.RelayModeVideoSubmit
+		} else if c.Request.Method == http.MethodGet {
+			relayMode = relayconstant.RelayModeVideoFetchByID
+			shouldSelectChannel = false
+		}
+		if _, ok := c.Get("relay_mode"); !ok {
+			c.Set("relay_mode", relayMode)
+		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/uapi/") {
 		// uapi video-gen routes: /uapi/v1/video-gen/{model}, etc.
 		relayMode := relayconstant.RelayModeVideoSubmit

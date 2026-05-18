@@ -37,6 +37,12 @@ func SetVideoRouter(router *gin.Engine) {
 		videoV1Router.GET("/audio/generations/:task_id", controller.RelayTaskFetch)
 	}
 
+	// WanXiangAI media generation routes (image/video/audio via /v1/media/generate)
+	{
+		videoV1Router.POST("/media/generate", controller.RelayTask)
+		videoV1Router.GET("/media/generate/:task_id", controller.RelayTaskFetch)
+	}
+
 	klingV1Router := router.Group("/kling/v1")
 	klingV1Router.Use(middleware.RouteTag("relay"))
 	klingV1Router.Use(middleware.KlingRequestConvert(), middleware.TokenAuth(), middleware.Distribute())
