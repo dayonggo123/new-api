@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -340,6 +341,13 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	// Default to "sd" if not specified. User can override via metadata.
 	if _, ok := params["quality"]; !ok {
 		params["quality"] = "sd"
+	}
+
+	// Veo 3.1 (non-lite) requires generation_mode: "fast" or "pro"
+	if strings.Contains(info.UpstreamModelName, "veo3.1") && !strings.Contains(info.UpstreamModelName, "lite") {
+		if _, ok := params["generation_mode"]; !ok {
+			params["generation_mode"] = "fast"
+		}
 	}
 
 	return &submitRequest{
