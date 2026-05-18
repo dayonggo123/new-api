@@ -424,7 +424,7 @@ func (channel *Channel) GetBaseURL() string {
 	if channel.BaseURL == nil {
 		return ""
 	}
-	url := *channel.BaseURL
+	url := strings.TrimSpace(*channel.BaseURL)
 	if url == "" {
 		url = constant.ChannelBaseURLs[channel.Type]
 	}
