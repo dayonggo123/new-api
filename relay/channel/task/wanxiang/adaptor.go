@@ -27,7 +27,7 @@ import (
 type submitRequest struct {
 	Model  string                 `json:"model"`
 	Prompt string                 `json:"prompt,omitempty"`
-	Params map[string]interface{} `json:"params"`
+	Params map[string]interface{} `json:"params,omitempty"`
 }
 
 type submitResponse struct {
