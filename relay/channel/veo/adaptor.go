@@ -55,7 +55,7 @@ func isWanXiangAI(info *relaycommon.RelayInfo) bool {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	baseURL := strings.TrimSuffix(info.ChannelBaseUrl, "/")
+	baseURL := strings.TrimSpace(strings.TrimSuffix(info.ChannelBaseUrl, "/"))
 
 	// WanXiangAI uses its own task endpoint
 	if isWanXiangAI(info) {
