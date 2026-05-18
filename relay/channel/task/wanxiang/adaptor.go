@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -101,15 +104,14 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		len(req.Images), req.Image, c.GetHeader("Content-Type")))
 
 	// If no images in task_request but original request is multipart,
-	// extract image data from raw body and convert to base64 data URLs.
-	// WanXiangAI upstream does not support downloading external HTTP URLs,
-	// so we must embed image content directly as data URLs in the JSON body.
+	// extract files from raw body, save to local uploads, and generate public URLs.
+	// WanXiangAI upstream requires publicly accessible HTTP URLs (not base64).
 	if len(req.Images) == 0 && req.Image == "" && strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
-		if dataURLs, err := extractMultipartImagesAsDataURLs(c); err == nil && len(dataURLs) > 0 {
-			req.Images = dataURLs
-			common.SysLog(fmt.Sprintf("[WanXiang] extracted %d images from multipart as data URLs", len(dataURLs)))
+		if urls, err := extractMultipartImagesAsURLs(c); err == nil && len(urls) > 0 {
+			req.Images = urls
+			common.SysLog(fmt.Sprintf("[WanXiang] extracted %d images from multipart as public URLs", len(urls)))
 		} else if err != nil {
-			common.SysLog(fmt.Sprintf("[WanXiang] extractMultipartImagesAsDataURLs failed: %v", err))
+			common.SysLog(fmt.Sprintf("[WanXiang] extractMultipartImagesAsURLs failed: %v", err))
 		} else {
 			common.SysLog("[WanXiang] no image files found in multipart")
 		}
@@ -351,38 +353,76 @@ func extractMultipartImagesAsBase64(c *gin.Context) ([]string, error) {
 	return dataURLs, nil
 }
 
-// extractMultipartImagesAsDataURLs parses the original multipart body and returns
-// base64 data URLs for all image references.
+// extractMultipartImagesAsURLs parses the original multipart body and returns
+// publicly accessible image URLs.
 // Handles TWO downstream patterns:
 //   1. Text values (data URL / HTTP URL) in formData.Value["ref_images"] / ["images"]
+//      → data URLs are rejected by upstream, so we skip them and log a warning.
 //   2. Binary file parts in formData.File["ref_images"] / ["images"] / ["files"]
-//      → read bytes and encode as data:{mime};base64,{data} URL.
-func extractMultipartImagesAsDataURLs(c *gin.Context) ([]string, error) {
+//      → saved to ./uploads/wanxiang-temp/ and converted to HTTPS URLs.
+func extractMultipartImagesAsURLs(c *gin.Context) ([]string, error) {
 	formData, err := common.ParseMultipartFormReusable(c)
 	if err != nil {
 		return nil, err
 	}
 	defer formData.RemoveAll()
 
-	var dataURLs []string
+	var urls []string
 
-	// ── Case 1: text values (already data URL or HTTP URL) ──
+	// Prepare upload directory and base URL upfront (needed by both cases)
+	tempDir := "./uploads/wanxiang-temp"
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return nil, fmt.Errorf("mkdir failed: %w", err)
+	}
+
+	// Force HTTPS for public URL since this is a public-facing service.
+	// X-Forwarded-Proto is respected if present, otherwise default to https.
+	scheme := "https"
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	baseURL := scheme + "://" + host
+
+	// ── Case 1: text values ──
 	for _, fieldName := range []string{"ref_images", "images"} {
 		if values, ok := formData.Value[fieldName]; ok {
 			for _, val := range values {
-				if val != "" {
-					preview := val
-					if len(preview) > 60 {
-						preview = preview[:60] + "..."
+				if val == "" {
+					continue
+				}
+				if strings.HasPrefix(val, "data:") {
+					// Decode data URL, save as file, generate public URL
+					data, ct, err := decodeDataURL(val)
+					if err != nil {
+						common.SysLog(fmt.Sprintf("[WanXiang] decode data URL failed: %v", err))
+						continue
 					}
-					dataURLs = append(dataURLs, val)
-					common.SysLog(fmt.Sprintf("[WanXiang] extracted text image from %s: %s", fieldName, preview))
+					ext := extFromMime(ct)
+					filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
+					filePath := filepath.Join(tempDir, filename)
+					if err := os.WriteFile(filePath, data, 0644); err != nil {
+						common.SysLog(fmt.Sprintf("[WanXiang] write decoded file failed: %v", err))
+						continue
+					}
+					url := fmt.Sprintf("%s/uploads/wanxiang-temp/%s", baseURL, filename)
+					urls = append(urls, url)
+					common.SysLog(fmt.Sprintf("[WanXiang] decoded data URL to temp file: %s", url))
+					continue
+				}
+				// HTTP/HTTPS URL → pass through directly
+				if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
+					urls = append(urls, val)
+					common.SysLog(fmt.Sprintf("[WanXiang] forwarded external URL from %s: %s", fieldName, val))
 				}
 			}
 		}
 	}
 
-	// ── Case 2: binary file parts → base64 data URL ──
+	// ── Case 2: binary file parts → save locally → HTTPS URL ──
 	for _, fieldName := range []string{"ref_images", "images", "files"} {
 		if fileHeaders, ok := formData.File[fieldName]; ok {
 			for _, fh := range fileHeaders {
@@ -403,14 +443,32 @@ func extractMultipartImagesAsDataURLs(c *gin.Context) ([]string, error) {
 					ct = http.DetectContentType(data)
 				}
 
-				b64 := base64.StdEncoding.EncodeToString(data)
-				dataURL := fmt.Sprintf("data:%s;base64,%s", ct, b64)
-				dataURLs = append(dataURLs, dataURL)
-				common.SysLog(fmt.Sprintf("[WanXiang] encoded file part from %s as data URL (%d bytes -> %d chars)", fieldName, len(data), len(dataURL)))
+				ext := "bin"
+				switch {
+				case strings.Contains(ct, "png"):
+					ext = "png"
+				case strings.Contains(ct, "jpeg"), strings.Contains(ct, "jpg"):
+					ext = "jpg"
+				case strings.Contains(ct, "gif"):
+					ext = "gif"
+				case strings.Contains(ct, "webp"):
+					ext = "webp"
+				}
+
+				filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
+				filePath := filepath.Join(tempDir, filename)
+				if err := os.WriteFile(filePath, data, 0644); err != nil {
+					common.SysLog(fmt.Sprintf("[WanXiang] write file failed: %v", err))
+					continue
+				}
+
+				url := fmt.Sprintf("%s/uploads/wanxiang-temp/%s", baseURL, filename)
+				urls = append(urls, url)
+				common.SysLog(fmt.Sprintf("[WanXiang] saved temp image: %s -> %s", filename, url))
 			}
 		}
 	}
-	return dataURLs, nil
+	return urls, nil
 }
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*submitRequest, error) {
@@ -509,5 +567,58 @@ func mapSizeToImageSize(size string) string {
 		return "2K"
 	default:
 		return ""
+	}
+}
+
+// decodeDataURL parses a data URI like "data:image/png;base64,iVBORw0KGgo..."
+// and returns the decoded bytes, MIME type, and any error.
+func decodeDataURL(dataURL string) ([]byte, string, error) {
+	if !strings.HasPrefix(dataURL, "data:") {
+		return nil, "", fmt.Errorf("not a data URL")
+	}
+	rest := dataURL[len("data:"):]
+	commaIdx := strings.Index(rest, ",")
+	if commaIdx < 0 {
+		return nil, "", fmt.Errorf("invalid data URL format")
+	}
+	meta := rest[:commaIdx]
+	data := rest[commaIdx+1:]
+
+	// Parse MIME type and encoding
+	mimeType := "application/octet-stream"
+	isBase64 := false
+	for _, part := range strings.Split(meta, ";") {
+		part = strings.TrimSpace(part)
+		if part == "base64" {
+			isBase64 = true
+		} else if part != "" {
+			mimeType = part
+		}
+	}
+
+	if !isBase64 {
+		return nil, "", fmt.Errorf("only base64 data URLs are supported")
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, "", fmt.Errorf("base64 decode failed: %w", err)
+	}
+	return decoded, mimeType, nil
+}
+
+// extFromMime returns a file extension for common image MIME types.
+func extFromMime(mime string) string {
+	switch strings.ToLower(mime) {
+	case "image/png":
+		return "png"
+	case "image/jpeg", "image/jpg":
+		return "jpg"
+	case "image/gif":
+		return "gif"
+	case "image/webp":
+		return "webp"
+	default:
+		return "bin"
 	}
 }
