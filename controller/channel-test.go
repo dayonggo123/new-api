@@ -289,6 +289,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	if info.ChannelMeta != nil {
 		info.ChannelMeta.ChannelType = channel.Type
 	}
+	// TaskRelayInfo may be nil for non-task relay formats; initialize to avoid nil panic in DoResponse
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
 
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
