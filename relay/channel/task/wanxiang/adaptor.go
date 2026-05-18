@@ -496,15 +496,18 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		aspectRatio := mapSizeToAspectRatio(req.Size)
 		if aspectRatio != "" {
 			params["aspectRatio"] = aspectRatio
+			params["aspect_ratio"] = aspectRatio
 		}
 		imageSize := mapSizeToImageSize(req.Size)
 		if imageSize != "" {
 			params["imageSize"] = imageSize
+			params["image_size"] = imageSize
 		}
 	}
 	// imageSize is required for Gemini image models, default to 1K
 	if _, ok := params["imageSize"]; !ok {
 		params["imageSize"] = "1K"
+		params["image_size"] = "1K"
 	}
 
 	// Duration
@@ -529,10 +532,16 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		params["quality"] = "sd"
 	}
 
-	// Veo 3.1 (non-lite) requires generation_mode: "fast" or "pro"
+	// Veo 3.1 (non-lite) generation_mode:
+	// - "fast" / "pro" / "null" for text-to-video
+	// - "components" for image-reference (多图参考)
 	if strings.Contains(info.UpstreamModelName, "veo3.1") && !strings.Contains(info.UpstreamModelName, "lite") {
 		if _, ok := params["generation_mode"]; !ok {
-			params["generation_mode"] = "fast"
+			if len(images) > 0 {
+				params["generation_mode"] = "components"
+			} else {
+				params["generation_mode"] = "fast"
+			}
 		}
 	}
 
