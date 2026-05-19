@@ -172,6 +172,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 3. 预生成公开 task ID（仅首次）
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
 	if info.PublicTaskID == "" {
 		info.PublicTaskID = model.GenerateTaskID()
 	}
