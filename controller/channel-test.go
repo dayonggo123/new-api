@@ -267,6 +267,21 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	request := buildTestRequest(testModel, endpointType, channel, isStream)
 
+	// Auto-detect relayFormat from request type for media generation and other non-chat models
+	// This ensures relayFormat always matches the actual request payload type.
+	switch request.(type) {
+	case *dto.ImageRequest:
+		relayFormat = types.RelayFormatOpenAIImage
+	case *dto.EmbeddingRequest:
+		relayFormat = types.RelayFormatEmbedding
+	case *dto.RerankRequest:
+		relayFormat = types.RelayFormatRerank
+	case *dto.OpenAIResponsesRequest:
+		relayFormat = types.RelayFormatOpenAIResponses
+	case *dto.OpenAIResponsesCompactionRequest:
+		relayFormat = types.RelayFormatOpenAIResponsesCompaction
+	}
+
 	// For /uapi/ paths (Veo task channels), Path2RelayMode returns RelayModeUnknown.
 	// Set it explicitly so the switch below routes to RelayModeVideoSubmit.
 	if strings.HasPrefix(requestPath, "/uapi/") {
