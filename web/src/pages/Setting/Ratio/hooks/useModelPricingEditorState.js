@@ -18,6 +18,7 @@ const EMPTY_MODEL = {
   imagePrice: '',
   audioInputPrice: '',
   audioOutputPrice: '',
+  modelType: 'chat',
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -111,6 +112,7 @@ const buildModelState = (name, sourceMaps) => {
     sourceMaps.AudioCompletionRatio[name],
   );
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
+  const modelType = sourceMaps.ModelType?.[name] ?? 'chat';
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
   const audioInputPrice =
@@ -121,6 +123,7 @@ const buildModelState = (name, sourceMaps) => {
   return {
     ...EMPTY_MODEL,
     name,
+    modelType,
     billingMode: hasValue(fixedPrice) ? 'per-request' : 'per-token',
     fixedPrice,
     inputPrice,
@@ -552,6 +555,7 @@ export function useModelPricingEditorState({
       ImageRatio: parseOptionJSON(options.ImageRatio),
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
+      ModelType: parseOptionJSON(options.ModelType),
     };
 
     const names = new Set([
@@ -782,7 +786,7 @@ export function useModelPricingEditorState({
     }));
   };
 
-  const addModel = (modelName) => {
+  const addModel = (modelName, modelType = 'chat') => {
     const trimmedName = modelName.trim();
     if (!trimmedName) {
       showError(t('请输入模型名称'));
@@ -796,6 +800,7 @@ export function useModelPricingEditorState({
     const nextModel = {
       ...EMPTY_MODEL,
       name: trimmedName,
+      modelType,
       rawRatios: { ...EMPTY_MODEL.rawRatios },
     };
 
@@ -914,6 +919,7 @@ export function useModelPricingEditorState({
         AudioRatio: {},
         AudioCompletionRatio: {},
       };
+      const modelTypeOutput = {};
 
       for (const model of models) {
         const serialized = serializeModel(model, t);
@@ -922,12 +928,19 @@ export function useModelPricingEditorState({
             output[key][model.name] = value;
           }
         });
+        modelTypeOutput[model.name] = model.modelType ?? 'chat';
       }
 
       const requestQueue = Object.entries(output).map(([key, value]) =>
         API.put('/api/option/', {
           key,
           value: JSON.stringify(value, null, 2),
+        }),
+      );
+      requestQueue.push(
+        API.put('/api/option/', {
+          key: 'ModelType',
+          value: JSON.stringify(modelTypeOutput, null, 2),
         }),
       );
 

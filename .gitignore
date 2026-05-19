@@ -30,4 +30,7 @@ data/
 .gocache-temp
 .gopath
 
-token_estimator_test.go
+token_estimator_test.gotmp-scrape/
+status-monitor/node_modules/
+status-monitor/*.log
+status-monitor/status.json

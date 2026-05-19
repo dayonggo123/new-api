@@ -1,0 +1,443 @@
+package apimart
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+
+	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
+)
+
+// ============================
+// Request / Response structures
+// ============================
+
+// ---- Create (Image) ----
+
+type imageCreateRequest struct {
+	Model           string   `json:"model"`
+	Prompt          string   `json:"prompt"`
+	N               int      `json:"n,omitempty"`
+	Size            string   `json:"size,omitempty"`
+	Resolution      string   `json:"resolution,omitempty"`
+	ImageURLs       []string `json:"image_urls,omitempty"`
+	OfficialFallback bool    `json:"official_fallback,omitempty"`
+}
+
+// ---- Create (Video) ----
+
+type videoCreateRequest struct {
+	Model            string   `json:"model"`
+	Prompt           string   `json:"prompt"`
+	Duration         int      `json:"duration,omitempty"`
+	AspectRatio      string   `json:"aspect_ratio,omitempty"`
+	GenerationType   string   `json:"generation_type,omitempty"`
+	ImageURLs        []string `json:"image_urls,omitempty"`
+	Resolution       string   `json:"resolution,omitempty"`
+	EnableGIF        bool     `json:"enable_gif,omitempty"`
+	OfficialFallback bool     `json:"official_fallback,omitempty"`
+}
+
+// ---- Create Response ----
+
+type createResponse struct {
+	Code  int                   `json:"code"`
+	Data  []createResponseItem  `json:"data,omitempty"`
+	Error *apimartError         `json:"error,omitempty"`
+}
+
+type createResponseItem struct {
+	Status  string `json:"status"`
+	TaskID  string `json:"task_id"`
+}
+
+type apimartError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Type    string `json:"type"`
+}
+
+// ---- Query Response ----
+
+type queryResponse struct {
+	Code  int           `json:"code"`
+	Data  *queryData    `json:"data,omitempty"`
+	Error *apimartError `json:"error,omitempty"`
+}
+
+type queryData struct {
+	ID               string           `json:"id"`
+	Status           string           `json:"status"`
+	Progress         int              `json:"progress"`
+	Result           *queryResult     `json:"result,omitempty"`
+	Created          int64            `json:"created"`
+	Completed        int64            `json:"completed,omitempty"`
+	EstimatedTime    int              `json:"estimated_time,omitempty"`
+	ActualTime       int              `json:"actual_time,omitempty"`
+	Error            *apimartError    `json:"error,omitempty"`
+}
+
+type queryResult struct {
+	Images       []resultItem `json:"images,omitempty"`
+	Videos       []resultItem `json:"videos,omitempty"`
+	ThumbnailURL string       `json:"thumbnail_url,omitempty"`
+}
+
+type resultItem struct {
+	URL       []string `json:"url"`
+	ExpiresAt int64    `json:"expires_at"`
+}
+
+// ============================
+// Adaptor implementation
+// ============================
+
+type TaskAdaptor struct {
+	taskcommon.BaseBilling
+	ChannelType int
+	baseURL     string
+}
+
+func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
+	a.ChannelType = info.ChannelType
+	a.baseURL = info.ChannelBaseUrl
+}
+
+func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
+		return err
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "get_task_request_failed", http.StatusBadRequest)
+	}
+	info.Action = constant.TaskActionGenerate
+	if metaAction, ok := req.Metadata["action"]; ok {
+		if actionStr, ok := metaAction.(string); ok && actionStr != "" {
+			info.Action = actionStr
+		}
+	}
+	return nil
+}
+
+func (a *TaskAdaptor) isImageGeneration(info *relaycommon.RelayInfo) bool {
+	if strings.Contains(info.RequestURLPath, "/images/") {
+		return true
+	}
+	if strings.HasPrefix(info.UpstreamModelName, "gpt-image") {
+		return true
+	}
+	return false
+}
+
+func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if a.isImageGeneration(info) {
+		return fmt.Sprintf("%s/v1/images/generations", a.baseURL), nil
+	}
+	return fmt.Sprintf("%s/v1/videos/generations", a.baseURL), nil
+}
+
+func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
+	return nil
+}
+
+func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := a.convertToRequestPayload(req, info)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(body), nil
+}
+
+func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) ([]byte, error) {
+	isImage := a.isImageGeneration(info)
+
+	// Collect image URLs from req.Images / req.Image
+	imageURLs := req.Images
+	if len(imageURLs) == 0 && req.Image != "" {
+		imageURLs = []string{req.Image}
+	}
+
+	if isImage {
+		payload := imageCreateRequest{
+			Model:  info.UpstreamModelName,
+			Prompt: req.Prompt,
+			N:      1,
+		}
+
+		if req.Size != "" {
+			payload.Size = req.Size
+		} else {
+			payload.Size = "1:1"
+		}
+
+		if len(imageURLs) > 0 {
+			payload.ImageURLs = imageURLs
+		}
+
+		// Metadata overrides
+		if req.Metadata != nil {
+			if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
+				payload.Resolution = v
+			} else {
+				payload.Resolution = "1k"
+			}
+			if v, ok := req.Metadata["n"].(float64); ok {
+				payload.N = int(v)
+			}
+			if v, ok := req.Metadata["official_fallback"].(bool); ok {
+				payload.OfficialFallback = v
+			}
+		} else {
+			payload.Resolution = "1k"
+		}
+
+		return common.Marshal(payload)
+	}
+
+	// Video generation
+	payload := videoCreateRequest{
+		Model:  info.UpstreamModelName,
+		Prompt: req.Prompt,
+	}
+
+	if req.Duration > 0 {
+		payload.Duration = req.Duration
+	} else {
+		payload.Duration = 8
+	}
+
+	if len(imageURLs) > 0 {
+		payload.ImageURLs = imageURLs
+	}
+
+	// aspect_ratio from metadata or default
+	if req.Metadata != nil {
+		if v, ok := req.Metadata["aspect_ratio"].(string); ok && v != "" {
+			payload.AspectRatio = v
+		} else {
+			payload.AspectRatio = "16:9"
+		}
+		if v, ok := req.Metadata["generation_type"].(string); ok && v != "" {
+			payload.GenerationType = v
+		} else if len(imageURLs) > 0 {
+			// Auto-detect: 2 images = frame (first/last), 3 images = reference
+			if len(imageURLs) == 2 {
+				payload.GenerationType = "frame"
+			} else if len(imageURLs) >= 3 {
+				payload.GenerationType = "reference"
+			}
+		}
+		if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
+			payload.Resolution = v
+		} else {
+			payload.Resolution = "720p"
+		}
+		if v, ok := req.Metadata["enable_gif"].(bool); ok {
+			payload.EnableGIF = v
+		}
+		if v, ok := req.Metadata["official_fallback"].(bool); ok {
+			payload.OfficialFallback = v
+		}
+	} else {
+		payload.AspectRatio = "16:9"
+		payload.Resolution = "720p"
+	}
+
+	return common.Marshal(payload)
+}
+
+func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	return channel.DoTaskApiRequest(a, c, info, requestBody)
+}
+
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+		return
+	}
+	_ = resp.Body.Close()
+
+	var cResp createResponse
+	if err := common.Unmarshal(responseBody, &cResp); err != nil {
+		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Handle upstream error
+	if cResp.Error != nil {
+		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("apimart error: %s", cResp.Error.Message), cResp.Error.Type, cResp.Error.Code)
+		return
+	}
+
+	if cResp.Code != 200 {
+		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("apimart returned code %d", cResp.Code), "upstream_error", cResp.Code)
+		return
+	}
+
+	if len(cResp.Data) == 0 || cResp.Data[0].TaskID == "" {
+		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
+		return
+	}
+
+	// Return OpenAI-compatible response to client
+	ov := dto.NewOpenAIVideo()
+	ov.ID = info.PublicTaskID
+	ov.TaskID = info.PublicTaskID
+	ov.CreatedAt = time.Now().Unix()
+	ov.Model = info.OriginModelName
+	c.JSON(http.StatusOK, ov)
+
+	return cResp.Data[0].TaskID, responseBody, nil
+}
+
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	taskID, ok := body["task_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid task_id")
+	}
+
+	url := fmt.Sprintf("%s/v1/tasks/%s", baseUrl, taskID)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
+}
+
+func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+	var qResp queryResponse
+	if err := common.Unmarshal(respBody, &qResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal query response failed")
+	}
+
+	taskInfo := &relaycommon.TaskInfo{
+		Code: 0,
+	}
+
+	// Handle upstream error wrapper
+	if qResp.Error != nil {
+		taskInfo.Status = model.TaskStatusFailure
+		taskInfo.Progress = "100%"
+		taskInfo.Reason = qResp.Error.Message
+		return taskInfo, nil
+	}
+
+	if qResp.Data == nil {
+		taskInfo.Status = model.TaskStatusInProgress
+		return taskInfo, nil
+	}
+
+	d := qResp.Data
+
+	// Progress
+	if d.Progress > 0 {
+		taskInfo.Progress = fmt.Sprintf("%d%%", d.Progress)
+	}
+
+	// Status mapping
+	switch d.Status {
+	case "completed":
+		taskInfo.Status = model.TaskStatusSuccess
+		taskInfo.Progress = "100%"
+		if d.Result != nil {
+			// Try image URL first
+			if len(d.Result.Images) > 0 && len(d.Result.Images[0].URL) > 0 {
+				taskInfo.Url = d.Result.Images[0].URL[0]
+			}
+			// Then video URL
+			if taskInfo.Url == "" && len(d.Result.Videos) > 0 && len(d.Result.Videos[0].URL) > 0 {
+				taskInfo.Url = d.Result.Videos[0].URL[0]
+			}
+		}
+	case "failed":
+		taskInfo.Status = model.TaskStatusFailure
+		taskInfo.Progress = "100%"
+		if d.Error != nil {
+			taskInfo.Reason = d.Error.Message
+		} else {
+			taskInfo.Reason = d.Status
+		}
+	case "cancelled":
+		taskInfo.Status = model.TaskStatusFailure
+		taskInfo.Progress = "100%"
+		taskInfo.Reason = "cancelled"
+	case "pending", "processing":
+		taskInfo.Status = model.TaskStatusInProgress
+	default:
+		taskInfo.Status = model.TaskStatusInProgress
+	}
+
+	return taskInfo, nil
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
+	var cResp createResponse
+	if err := common.Unmarshal(task.Data, &cResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal task data failed")
+	}
+
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = task.TaskID
+	openAIVideo.Status = task.Status.ToVideoStatus()
+	openAIVideo.SetProgressStr(task.Progress)
+	openAIVideo.CreatedAt = task.CreatedAt
+	openAIVideo.CompletedAt = task.UpdatedAt
+
+	if task.PrivateData.ResultURL != "" {
+		openAIVideo.SetMetadata("url", task.PrivateData.ResultURL)
+	}
+
+	if task.Status == model.TaskStatusFailure && task.FailReason != "" {
+		openAIVideo.Error = &dto.OpenAIVideoError{
+			Message: task.FailReason,
+			Code:    "task_failed",
+		}
+	}
+
+	return common.Marshal(openAIVideo)
+}
+
+func (a *TaskAdaptor) GetModelList() []string {
+	return []string{
+		// Image
+		"gpt-image-2",
+		// Video
+		"veo3.1-fast",
+		"veo3.1-quality",
+		"veo3.1-lite",
+	}
+}
+
+func (a *TaskAdaptor) GetChannelName() string {
+	return "apimart"
+}

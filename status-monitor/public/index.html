@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeminiGen AI 实时状态监控</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 28px;
+      background: linear-gradient(90deg, #f59e0b, #ef4444);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
+    .meta {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+    .meta-item {
+      background: #141414;
+      border: 1px solid #222;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .meta-item span { color: #888; }
+    .meta-item strong { color: #fff; margin-left: 6px; }
+    .countdown {
+      color: #f59e0b;
+      font-variant-numeric: tabular-nums;
+    }
+    .category {
+      margin-top: 32px;
+      margin-bottom: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #60a5fa;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #111;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #1a1a1a;
+    }
+    th, td {
+      padding: 14px 16px;
+      text-align: left;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      background: #141414;
+      color: #888;
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    td { font-size: 14px; }
+    tr:hover td { background: #161616; }
+    .rate {
+      font-weight: 700;
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+    }
+    .rate-high { color: #4ade80; }
+    .rate-medium { color: #facc15; }
+    .rate-low { color: #f87171; }
+    .status { font-size: 13px; }
+    .status-ok { color: #4ade80; }
+    .status-warn { color: #facc15; }
+    .status-error { color: #f87171; }
+    .bar-bg {
+      width: 100px;
+      height: 6px;
+      background: #222;
+      border-radius: 3px;
+      overflow: hidden;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 10px;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+    .bar-high { background: #4ade80; }
+    .bar-medium { background: #facc15; }
+    .bar-low { background: #f87171; }
+    .loading {
+      text-align: center;
+      padding: 60px;
+      color: #555;
+    }
+    .error {
+      text-align: center;
+      padding: 40px;
+      color: #f87171;
+      background: #1a0a0a;
+      border-radius: 10px;
+      border: 1px solid #331111;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+    footer {
+      margin-top: 40px;
+      text-align: center;
+      color: #444;
+      font-size: 12px;
+      padding-bottom: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔥 GeminiGen AI 实时状态监控</h1>
+    <div class="subtitle">自动抓取 geminigen.ai/status/ 的成功率数据</div>
+
+    <div class="meta">
+      <div class="meta-item">
+        <span>最后更新</span>
+        <strong id="lastUpdate">--</strong>
+      </div>
+      <div class="meta-item">
+        <span>距离下次</span>
+        <strong id="countdown" class="countdown">60s</strong>
+      </div>
+      <div class="meta-item">
+        <span>模型总数</span>
+        <strong id="modelCount">--</strong>
+      </div>
+    </div>
+
+    <div id="content">
+      <div class="loading">⏳ 首次数据加载中，请稍候...</div>
+    </div>
+
+    <footer>
+      数据来源: geminigen.ai/status/ | 抓取间隔: 60秒 | 页面轮询: 10秒
+    </footer>
+  </div>
+
+  <script>
+    const POLL_INTERVAL = 10000;
+    const FETCH_INTERVAL = 60000;
+    let countdown = 60;
+
+    function getRateClass(rate) {
+      if (rate >= 95) return 'high';
+      if (rate >= 70) return 'medium';
+      return 'low';
+    }
+
+    function getStatusClass(rate) {
+      if (rate >= 95) return 'status-ok';
+      if (rate >= 70) return 'status-warn';
+      return 'status-error';
+    }
+
+    function renderData(data) {
+      if (!data || data.error) {
+        document.getElementById('content').innerHTML =
+          `<div class="error">⚠️ ${data?.error || '暂无数据'}</div>`;
+        return;
+      }
+
+      document.getElementById('lastUpdate').textContent =
+        new Date(data.fetchedAt).toLocaleString('zh-CN');
+      document.getElementById('modelCount').textContent = data.models.length;
+
+      let html = '';
+      let currentCat = '';
+
+      data.models.forEach((m, idx) => {
+        if (m.category !== currentCat) {
+          if (currentCat !== '') html += '</tbody></table>';
+          currentCat = m.category;
+          const catName = currentCat === 'TẠO VIDEO' ? '🎬 视频生成' : '🖼️ 图片生成';
+          html += `<div class="category"><span class="dot"></span>${catName}</div>`;
+          html += `<table><thead><tr><th>模型</th><th>状态</th><th style="width:180px">成功率</th></tr></thead><tbody>`;
+        }
+
+        const rateCls = getRateClass(m.successRate);
+        const statusCls = getStatusClass(m.successRate);
+        const barWidth = Math.min(m.successRate, 100);
+
+        html += `<tr>
+          <td>${m.name}</td>
+          <td class="status ${statusCls}">${m.status}</td>
+          <td>
+            <div class="bar-bg"><div class="bar-fill bar-${rateCls}" style="width:${barWidth}%"></div></div>
+            <span class="rate rate-${rateCls}">${m.successRate}%</span>
+          </td>
+        </tr>`;
+      });
+
+      if (currentCat !== '') html += '</tbody></table>';
+      document.getElementById('content').innerHTML = html;
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        renderData(data);
+      } catch (e) {
+        console.error('加载失败:', e);
+        document.getElementById('content').innerHTML =
+          `<div class="error">⚠️ 连接服务器失败: ${e.message}</div>`;
+      }
+    }
+
+    // 倒计时
+    setInterval(() => {
+      countdown--;
+      if (countdown <= 0) countdown = 60;
+      document.getElementById('countdown').textContent = countdown + 's';
+    }, 1000);
+
+    // 首次加载 + 定时轮询
+    loadData();
+    setInterval(loadData, POLL_INTERVAL);
+  </script>
+</body>
+</html>

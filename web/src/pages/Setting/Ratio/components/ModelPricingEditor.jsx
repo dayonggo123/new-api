@@ -28,6 +28,7 @@ import {
   Modal,
   Radio,
   RadioGroup,
+  Select,
   Space,
   Switch,
   Table,
@@ -101,6 +102,7 @@ export default function ModelPricingEditor({
   const [addVisible, setAddVisible] = useState(false);
   const [batchVisible, setBatchVisible] = useState(false);
   const [newModelName, setNewModelName] = useState('');
+  const [newModelType, setNewModelType] = useState('chat');
 
   const {
     selectedModel,
@@ -171,6 +173,20 @@ export default function ModelPricingEditor({
         ),
       },
       {
+        title: t('模型类型'),
+        dataIndex: 'modelType',
+        key: 'modelType',
+        render: (_, record) => {
+          const typeMap = {
+            chat: { label: t('对话'), color: 'blue' },
+            image: { label: t('图片'), color: 'pink' },
+            video: { label: t('视频'), color: 'orange' },
+          };
+          const cfg = typeMap[record.modelType] || { label: t('对话'), color: 'blue' };
+          return <Tag color={cfg.color}>{cfg.label}</Tag>;
+        },
+      },
+      {
         title: t('计费方式'),
         dataIndex: 'billingMode',
         key: 'billingMode',
@@ -216,8 +232,9 @@ export default function ModelPricingEditor({
   );
 
   const handleAddModel = () => {
-    if (addModel(newModelName)) {
+    if (addModel(newModelName, newModelType)) {
       setNewModelName('');
+      setNewModelType('chat');
       setAddVisible(false);
     }
   };
@@ -694,14 +711,28 @@ export default function ModelPricingEditor({
           onCancel={() => {
             setAddVisible(false);
             setNewModelName('');
+            setNewModelType('chat');
           }}
           onOk={handleAddModel}
         >
-          <Input
-            value={newModelName}
-            placeholder={t('输入模型名称，例如 gpt-4.1')}
-            onChange={(value) => setNewModelName(value)}
-          />
+          <Space vertical style={{ width: '100%' }}>
+            <Input
+              value={newModelName}
+              placeholder={t('输入模型名称，例如 gpt-4.1')}
+              onChange={(value) => setNewModelName(value)}
+            />
+            <Select
+              value={newModelType}
+              placeholder={t('选择模型类型')}
+              onChange={(value) => setNewModelType(value)}
+              style={{ width: '100%' }}
+              optionList={[
+                { label: t('对话'), value: 'chat' },
+                { label: t('图片'), value: 'image' },
+                { label: t('视频'), value: 'video' },
+              ]}
+            />
+          </Space>
         </Modal>
       ) : null}
 

@@ -1,0 +1,12 @@
+{
+  "name": "status-monitor",
+  "version": "1.0.0",
+  "description": "GeminiGen AI status monitor",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  }
+}
