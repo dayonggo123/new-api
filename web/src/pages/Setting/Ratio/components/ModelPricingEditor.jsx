@@ -125,6 +125,7 @@ export default function ModelPricingEditor({
     handleOptionalFieldToggle,
     handleNumericFieldChange,
     handleBillingModeChange,
+    handleModelTypeChange,
     handleSubmit,
     addModel,
     deleteModel,
@@ -404,6 +405,22 @@ export default function ModelPricingEditor({
                       '这个界面默认按价格填写，保存时会自动换算回后端需要的倍率 JSON。',
                     )}
                   </div>
+                </div>
+
+                <div className='mb-4'>
+                  <div className='mb-2 font-medium text-gray-700'>
+                    {t('模型类型')}
+                  </div>
+                  <Select
+                    value={selectedModel.modelType}
+                    onChange={(value) => handleModelTypeChange(value)}
+                    style={{ width: '100%' }}
+                    optionList={[
+                      { label: t('对话'), value: 'chat' },
+                      { label: t('图片'), value: 'image' },
+                      { label: t('视频'), value: 'video' },
+                    ]}
+                  />
                 </div>
 
                 {selectedWarnings.length > 0 ? (

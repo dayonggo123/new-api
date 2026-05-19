@@ -786,6 +786,14 @@ export function useModelPricingEditorState({
     }));
   };
 
+  const handleModelTypeChange = (value) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      modelType: value,
+    }));
+  };
+
   const addModel = (modelName, modelType = 'chat') => {
     const trimmedName = modelName.trim();
     if (!trimmedName) {
@@ -983,6 +991,7 @@ export function useModelPricingEditorState({
     handleOptionalFieldToggle,
     handleNumericFieldChange,
     handleBillingModeChange,
+    handleModelTypeChange,
     handleSubmit,
     addModel,
     deleteModel,
