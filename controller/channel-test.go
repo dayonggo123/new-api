@@ -152,6 +152,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
 			requestPath = "/v1/responses/compact"
 		}
+
+		// veo video models (non-WanXiangAI channels like APIMart, DuoYuanTanSuo)
+		if strings.Contains(strings.ToLower(testModel), "veo") {
+			requestPath = "/v1/videos/generations"
+		}
 	}
 
 	// WanXiangAI media generation models: use task API path so Path2RelayMode returns Unknown
@@ -240,7 +245,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		if c.Request.URL.Path == "/v1/embeddings" {
 			relayFormat = types.RelayFormatEmbedding
 		}
-		if c.Request.URL.Path == "/v1/images/generations" {
+		if c.Request.URL.Path == "/v1/images/generations" || c.Request.URL.Path == "/v1/videos/generations" {
 			relayFormat = types.RelayFormatOpenAIImage
 		}
 		if c.Request.URL.Path == "/v1/messages" {
