@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
@@ -20,8 +21,57 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func isTaskImageChannel(channelType int) bool {
+	switch channelType {
+	case constant.ChannelTypeAPIMart, constant.ChannelTypeDuoYuanTanSuo:
+		return true
+	}
+	return false
+}
+
+func handleTaskImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	result, taskErr := RelayTaskSubmit(c, info)
+	if taskErr != nil {
+		return types.NewErrorWithStatusCode(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode, types.ErrOptionWithSkipRetry())
+	}
+
+	// 结算
+	if settleErr := service.SettleBilling(c, info, result.Quota); settleErr != nil {
+		common.SysError("settle task billing error: " + settleErr.Error())
+	}
+	service.LogTaskConsumption(c, info)
+
+	// 插入任务
+	task := model.InitTask(result.Platform, info)
+	task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+	task.PrivateData.BillingSource = info.BillingSource
+	task.PrivateData.SubscriptionId = info.SubscriptionId
+	task.PrivateData.TokenId = info.TokenId
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelPrice:      info.PriceData.ModelPrice,
+		GroupRatio:      info.PriceData.GroupRatioInfo.GroupRatio,
+		ModelRatio:      info.PriceData.ModelRatio,
+		OtherRatios:     info.PriceData.OtherRatios,
+		OriginModelName: info.OriginModelName,
+		PerCallBilling:  common.StringsContains(constant.TaskPricePatches, info.OriginModelName) || info.PriceData.UsePrice,
+	}
+	task.Quota = result.Quota
+	task.Data = result.TaskData
+	task.Action = info.Action
+	if insertErr := task.Insert(); insertErr != nil {
+		common.SysError("insert task error: " + insertErr.Error())
+	}
+
+	return nil
+}
+
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+
+	// 对于 APIMart/DuoYuanTanSuo 的 gpt-image 模型，走 task 流程
+	if isTaskImageChannel(info.ChannelType) && strings.HasPrefix(info.OriginModelName, "gpt-image") {
+		return handleTaskImageRelay(c, info)
+	}
 
 	imageReq, ok := info.Request.(*dto.ImageRequest)
 	if !ok {
