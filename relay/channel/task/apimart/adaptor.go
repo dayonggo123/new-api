@@ -213,7 +213,9 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 			payload.Resolution = "1k"
 		}
 
-		return common.Marshal(payload)
+		body, _ := common.Marshal(payload)
+		common.SysLog(fmt.Sprintf("[APIMart] image request payload: %s", string(body)))
+		return body, nil
 	}
 
 	// Video generation
@@ -285,6 +287,8 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_failed", http.StatusInternalServerError)
 		return
 	}
+
+	common.SysLog(fmt.Sprintf("[APIMart] create response body: %s", string(responseBody)))
 
 	// Handle upstream error
 	if cResp.Error != nil {

@@ -223,6 +223,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
+		common.SysLog(fmt.Sprintf("[RelayTask] upstream non-200 response (status=%d, platform=%s): %s", resp.StatusCode, platform, string(responseBody)))
 		// 优先解析 GeminiGen 格式的错误 {"detail": {"error_code": "...", "message": "..."}}
 		errMsg := string(responseBody)
 		if code, msg := dto.TryParseGeminiGenError(responseBody); msg != "" {

@@ -90,6 +90,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeGemini
 	} else if strings.HasPrefix(path, "/v1/media/generate") {
 		relayMode = RelayModeVideoSubmit
+	} else if strings.HasPrefix(path, "/v1/videos/generations") {
+		relayMode = RelayModeVideoSubmit
 	} else if strings.HasPrefix(path, "/uapi/") {
 		// uapi paths: let distributor middleware set correct relay_mode based on method
 		// POST -> RelayModeVideoSubmit, GET -> RelayModeVideoFetchByID
