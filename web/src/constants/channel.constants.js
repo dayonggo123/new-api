@@ -199,6 +199,16 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: '万象Ai',
   },
+  {
+    value: 60,
+    color: 'purple',
+    label: '多元探索',
+  },
+  {
+    value: 61,
+    color: 'green',
+    label: 'APIMart',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
