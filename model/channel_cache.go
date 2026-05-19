@@ -91,6 +91,17 @@ func InitChannelCache() {
 	channelsIDM = newChannelId2channel
 	channelSyncLock.Unlock()
 	common.SysLog("channels synced from database")
+	// DEBUG: log default group gpt-image-2 mapping
+	if chs, ok := group2model2channels["default"]["gpt-image-2"]; ok {
+		common.SysLog(fmt.Sprintf("[DEBUG] channel cache: default/gpt-image-2 has %d channels: %v", len(chs), chs))
+	} else {
+		common.SysLog("[DEBUG] channel cache: default/gpt-image-2 NOT FOUND")
+		for id, ch := range channelsIDM {
+			if strings.Contains(ch.Models, "gpt-image") {
+				common.SysLog(fmt.Sprintf("[DEBUG] channel #%d models=%q group=%q status=%d", id, ch.Models, ch.Group, ch.Status))
+			}
+		}
+	}
 }
 
 func SyncChannelCache(frequency int) {
@@ -120,6 +131,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 
 	if len(channels) == 0 {
+		common.SysLog(fmt.Sprintf("[DEBUG] GetRandomSatisfiedChannel: no channel for group=%s model=%s", group, model))
 		return nil, nil
 	}
 
