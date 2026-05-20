@@ -2,7 +2,6 @@ package gettoken
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,46 +26,45 @@ import (
 type videoCreateRequest struct {
 	Prompt       string   `json:"prompt"`
 	AspectRatio  string   `json:"aspectRatio"`
-	Duration     string   `json:"duration"`
-	Resolution   string   `json:"resolution,omitempty"`
+	Duration     string   `json:"duration,omitempty"`
+	Resolution   string   `json:"resolution"`
 	ImageUrls    []string `json:"imageUrls,omitempty"`
 	ClientTaskId string   `json:"clientTaskId,omitempty"`
+	WebhookUrl   string   `json:"webhookUrl,omitempty"`
 }
 
+// GetToken create response: {taskId, status, errorCode, errorMessage, results, clientId, promptTips}
 type createResponse struct {
-	Code  int             `json:"code"`
-	Data  []createResponseItem `json:"data,omitempty"`
-	Msg   string          `json:"msg,omitempty"`
-	Error json.RawMessage `json:"error,omitempty"`
+	TaskId       string `json:"taskId"`
+	Status       string `json:"status"`
+	ErrorCode    string `json:"errorCode"`
+	ErrorMessage string `json:"errorMessage"`
+	Results      any    `json:"results"`
+	ClientId     string `json:"clientId"`
+	PromptTips   string `json:"promptTips"`
 }
 
-type createResponseItem struct {
-	Status string `json:"status"`
+// GetToken query request: POST /v1/query {taskId}
+type queryRequest struct {
 	TaskId string `json:"taskId"`
 }
 
-type gettokenError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Type    string `json:"type"`
-}
-
+// GetToken query response
 type queryResponse struct {
-	Code  int             `json:"code"`
-	Data  *queryData      `json:"data,omitempty"`
-	Msg   string          `json:"msg,omitempty"`
-	Error json.RawMessage `json:"error,omitempty"`
+	TaskId       string       `json:"taskId"`
+	Status       string       `json:"status"`
+	ErrorCode    string       `json:"errorCode"`
+	ErrorMessage string       `json:"errorMessage"`
+	FailedReason any          `json:"failedReason"`
+	Results      []resultItem `json:"results"`
+	ClientId     string       `json:"clientId"`
+	PromptTips   string       `json:"promptTips"`
 }
 
-type queryData struct {
-	TaskId      string `json:"taskId"`
-	Status      string `json:"status"`
-	Progress    int    `json:"progress"`
-	VideoUrl    string `json:"videoUrl,omitempty"`
-	ImageUrl    string `json:"imageUrl,omitempty"`
-	ErrorMsg    string `json:"errorMsg,omitempty"`
-	CreatedAt   int64  `json:"createdAt,omitempty"`
-	CompletedAt int64  `json:"completedAt,omitempty"`
+type resultItem struct {
+	URL        string `json:"url"`
+	OutputType string `json:"outputType"`
+	Text       string `json:"text"`
 }
 
 // Adaptor implementation
@@ -144,7 +142,6 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 	payload := videoCreateRequest{
 		Prompt:      req.Prompt,
 		AspectRatio: "16:9",
-		Duration:    "8",
 		Resolution:  "720p",
 	}
 
@@ -164,6 +161,9 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		}
 		if v, ok := req.Metadata["duration"].(string); ok && v != "" {
 			payload.Duration = v
+		}
+		if v, ok := req.Metadata["webhook_url"].(string); ok && v != "" {
+			payload.WebhookUrl = v
 		}
 	}
 
@@ -215,76 +215,15 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	common.SysLog(fmt.Sprintf("[GetToken] create response body: %s", string(responseBody)))
 
 	var cResp createResponse
-	var rawMap map[string]any
-	_ = common.Unmarshal(responseBody, &cResp)
-	_ = common.Unmarshal(responseBody, &rawMap)
-
-	// Extract taskId from various possible response formats
-	if len(cResp.Data) > 0 && cResp.Data[0].TaskId != "" {
-		upstreamTaskID = cResp.Data[0].TaskId
-	}
-	if upstreamTaskID == "" {
-		// data as object: { "data": { "taskId": "xxx" } }
-		if data, ok := rawMap["data"].(map[string]any); ok {
-			if tid, ok := data["taskId"].(string); ok && tid != "" {
-				upstreamTaskID = tid
-			}
-			if tid, ok := data["task_id"].(string); ok && tid != "" {
-				upstreamTaskID = tid
-			}
-		}
-		// data as array: { "data": [ { "taskId": "xxx" } ] }
-		if dataArr, ok := rawMap["data"].([]any); ok && len(dataArr) > 0 {
-			if item, ok := dataArr[0].(map[string]any); ok {
-				if tid, ok := item["taskId"].(string); ok && tid != "" {
-					upstreamTaskID = tid
-				}
-				if tid, ok := item["task_id"].(string); ok && tid != "" {
-					upstreamTaskID = tid
-				}
-			}
-		}
-		// top-level taskId
-		if tid, ok := rawMap["taskId"].(string); ok && tid != "" {
-			upstreamTaskID = tid
-		}
-		if tid, ok := rawMap["task_id"].(string); ok && tid != "" {
-			upstreamTaskID = tid
-		}
+	if err := common.Unmarshal(responseBody, &cResp); err != nil {
+		return "", nil, service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_failed", http.StatusInternalServerError)
 	}
 
-	// Check error
-	if len(cResp.Error) > 0 {
-		var errStr string
-		if err := common.Unmarshal(cResp.Error, &errStr); err == nil && errStr != "" {
-			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errStr), "upstream_error", http.StatusBadRequest)
-		}
-		var errObj gettokenError
-		if err := common.Unmarshal(cResp.Error, &errObj); err == nil {
-			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errObj.Message), errObj.Type, http.StatusBadRequest)
-		}
-		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", string(cResp.Error)), "upstream_error", http.StatusBadRequest)
-	}
-	if errMsg, ok := rawMap["error"].(string); ok && errMsg != "" {
-		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errMsg), "upstream_error", http.StatusBadRequest)
+	if cResp.ErrorCode != "" || cResp.ErrorMessage != "" {
+		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error [%s]: %s", cResp.ErrorCode, cResp.ErrorMessage), "upstream_error", http.StatusBadRequest)
 	}
 
-	code := cResp.Code
-	if code == 0 {
-		if codeFloat, ok := rawMap["code"].(float64); ok {
-			code = int(codeFloat)
-		}
-	}
-	if code != 200 && code != 0 {
-		msg := cResp.Msg
-		if msg == "" {
-			if msgStr, ok := rawMap["msg"].(string); ok {
-				msg = msgStr
-			}
-		}
-		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken returned code %d: %s", code, msg), "upstream_error", code)
-	}
-
+	upstreamTaskID = cResp.TaskId
 	if upstreamTaskID == "" {
 		return "", nil, service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 	}
@@ -304,12 +243,14 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
 	}
-	// GetToken task query endpoint
-	url := fmt.Sprintf("%s/v1/tasks/%s", strings.TrimSuffix(baseUrl, "/"), taskID)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	// GetToken query endpoint: POST /v1/query
+	url := fmt.Sprintf("%s/v1/query", strings.TrimSuffix(baseUrl, "/"))
+	queryBody, _ := common.Marshal(queryRequest{TaskId: taskID})
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(queryBody))
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+key)
 
@@ -327,48 +268,27 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		Code: 0,
 	}
 
-	if len(qResp.Error) > 0 {
+	if qResp.ErrorCode != "" || qResp.ErrorMessage != "" {
 		taskInfo.Status = model.TaskStatusFailure
 		taskInfo.Progress = "100%"
-		// Try parse error as string first
-		var errStr string
-		if err := common.Unmarshal(qResp.Error, &errStr); err == nil && errStr != "" {
-			taskInfo.Reason = errStr
-		} else {
-			var errObj gettokenError
-			if err := common.Unmarshal(qResp.Error, &errObj); err == nil {
-				taskInfo.Reason = errObj.Message
-			} else {
-				taskInfo.Reason = string(qResp.Error)
-			}
-		}
+		taskInfo.Reason = fmt.Sprintf("[%s] %s", qResp.ErrorCode, qResp.ErrorMessage)
 		return taskInfo, nil
 	}
 
-	if qResp.Data == nil {
-		taskInfo.Status = model.TaskStatusInProgress
-		return taskInfo, nil
-	}
-
-	d := qResp.Data
-	if d.Progress > 0 {
-		taskInfo.Progress = fmt.Sprintf("%d%%", d.Progress)
-	}
-
-	switch d.Status {
-	case "completed", "success", "done":
+	switch qResp.Status {
+	case "SUCCESS":
 		taskInfo.Status = model.TaskStatusSuccess
 		taskInfo.Progress = "100%"
-		if d.VideoUrl != "" {
-			taskInfo.Url = d.VideoUrl
-		} else if d.ImageUrl != "" {
-			taskInfo.Url = d.ImageUrl
+		if len(qResp.Results) > 0 && qResp.Results[0].URL != "" {
+			taskInfo.Url = qResp.Results[0].URL
 		}
-	case "failed", "error", "cancelled":
+	case "FAILED", "TIMEOUT":
 		taskInfo.Status = model.TaskStatusFailure
 		taskInfo.Progress = "100%"
-		taskInfo.Reason = d.ErrorMsg
-	case "pending", "processing", "queued", "submitted":
+		if qResp.ErrorMessage != "" {
+			taskInfo.Reason = qResp.ErrorMessage
+		}
+	case "QUEUED", "RUNNING":
 		taskInfo.Status = model.TaskStatusInProgress
 	default:
 		taskInfo.Status = model.TaskStatusInProgress
@@ -378,8 +298,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	var cResp createResponse
-	if err := common.Unmarshal(task.Data, &cResp); err != nil {
+	var qResp queryResponse
+	if err := common.Unmarshal(task.Data, &qResp); err != nil {
 		return nil, errors.Wrap(err, "unmarshal task data failed")
 	}
 
