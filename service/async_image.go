@@ -64,7 +64,13 @@ func GetAsyncImageTask(taskID string) *AsyncImageTask {
 
 // PollAsyncImageTask queries the upstream for the async image task status.
 func PollAsyncImageTask(task *AsyncImageTask) ([]byte, int, error) {
-	upstreamURL := fmt.Sprintf("%s/v1/images/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), task.TaskID)
+	var upstreamURL string
+	switch task.ChannelType {
+	case 60, 61: // DuoYuanTanSuo, APIMart
+		upstreamURL = fmt.Sprintf("%s/v1/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), task.TaskID)
+	default:
+		upstreamURL = fmt.Sprintf("%s/v1/images/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), task.TaskID)
+	}
 	req, err := http.NewRequest("GET", upstreamURL, nil)
 	if err != nil {
 		return nil, 0, err

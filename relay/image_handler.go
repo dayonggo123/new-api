@@ -62,6 +62,9 @@ func handleTaskImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.Ne
 		common.SysError("insert task error: " + insertErr.Error())
 	}
 
+	// Register to async_image system so downstream clients polling /v1/images/tasks/{task_id} can find it
+	service.RegisterAsyncImageTask(info.PublicTaskID, info)
+
 	return nil
 }
 
