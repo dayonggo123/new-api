@@ -71,13 +71,13 @@ func convertTaskQueryToOpenAIVideo(result map[string]any, publicTaskID string) m
 	if status, ok := data["status"].(string); ok {
 		switch status {
 		case "completed":
-			video["status"] = "completed"
+			video["status"] = "SUCCESS"
 			video["progress"] = 100
 		case "failed":
-			video["status"] = "failed"
+			video["status"] = "FAILURE"
 			video["progress"] = 100
 		case "pending", "processing":
-			video["status"] = "in_progress"
+			video["status"] = "PENDING"
 		}
 	}
 	if progress, ok := data["progress"].(float64); ok {
