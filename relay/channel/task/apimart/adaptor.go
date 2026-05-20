@@ -162,6 +162,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q duration=%d size=%q metadata=%v", req.Prompt, req.Duration, req.Size, req.Metadata))
 
 	body, err := a.convertToRequestPayload(req, info)
 	if err != nil {
@@ -255,6 +256,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		Model:  info.UpstreamModelName,
 		Prompt: req.Prompt,
 	}
+	common.SysLog(fmt.Sprintf("[APIMart] video payload before marshal: model=%s prompt=%q duration=%d aspect_ratio=%s resolution=%s", payload.Model, payload.Prompt, payload.Duration, payload.AspectRatio, payload.Resolution))
 
 	if req.Duration > 0 {
 		payload.Duration = req.Duration
