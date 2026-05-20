@@ -130,3 +130,125 @@ For request structs that are parsed from client JSON and then re-marshaled to up
   - field absent in client JSON => `nil` => omitted on marshal;
   - field explicitly set to zero/false => non-`nil` pointer => must still be sent upstream.
 - Avoid using non-pointer scalars with `omitempty` for optional request parameters, because zero values (`0`, `0.0`, `false`) will be silently dropped during marshal.
+
+### Rule 7: Async Task Channel Integration — OpenAI Video API Compatibility
+
+All new async task channels (image/video generation, e.g., APIMart, DuoYuanTanSuo, GeminiGen) MUST follow this integration checklist to ensure downstream clients (including Rust backends) can correctly submit and poll tasks.
+
+#### 7.1 Routing — Intercept Task Models in `ImageHelper` / `VideoHelper`
+
+If the channel uses task-based async submission (not synchronous OpenAI-compatible response), add an interception guard at the **top** of `ImageHelper` (or `VideoHelper`):
+
+```go
+func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+    info.InitChannelMeta(c)
+
+    // Strip provider prefix (e.g., "newapi/gpt-image-2" -> "gpt-image-2")
+    if idx := strings.Index(info.OriginModelName, "/"); idx >= 0 {
+        info.OriginModelName = info.OriginModelName[idx+1:]
+    }
+
+    // Route task-based image models through RelayTaskSubmit
+    if isTaskImageChannel(info.ChannelType) && strings.HasPrefix(info.OriginModelName, "gpt-image") {
+        return handleTaskImageRelay(c, info)
+    }
+    // ... normal image flow
+}
+```
+
+`handleTaskImageRelay` MUST:
+1. Call `RelayTaskSubmit(c, info)`
+2. On success: `service.RegisterAsyncImageTask(info.PublicTaskID, info)`
+3. Bind upstream real task ID: `service.SetAsyncImageTaskUpstreamID(info.PublicTaskID, result.UpstreamTaskID)`
+4. Insert into `model.Task` table for persistence
+
+#### 7.2 `TaskRelayInfo` Initialization — Prevent Nil Pointer
+
+In `GenRelayInfo`, for `RelayFormatTask` and `RelayFormatMjProxy`:
+```go
+case types.RelayFormatTask:
+    info = genBaseRelayInfo(c, nil)
+    info.TaskRelayInfo = &TaskRelayInfo{}
+```
+
+In `RelayTaskSubmit`, **before** any adaptor method that touches `info.TaskRelayInfo`:
+```go
+if info.TaskRelayInfo == nil {
+    info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+}
+```
+
+#### 7.3 `PublicTaskID` vs `UpstreamTaskID`
+
+- `PublicTaskID`: new-api generated ID (e.g., `task_xxx`), returned to downstream clients in submit response
+- `UpstreamTaskID`: real provider task ID (e.g., APIMart's `task_01KS...`), used when polling upstream
+
+The async_image memory map MUST store both:
+- `AsyncImageTask.TaskID` = `PublicTaskID` (key for downstream lookup)
+- `AsyncImageTask.UpstreamTaskID` = `UpstreamTaskID` (used in upstream poll URL)
+
+#### 7.4 Polling Path
+
+In `PollAsyncImageTask`, use provider-specific paths:
+- APIMart / DuoYuanTanSuo: `/v1/tasks/{upstream_task_id}`
+- Other image task channels: `/v1/images/tasks/{upstream_task_id}` (or provider-specific)
+
+#### 7.5 Poll Response Format — OpenAI Video JSON with `SUCCESS`/`FAILURE`/`PENDING`
+
+`AsyncImageTaskFetch` (or the channel's polling handler) MUST convert the provider's raw query response into **OpenAI Video API format**.
+
+The downstream Rust backend (`TaskStatus::from_str`) only recognizes these status strings:
+
+| Provider Raw Status | Mapped Status |
+|---|---|
+| `completed` / `success` / `2` | `SUCCESS` |
+| `failed` / `error` / `cancelled` | `FAILURE` |
+| `pending` / `processing` / `queued` | `PENDING` |
+
+**Required JSON structure:**
+```json
+{
+  "id": "task_public_id",
+  "object": "video",
+  "status": "SUCCESS",
+  "progress": 100,
+  "created_at": 1234567890,
+  "completed_at": 1234567900,
+  "metadata": {
+    "url": "https://upstream.result.url/..."
+  },
+  "error": null
+}
+```
+
+- Result URL MUST be placed in `metadata.url` (not `result` or `url` top-level)
+- If task failed, populate `error.message` and `error.code`
+
+#### 7.6 Adaptor Requirements
+
+Each new task adaptor MUST implement `channel.TaskAdaptor` and `channel.OpenAIVideoConverter`:
+
+```go
+// Required methods
+func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error)
+func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error)
+func (a *TaskAdaptor) DoRequest(...) (*http.Response, error)
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, err *dto.TaskError)
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error)
+func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
+func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error)  // OpenAIVideoConverter
+```
+
+`DoResponse` MUST:
+1. Write the OpenAI Video submit response to `c.Writer` via `c.JSON(http.StatusOK, ov)`
+2. Return the upstream real `taskID` as the first return value
+
+`ConvertToOpenAIVideo` MUST produce the exact JSON structure defined in §7.5.
+
+#### 7.7 Parameter Mapping
+
+When the provider has different parameter semantics from OpenAI:
+
+- **Size / Aspect Ratio**: If the provider only accepts aspect ratios (e.g., `9:16`), map OpenAI `size` values (`1024x1024` → `1:1`, `1024x1792` → `9:16`, etc.). Support `metadata.aspect_ratio` override.
+- **Resolution**: If the provider uses `resolution` instead of `size`, populate from `metadata.resolution` with sensible defaults.
+- **Image URLs for editing (图生图)**: Extract from `req.Images` / `req.Image` and pass as the provider's image input field (e.g., `image_urls`).
