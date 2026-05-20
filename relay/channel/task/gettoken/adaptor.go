@@ -2,6 +2,7 @@ package gettoken
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,10 +34,10 @@ type videoCreateRequest struct {
 }
 
 type createResponse struct {
-	Code  int                  `json:"code"`
+	Code  int             `json:"code"`
 	Data  []createResponseItem `json:"data,omitempty"`
-	Msg   string               `json:"msg,omitempty"`
-	Error *gettokenError       `json:"error,omitempty"`
+	Msg   string          `json:"msg,omitempty"`
+	Error json.RawMessage `json:"error,omitempty"`
 }
 
 type createResponseItem struct {
@@ -51,10 +52,10 @@ type gettokenError struct {
 }
 
 type queryResponse struct {
-	Code  int            `json:"code"`
-	Data  *queryData     `json:"data,omitempty"`
-	Msg   string         `json:"msg,omitempty"`
-	Error *gettokenError `json:"error,omitempty"`
+	Code  int             `json:"code"`
+	Data  *queryData      `json:"data,omitempty"`
+	Msg   string          `json:"msg,omitempty"`
+	Error json.RawMessage `json:"error,omitempty"`
 }
 
 type queryData struct {
@@ -121,6 +122,19 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	return bytes.NewReader(body), nil
 }
 
+func mapSizeToAspectRatio(size string) string {
+	switch size {
+	case "1792x1024", "1024x576":
+		return "16:9"
+	case "1024x1792", "576x1024":
+		return "9:16"
+	case "16:9", "9:16":
+		return size
+	default:
+		return "16:9"
+	}
+}
+
 func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) ([]byte, error) {
 	imageURLs := req.Images
 	if len(imageURLs) == 0 && req.Image != "" {
@@ -138,12 +152,12 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		payload.Duration = strconv.Itoa(req.Duration)
 	}
 	if req.Size != "" {
-		payload.AspectRatio = req.Size
+		payload.AspectRatio = mapSizeToAspectRatio(req.Size)
 	}
 
 	if req.Metadata != nil {
 		if v, ok := req.Metadata["aspect_ratio"].(string); ok && v != "" {
-			payload.AspectRatio = v
+			payload.AspectRatio = mapSizeToAspectRatio(v)
 		}
 		if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
 			payload.Resolution = v
@@ -216,8 +230,18 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 			return "", nil, service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_failed", http.StatusInternalServerError)
 		}
 	} else {
-		if cResp.Error != nil {
-			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", cResp.Error.Message), cResp.Error.Type, http.StatusBadRequest)
+		if len(cResp.Error) > 0 {
+			// Try parse error as string first
+			var errStr string
+			if err := common.Unmarshal(cResp.Error, &errStr); err == nil && errStr != "" {
+				return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errStr), "upstream_error", http.StatusBadRequest)
+			}
+			// Try parse error as object
+			var errObj gettokenError
+			if err := common.Unmarshal(cResp.Error, &errObj); err == nil {
+				return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errObj.Message), errObj.Type, http.StatusBadRequest)
+			}
+			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", string(cResp.Error)), "upstream_error", http.StatusBadRequest)
 		}
 		if cResp.Code != 200 && cResp.Code != 0 {
 			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken returned code %d: %s", cResp.Code, cResp.Msg), "upstream_error", cResp.Code)
@@ -269,10 +293,21 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		Code: 0,
 	}
 
-	if qResp.Error != nil {
+	if len(qResp.Error) > 0 {
 		taskInfo.Status = model.TaskStatusFailure
 		taskInfo.Progress = "100%"
-		taskInfo.Reason = qResp.Error.Message
+		// Try parse error as string first
+		var errStr string
+		if err := common.Unmarshal(qResp.Error, &errStr); err == nil && errStr != "" {
+			taskInfo.Reason = errStr
+		} else {
+			var errObj gettokenError
+			if err := common.Unmarshal(qResp.Error, &errObj); err == nil {
+				taskInfo.Reason = errObj.Message
+			} else {
+				taskInfo.Reason = string(qResp.Error)
+			}
+		}
 		return taskInfo, nil
 	}
 
