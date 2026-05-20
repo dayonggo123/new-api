@@ -106,6 +106,11 @@ func main() {
 
 	go controller.AutomaticallyTestChannels()
 
+	// Smart channel switching: decay health stats periodically
+	if common.SmartSwitchEnabled {
+		model.StartChannelHealthDecay(time.Duration(common.SmartSwitchDecayIntervalMinutes) * time.Minute)
+	}
+
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
 	service.StartCodexCredentialAutoRefreshTask()
 

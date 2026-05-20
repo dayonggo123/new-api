@@ -221,11 +221,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			model.RecordChannelRequestResult(channel.Id, relayInfo.OriginModelName, true)
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
+
+		// Only record failures caused by upstream/channel issues, not local validation errors
+		if types.IsChannelError(newAPIError) || !types.IsSkipRetryError(newAPIError) {
+			model.RecordChannelRequestResult(channel.Id, relayInfo.OriginModelName, false)
+		}
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 

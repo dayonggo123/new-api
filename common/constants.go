@@ -112,6 +112,11 @@ var PreConsumedQuota = 500
 
 var RetryTimes = 0
 
+// Smart Channel Switching — dynamic weight adjustment by per-(channel, model) success rate
+var SmartSwitchEnabled = true
+var SmartSwitchMinSamples = 5
+var SmartSwitchDecayIntervalMinutes = 10
+
 //var RootUserEmail = ""
 
 var IsMasterNode bool

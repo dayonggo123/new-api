@@ -167,7 +167,8 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
+				effectiveWeight := GetChannelEffectiveWeight(channel.Id, model, channel.GetWeight())
+				sumWeight += effectiveWeight
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
@@ -199,9 +200,10 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	// Generate a random value in the range [0, totalWeight)
 	randomWeight := rand.Intn(totalWeight)
 
-	// Find a channel based on its weight
+	// Find a channel based on its effective weight (adjusted by success rate)
 	for _, channel := range targetChannels {
-		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
+		effectiveWeight := GetChannelEffectiveWeight(channel.Id, model, channel.GetWeight())
+		randomWeight -= effectiveWeight*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {
 			return channel, nil
 		}
