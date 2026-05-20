@@ -54,7 +54,7 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
-	if channel != nil && channel.Type == constant.ChannelTypeVeo {
+	if channel != nil && (channel.Type == constant.ChannelTypeVeo || channel.Type == constant.ChannelTypeGetToken) {
 		return string(constant.EndpointTypeOpenAIVideo)
 	}
 	// 图像生成模型自动检测
@@ -493,7 +493,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 	// For OpenAIVideo GeminiGen channel test, extract real boundary from multipart body and call DoFormRequestWithContentType
-	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && (info.ChannelType == constant.ChannelTypeVeo || info.ChannelType == constant.ChannelTypeWanXiangAI || isWanXiangMedia)
+	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && (info.ChannelType == constant.ChannelTypeVeo || info.ChannelType == constant.ChannelTypeWanXiangAI || info.ChannelType == constant.ChannelTypeGetToken || isWanXiangMedia)
 	var resp any
 	if isOpenAIVideoTest {
 		if multipartBuf, ok := convertedRequest.(*bytes.Buffer); ok {

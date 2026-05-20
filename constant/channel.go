@@ -59,6 +59,7 @@ const (
 	ChannelTypeWanXiangAI     = 59
 	ChannelTypeDuoYuanTanSuo  = 60
 	ChannelTypeAPIMart        = 61
+	ChannelTypeGetToken       = 62
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -126,6 +127,7 @@ var ChannelBaseURLs = []string{
 	"https://api.lk888.ai",                      //59
 	"",                                          //60
 	"",                                          //61
+	"",                                          //62
 }
 
 var ChannelTypeNames = map[int]string{
@@ -187,6 +189,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeWanXiangAI:     "WanXiangAI",
 	ChannelTypeDuoYuanTanSuo:  "DuoYuanTanSuo",
 	ChannelTypeAPIMart:        "APIMart",
+	ChannelTypeGetToken:       "GetToken",
 }
 
 func GetChannelTypeName(channelType int) string {

@@ -44,6 +44,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/wanxiang"
 	"github.com/QuantumNous/new-api/relay/channel/task/duoyuan"
 	"github.com/QuantumNous/new-api/relay/channel/task/apimart"
+	"github.com/QuantumNous/new-api/relay/channel/task/gettoken"
 	channelveo "github.com/QuantumNous/new-api/relay/channel/veo"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
@@ -174,6 +175,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &duoyuan.TaskAdaptor{}
 		case constant.ChannelTypeAPIMart:
 			return &apimart.TaskAdaptor{}
+		case constant.ChannelTypeGetToken:
+			return &gettoken.TaskAdaptor{}
 		}
 	}
 	return nil
