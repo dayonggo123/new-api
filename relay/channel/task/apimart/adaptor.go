@@ -261,10 +261,6 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 	} else {
 		payload.Duration = 8
 	}
-	// Veo fast/quality/lite may have different max durations; cap to safe defaults
-	if strings.Contains(info.UpstreamModelName, "veo3.1-fast") && payload.Duration > 6 {
-		payload.Duration = 6
-	}
 
 	if len(imageURLs) > 0 {
 		payload.ImageURLs = imageURLs
