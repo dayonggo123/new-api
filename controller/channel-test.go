@@ -368,6 +368,55 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	adaptor.Init(info)
 
+	// Task platform channels (GetToken, etc.) use task adaptor for testing
+	platform := relay.GetTaskPlatform(c)
+	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil {
+		taskAdaptor.Init(info)
+
+		// Build task request from ImageRequest and store in context
+		if imageReq, ok := request.(*dto.ImageRequest); ok {
+			taskReq := relaycommon.TaskSubmitReq{
+				Prompt: imageReq.Prompt,
+				Model:  imageReq.Model,
+				Size:   imageReq.Size,
+			}
+			c.Set("task_request", taskReq)
+		}
+
+		requestBody, err := taskAdaptor.BuildRequestBody(c, info)
+		if err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
+			}
+		}
+
+		resp, err := taskAdaptor.DoRequest(c, info, requestBody)
+		if err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError),
+			}
+		}
+
+		_, _, taskErr := taskAdaptor.DoResponse(c, resp, info)
+		if taskErr != nil {
+			return testResult{
+				context:     c,
+				localErr:    taskErr.Error,
+				newAPIError: types.NewErrorWithStatusCode(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode),
+			}
+		}
+
+		return testResult{
+			context:     c,
+			localErr:    nil,
+			newAPIError: nil,
+		}
+	}
+
 	var convertedRequest any
 	// 根据 RelayMode 选择正确的转换函数
 	switch info.RelayMode {
