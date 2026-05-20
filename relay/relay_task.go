@@ -144,6 +144,11 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
 	info.InitChannelMeta(c)
 
+	// Ensure TaskRelayInfo is initialized before any adaptor methods that access it
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+
 	// 1. 确定 platform → 创建适配器 → 验证请求
 	platform := constant.TaskPlatform(c.GetString("platform"))
 	if platform == "" {
