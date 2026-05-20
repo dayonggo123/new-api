@@ -162,7 +162,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q duration=%d size=%q metadata=%v", req.Prompt, req.Duration, req.Size, req.Metadata))
+	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q duration=%d size=%q images=%d metadata=%v", req.Prompt, req.Duration, req.Size, len(req.Images), req.Metadata))
 
 	body, err := a.convertToRequestPayload(req, info)
 	if err != nil {
@@ -268,10 +268,12 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		payload.ImageURLs = imageURLs
 	}
 
-	// aspect_ratio from metadata or default
+	// aspect_ratio from metadata, req.Size, or default
 	if req.Metadata != nil {
 		if v, ok := req.Metadata["aspect_ratio"].(string); ok && v != "" {
 			payload.AspectRatio = v
+		} else if req.Size != "" {
+			payload.AspectRatio = mapSizeToAspectRatio(req.Size)
 		} else {
 			payload.AspectRatio = "16:9"
 		}
@@ -297,7 +299,11 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 			payload.OfficialFallback = v
 		}
 	} else {
-		payload.AspectRatio = "16:9"
+		if req.Size != "" {
+			payload.AspectRatio = mapSizeToAspectRatio(req.Size)
+		} else {
+			payload.AspectRatio = "16:9"
+		}
 		payload.Resolution = "720p"
 	}
 
