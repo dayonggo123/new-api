@@ -168,6 +168,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
 				effectiveWeight := GetChannelEffectiveWeight(channel.Id, model, channel.GetWeight())
+				if effectiveWeight != channel.GetWeight() {
+					common.SysLog(fmt.Sprintf("[SmartSwitch] ch=%d model=%s baseW=%d effW=%d", channel.Id, model, channel.GetWeight(), effectiveWeight))
+				}
 				sumWeight += effectiveWeight
 				targetChannels = append(targetChannels, channel)
 			}
