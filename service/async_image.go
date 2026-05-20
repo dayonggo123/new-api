@@ -18,12 +18,13 @@ var (
 )
 
 type AsyncImageTask struct {
-	TaskID      string
-	ChannelURL  string
-	ChannelKey  string
-	ChannelType int
-	ModelName   string
-	CreatedAt   time.Time
+	TaskID         string
+	UpstreamTaskID string // 上游真实的 task ID（APIMart 等 task 渠道）
+	ChannelURL     string
+	ChannelKey     string
+	ChannelType    int
+	ModelName      string
+	CreatedAt      time.Time
 }
 
 func RegisterAsyncImageTask(taskID string, info *relaycommon.RelayInfo) {
@@ -41,6 +42,14 @@ func RegisterAsyncImageTask(taskID string, info *relaycommon.RelayInfo) {
 		ChannelType: info.ChannelType,
 		ModelName:   info.OriginModelName,
 		CreatedAt:   time.Now(),
+	}
+}
+
+func SetAsyncImageTaskUpstreamID(taskID, upstreamID string) {
+	asyncImageTasksMu.Lock()
+	defer asyncImageTasksMu.Unlock()
+	if task, ok := asyncImageTasks[taskID]; ok {
+		task.UpstreamTaskID = upstreamID
 	}
 }
 
@@ -64,12 +73,16 @@ func GetAsyncImageTask(taskID string) *AsyncImageTask {
 
 // PollAsyncImageTask queries the upstream for the async image task status.
 func PollAsyncImageTask(task *AsyncImageTask) ([]byte, int, error) {
+	queryID := task.TaskID
+	if task.UpstreamTaskID != "" {
+		queryID = task.UpstreamTaskID
+	}
 	var upstreamURL string
 	switch task.ChannelType {
 	case 60, 61: // DuoYuanTanSuo, APIMart
-		upstreamURL = fmt.Sprintf("%s/v1/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), task.TaskID)
+		upstreamURL = fmt.Sprintf("%s/v1/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), queryID)
 	default:
-		upstreamURL = fmt.Sprintf("%s/v1/images/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), task.TaskID)
+		upstreamURL = fmt.Sprintf("%s/v1/images/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), queryID)
 	}
 	req, err := http.NewRequest("GET", upstreamURL, nil)
 	if err != nil {

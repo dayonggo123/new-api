@@ -64,12 +64,20 @@ func handleTaskImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.Ne
 
 	// Register to async_image system so downstream clients polling /v1/images/tasks/{task_id} can find it
 	service.RegisterAsyncImageTask(info.PublicTaskID, info)
+	if result.UpstreamTaskID != "" {
+		service.SetAsyncImageTaskUpstreamID(info.PublicTaskID, result.UpstreamTaskID)
+	}
 
 	return nil
 }
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+
+	// 去掉 provider 前缀（如 newapi/），避免影响模型名匹配和上游请求
+	if idx := strings.Index(info.OriginModelName, "/"); idx >= 0 {
+		info.OriginModelName = info.OriginModelName[idx+1:]
+	}
 
 	// 对于 APIMart/DuoYuanTanSuo 的 gpt-image 模型，走 task 流程
 	if isTaskImageChannel(info.ChannelType) && strings.HasPrefix(info.OriginModelName, "gpt-image") {

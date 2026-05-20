@@ -170,6 +170,32 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	return bytes.NewReader(body), nil
 }
 
+// mapSizeToAspectRatio 将常见 size 值映射为 APIMart 支持的宽高比或像素串。
+// APIMart 支持：1:1 / 16:9 / 9:16 / 4:3 / 3:4 / 3:2 / 2:3 / 5:4 / 4:5 / 2:1 / 1:2 / 21:9 / 9:21 / 3:1 / 1:3（或直接传像素串）
+func mapSizeToAspectRatio(size string) string {
+	size = strings.ToLower(strings.TrimSpace(size))
+	if size == "" {
+		return "1:1"
+	}
+	// 已经是宽高比格式
+	if strings.Contains(size, ":") {
+		return size
+	}
+	// 常见 OpenAI 像素映射
+	switch size {
+	case "1024x1024", "1024", "1k":
+		return "1:1"
+	case "1024x1792", "1792x1024":
+		// 需要根据具体值判断，后面处理
+	}
+	// 如果包含 x，当作像素串直接传（APIMart 支持像素串）
+	if strings.Contains(size, "x") {
+		return size
+	}
+	// fallback
+	return "1:1"
+}
+
 func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) ([]byte, error) {
 	isImage := a.isImageGeneration(info)
 
@@ -186,11 +212,17 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 			N:      1,
 		}
 
-		if req.Size != "" {
-			payload.Size = req.Size
-		} else {
-			payload.Size = "1:1"
+		// Size 映射：优先用 metadata 中的 aspect_ratio，其次映射 req.Size
+		size := "1:1"
+		if req.Metadata != nil {
+			if v, ok := req.Metadata["aspect_ratio"].(string); ok && v != "" {
+				size = v
+			}
 		}
+		if size == "1:1" && req.Size != "" {
+			size = mapSizeToAspectRatio(req.Size)
+		}
+		payload.Size = size
 
 		if len(imageURLs) > 0 {
 			payload.ImageURLs = imageURLs
