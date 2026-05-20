@@ -261,6 +261,10 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 	} else {
 		payload.Duration = 8
 	}
+	// Veo fast/quality/lite may have different max durations; cap to safe defaults
+	if strings.Contains(info.UpstreamModelName, "veo3.1-fast") && payload.Duration > 6 {
+		payload.Duration = 6
+	}
 
 	if len(imageURLs) > 0 {
 		payload.ImageURLs = imageURLs
@@ -284,7 +288,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 			}
 		}
 		if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
-			payload.Resolution = v
+			payload.Resolution = strings.ToLower(v)
 		} else {
 			payload.Resolution = "720p"
 		}
@@ -299,7 +303,9 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		payload.Resolution = "720p"
 	}
 
-	return common.Marshal(payload)
+	body, _ := common.Marshal(payload)
+	common.SysLog(fmt.Sprintf("[APIMart] video request payload: %s", string(body)))
+	return body, nil
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
