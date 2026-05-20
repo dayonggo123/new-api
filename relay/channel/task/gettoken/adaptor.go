@@ -215,40 +215,74 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	common.SysLog(fmt.Sprintf("[GetToken] create response body: %s", string(responseBody)))
 
 	var cResp createResponse
-	if err := common.Unmarshal(responseBody, &cResp); err != nil {
-		// Try to parse as simple JSON with taskId directly
-		var simpleResp map[string]any
-		if err2 := common.Unmarshal(responseBody, &simpleResp); err2 == nil {
-			if tid, ok := simpleResp["taskId"].(string); ok && tid != "" {
+	var rawMap map[string]any
+	_ = common.Unmarshal(responseBody, &cResp)
+	_ = common.Unmarshal(responseBody, &rawMap)
+
+	// Extract taskId from various possible response formats
+	if len(cResp.Data) > 0 && cResp.Data[0].TaskId != "" {
+		upstreamTaskID = cResp.Data[0].TaskId
+	}
+	if upstreamTaskID == "" {
+		// data as object: { "data": { "taskId": "xxx" } }
+		if data, ok := rawMap["data"].(map[string]any); ok {
+			if tid, ok := data["taskId"].(string); ok && tid != "" {
 				upstreamTaskID = tid
 			}
-			if tid, ok := simpleResp["task_id"].(string); ok && tid != "" {
+			if tid, ok := data["task_id"].(string); ok && tid != "" {
 				upstreamTaskID = tid
 			}
 		}
-		if upstreamTaskID == "" {
-			return "", nil, service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_failed", http.StatusInternalServerError)
-		}
-	} else {
-		if len(cResp.Error) > 0 {
-			// Try parse error as string first
-			var errStr string
-			if err := common.Unmarshal(cResp.Error, &errStr); err == nil && errStr != "" {
-				return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errStr), "upstream_error", http.StatusBadRequest)
+		// data as array: { "data": [ { "taskId": "xxx" } ] }
+		if dataArr, ok := rawMap["data"].([]any); ok && len(dataArr) > 0 {
+			if item, ok := dataArr[0].(map[string]any); ok {
+				if tid, ok := item["taskId"].(string); ok && tid != "" {
+					upstreamTaskID = tid
+				}
+				if tid, ok := item["task_id"].(string); ok && tid != "" {
+					upstreamTaskID = tid
+				}
 			}
-			// Try parse error as object
-			var errObj gettokenError
-			if err := common.Unmarshal(cResp.Error, &errObj); err == nil {
-				return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errObj.Message), errObj.Type, http.StatusBadRequest)
+		}
+		// top-level taskId
+		if tid, ok := rawMap["taskId"].(string); ok && tid != "" {
+			upstreamTaskID = tid
+		}
+		if tid, ok := rawMap["task_id"].(string); ok && tid != "" {
+			upstreamTaskID = tid
+		}
+	}
+
+	// Check error
+	if len(cResp.Error) > 0 {
+		var errStr string
+		if err := common.Unmarshal(cResp.Error, &errStr); err == nil && errStr != "" {
+			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errStr), "upstream_error", http.StatusBadRequest)
+		}
+		var errObj gettokenError
+		if err := common.Unmarshal(cResp.Error, &errObj); err == nil {
+			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errObj.Message), errObj.Type, http.StatusBadRequest)
+		}
+		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", string(cResp.Error)), "upstream_error", http.StatusBadRequest)
+	}
+	if errMsg, ok := rawMap["error"].(string); ok && errMsg != "" {
+		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", errMsg), "upstream_error", http.StatusBadRequest)
+	}
+
+	code := cResp.Code
+	if code == 0 {
+		if codeFloat, ok := rawMap["code"].(float64); ok {
+			code = int(codeFloat)
+		}
+	}
+	if code != 200 && code != 0 {
+		msg := cResp.Msg
+		if msg == "" {
+			if msgStr, ok := rawMap["msg"].(string); ok {
+				msg = msgStr
 			}
-			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken error: %s", string(cResp.Error)), "upstream_error", http.StatusBadRequest)
 		}
-		if cResp.Code != 200 && cResp.Code != 0 {
-			return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken returned code %d: %s", cResp.Code, cResp.Msg), "upstream_error", cResp.Code)
-		}
-		if len(cResp.Data) > 0 && cResp.Data[0].TaskId != "" {
-			upstreamTaskID = cResp.Data[0].TaskId
-		}
+		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("gettoken returned code %d: %s", code, msg), "upstream_error", code)
 	}
 
 	if upstreamTaskID == "" {
