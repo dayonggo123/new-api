@@ -127,7 +127,7 @@ var ChannelBaseURLs = []string{
 	"https://api.lk888.ai",                      //59
 	"",                                          //60
 	"",                                          //61
-	"",                                          //62
+	"https://nb.gettoken.cn/openapi",            //62
 }
 
 var ChannelTypeNames = map[int]string{
