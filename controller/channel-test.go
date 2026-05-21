@@ -169,7 +169,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
 		isWanXiangChannel := channel.Type == constant.ChannelTypeWanXiangAI
 		isWanXiangBaseURL := strings.Contains(channel.GetBaseURL(), "lk888.ai") ||
-			strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai")
+			(channel.Type >= 0 && channel.Type < len(constant.ChannelBaseURLs) && strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai"))
 		isWanXiangMedia = (isWanXiangChannel || isWanXiangBaseURL) && hasMediaKeyword
 	}
 	if isWanXiangMedia {
@@ -372,6 +372,20 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	platform := relay.GetTaskPlatform(c)
 	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil {
 		taskAdaptor.Init(info)
+
+		// Initialize request body for task adaptor to avoid nil pointer panic in GetBodyStorage
+		if c.Request.Body == nil {
+			bodyJSON, marshalErr := common.Marshal(request)
+			if marshalErr != nil {
+				return testResult{
+					context:     c,
+					localErr:    marshalErr,
+					newAPIError: types.NewError(marshalErr, types.ErrorCodeJsonMarshalFailed),
+				}
+			}
+			c.Request.Body = io.NopCloser(bytes.NewReader(bodyJSON))
+			c.Request.ContentLength = int64(len(bodyJSON))
+		}
 
 		// Build task request from ImageRequest and store in context
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
@@ -761,7 +775,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	lowerModel := strings.ToLower(model)
 	isWanXiangChannel := channel != nil && channel.Type == constant.ChannelTypeWanXiangAI
 	isWanXiangBaseURL := channel != nil && (strings.Contains(channel.GetBaseURL(), "lk888.ai") ||
-		strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai"))
+		(channel.Type >= 0 && channel.Type < len(constant.ChannelBaseURLs) && strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai")))
 	hasMediaKeyword := strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") ||
 		strings.Contains(lowerModel, "nano") || strings.Contains(lowerModel, "banana") ||
 		strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
