@@ -60,6 +60,8 @@ const (
 	ChannelTypeDuoYuanTanSuo  = 60
 	ChannelTypeAPIMart        = 61
 	ChannelTypeGetToken       = 62
+	ChannelTypeBogeiAI        = 63
+	ChannelTypeZhangyuge      = 64
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -128,6 +130,8 @@ var ChannelBaseURLs = []string{
 	"",                                          //60
 	"",                                          //61
 	"https://nb.gettoken.cn/openapi",            //62
+	"https://gaorui.cc",                         //63
+	"",                                          //64
 }
 
 var ChannelTypeNames = map[int]string{
@@ -190,6 +194,8 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeDuoYuanTanSuo:  "DuoYuanTanSuo",
 	ChannelTypeAPIMart:        "APIMart",
 	ChannelTypeGetToken:       "GetToken",
+	ChannelTypeBogeiAI:        "BogeiAI",
+	ChannelTypeZhangyuge:      "ZhangyugeAI",
 }
 
 func GetChannelTypeName(channelType int) string {
