@@ -386,7 +386,7 @@ func isImageFieldName(name string) bool {
 }
 
 // handleImagePart processes an image part. If it looks like a URL or base64, returns as-is.
-// Otherwise saves binary data to uploads/ and returns a public URL.
+// Binary image data >10MB is compressed before saving to uploads/.
 func handleImagePart(c *gin.Context, data []byte, contentType string) string {
 	str := string(data)
 	str = strings.TrimSpace(str)
@@ -396,18 +396,31 @@ func handleImagePart(c *gin.Context, data []byte, contentType string) string {
 		return str
 	}
 
-	// Base64 data URI
+	// Base64 data URI — pass through, CompressImageInBodyMap will handle it later
 	if strings.HasPrefix(str, "data:") {
 		return str
 	}
 
-	// Binary image data: save to uploads/
+	// Binary image data
 	if contentType == "" || contentType == "application/octet-stream" {
 		contentType = http.DetectContentType(data)
 	}
 	if !strings.HasPrefix(contentType, "image/") {
 		// Not an image, try treating as URL string anyway
 		return str
+	}
+
+	// Compress if binary image exceeds 10MB
+	if len(data) > service.DefaultMaxImageBytes {
+		compressed, _, err := service.CompressImageBytes(data, contentType, service.DefaultMaxImageBytes)
+		if err == nil {
+			common.SysLog(fmt.Sprintf("[ZhangyugeAI] compressed multipart image: before=%d bytes, after=%d bytes", len(data), len(compressed)))
+			data = compressed
+			contentType = "image/jpeg"
+		} else {
+			common.SysLog(fmt.Sprintf("[ZhangyugeAI] failed to compress multipart image (%d bytes): %v", len(data), err))
+			return "" // Reject oversized images that cannot be compressed
+		}
 	}
 
 	uploadDir := "./uploads"

@@ -166,6 +166,18 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	// 图片生成模型不涉及 seconds/resolution 计费参数
+	imageModels := map[string]bool{
+		"nano-banana-pro": true,
+		"nano-banana-2":   true,
+		"imagen-4":        true,
+		"grok-image":      true,
+		"meta-ai-image":   true,
+	}
+	if imageModels[info.OriginModelName] {
+		return nil
+	}
+
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil

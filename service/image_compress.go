@@ -5,14 +5,20 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
+	_ "image/gif"
 	"image/jpeg"
+	_ "image/png"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"golang.org/x/image/webp"
 )
 
 const DefaultMaxImageBytes = 10 << 20 // 10MB
 
 // CompressBase64Image compresses a base64 data URI image if it exceeds maxBytes.
-// Returns the compressed data URI (or original if no compression needed).
+// Returns the compressed data URI. If the original exceeds maxBytes and compression
+// fails, returns an error instead of the oversized original.
 func CompressBase64Image(dataURI string, maxBytes int) (string, error) {
 	if maxBytes <= 0 {
 		maxBytes = DefaultMaxImageBytes
@@ -45,6 +51,14 @@ func CompressBase64Image(dataURI string, maxBytes int) (string, error) {
 		return dataURI, nil
 	}
 
+	// Remove whitespace/newlines that some clients embed in base64
+	b64data = strings.Map(func(r rune) rune {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, b64data)
+
 	data, err := base64.StdEncoding.DecodeString(b64data)
 	if err != nil {
 		// Try URL-safe base64
@@ -55,24 +69,31 @@ func CompressBase64Image(dataURI string, maxBytes int) (string, error) {
 	}
 
 	if len(data) <= maxBytes {
+		common.SysLog(fmt.Sprintf("[image_compress] no compression needed: size=%d bytes <= max=%d bytes", len(data), maxBytes))
 		return dataURI, nil
 	}
 
-	compressed, newMime, err := compressImageBytes(data, mimeType, maxBytes)
+	compressed, newMime, err := CompressImageBytes(data, mimeType, maxBytes)
 	if err != nil {
-		return dataURI, err
+		return "", fmt.Errorf("compress image failed (original=%d bytes): %w", len(data), err)
 	}
 
 	newURI := fmt.Sprintf("data:%s;base64,%s", newMime, base64.StdEncoding.EncodeToString(compressed))
+	ratio := float64(len(compressed)) / float64(len(data)) * 100
+	common.SysLog(fmt.Sprintf("[image_compress] compressed: before=%d bytes, after=%d bytes, ratio=%.1f%%", len(data), len(compressed), ratio))
 	return newURI, nil
 }
 
-// compressImageBytes compresses image data to fit within maxBytes.
-// Returns compressed bytes and the MIME type of the output.
-func compressImageBytes(data []byte, mimeType string, maxBytes int) ([]byte, string, error) {
+// CompressImageBytes compresses image data to fit within maxBytes.
+// Supports PNG, JPEG, GIF, WebP. Returns compressed bytes and the MIME type of the output.
+func CompressImageBytes(data []byte, mimeType string, maxBytes int) ([]byte, string, error) {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		return nil, "", fmt.Errorf("decode image failed: %w", err)
+		// Try webp decoder explicitly (some webp files may not be auto-detected)
+		img, err = webp.Decode(bytes.NewReader(data))
+		if err != nil {
+			return nil, "", fmt.Errorf("decode image failed: %w", err)
+		}
 	}
 
 	bounds := img.Bounds()
@@ -80,50 +101,36 @@ func compressImageBytes(data []byte, mimeType string, maxBytes int) ([]byte, str
 	height := bounds.Dy()
 
 	// Strategy:
-	// 1. Try JPEG with quality 85
-	// 2. If still too large, scale down by 0.7 each iteration
-	// 3. Max 5 iterations to avoid infinite loop
+	// 1. Try JPEG with decreasing quality and increasing scale reduction
+	// 2. Max 12 iterations (scale down to ~0.7^12 ≈ 1.4%)
+	// 3. Quality steps: 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30
 	scale := 1.0
-	for i := 0; i < 5; i++ {
-		if scale < 1.0 {
+	qualities := []int{85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30}
+
+	for i, quality := range qualities {
+		if i > 0 && scale < 1.0 {
+			scale *= 0.7
 			newW := int(float64(width) * scale)
 			newH := int(float64(height) * scale)
-			if newW < 64 || newH < 64 {
+			if newW < 32 || newH < 32 {
 				break
 			}
 			img = resizeImage(img, newW, newH)
 		}
 
 		var buf bytes.Buffer
-		quality := 85
-		if i == 0 && (mimeType == "image/jpeg" || mimeType == "image/jpg") {
-			// First iteration: try lower quality for original JPEG
-			quality = 75
-		}
-
 		err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality})
 		if err != nil {
 			return nil, "", fmt.Errorf("jpeg encode failed: %w", err)
 		}
 
 		if buf.Len() <= maxBytes {
+			common.SysLog(fmt.Sprintf("[image_compress] success at iteration %d (quality=%d, scale=%.3f): %d bytes", i, quality, scale, buf.Len()))
 			return buf.Bytes(), "image/jpeg", nil
 		}
-
-		scale *= 0.7
 	}
 
-	// Fallback: last attempt with quality 60
-	var buf bytes.Buffer
-	err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 60})
-	if err != nil {
-		return nil, "", err
-	}
-	if buf.Len() <= maxBytes {
-		return buf.Bytes(), "image/jpeg", nil
-	}
-
-	return nil, "", fmt.Errorf("unable to compress image below %d bytes", maxBytes)
+	return nil, "", fmt.Errorf("unable to compress image below %d bytes after %d attempts (original size %d, dims %dx%d)", maxBytes, len(qualities), len(data), width, height)
 }
 
 // resizeImage scales an image to the specified dimensions using nearest neighbor.
@@ -161,10 +168,20 @@ func IsDataURI(s string) bool {
 
 // CompressImageInBodyMap compresses all base64 image fields in a body map.
 // It looks for "images", "image" fields and compresses any base64 data URIs.
+// If a single image exceeds maxBytes and compression fails, the error is logged
+// and the original is kept (callers should validate before sending upstream).
+// Logs compression results via common.SysLog for observability.
 func CompressImageInBodyMap(bodyMap map[string]interface{}, maxBytes int) map[string]interface{} {
 	if maxBytes <= 0 {
 		maxBytes = DefaultMaxImageBytes
 	}
+
+	// Debug: log entry and bodyMap keys
+	var keys []string
+	for k := range bodyMap {
+		keys = append(keys, k)
+	}
+	common.SysLog(fmt.Sprintf("[image_compress] CompressImageInBodyMap called, keys=%v", keys))
 
 	// Process "images" array
 	if imgs, ok := bodyMap["images"]; ok {
@@ -175,6 +192,8 @@ func CompressImageInBodyMap(bodyMap map[string]interface{}, maxBytes int) map[st
 					compressed, err := CompressBase64Image(imgStr, maxBytes)
 					if err == nil {
 						v[i] = compressed
+					} else {
+						common.SysLog(fmt.Sprintf("[image_compress] compress failed for images[%d]: %v", i, err))
 					}
 				}
 			}
@@ -184,6 +203,8 @@ func CompressImageInBodyMap(bodyMap map[string]interface{}, maxBytes int) map[st
 					compressed, err := CompressBase64Image(imgStr, maxBytes)
 					if err == nil {
 						v[i] = compressed
+					} else {
+						common.SysLog(fmt.Sprintf("[image_compress] compress failed for images[%d]: %v", i, err))
 					}
 				}
 			}
@@ -195,6 +216,8 @@ func CompressImageInBodyMap(bodyMap map[string]interface{}, maxBytes int) map[st
 		compressed, err := CompressBase64Image(img, maxBytes)
 		if err == nil {
 			bodyMap["image"] = compressed
+		} else {
+			common.SysLog(fmt.Sprintf("[image_compress] compress failed for image field: %v", err))
 		}
 	}
 
