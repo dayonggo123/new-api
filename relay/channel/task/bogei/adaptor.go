@@ -146,7 +146,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	// Store content type with boundary for BuildRequestHeader
 	c.Set("bogei_content_type", writer.FormDataContentType())
 
-	return &buf, nil
+	return bytes.NewReader(buf.Bytes()), nil
 }
 
 func mapSizeToAspectRatio(size string) string {

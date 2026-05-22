@@ -597,8 +597,10 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(requestBody), nil
+	if req.GetBody == nil {
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(requestBody), nil
+		}
 	}
 
 	err = a.BuildRequestHeader(c, req, info)
