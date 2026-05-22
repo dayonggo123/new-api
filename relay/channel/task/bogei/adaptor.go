@@ -77,6 +77,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
+	// Compress base64 images if they exceed 10MB
+	bodyMap = service.CompressImageInBodyMap(bodyMap, 10<<20)
+
 	bogeiBody := make(map[string]interface{})
 
 	// model: prefer info.UpstreamModelName, fallback to bodyMap, then info.OriginModelName
