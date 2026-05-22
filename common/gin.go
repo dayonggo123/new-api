@@ -57,6 +57,10 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 		}
 	}
 
+	if c.Request == nil || c.Request.Body == nil {
+		return nil, errors.New("request body is nil")
+	}
+
 	maxMB := constant.MaxRequestBodyMB
 	if maxMB <= 0 {
 		maxMB = 128 // 默认 128MB

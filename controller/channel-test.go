@@ -383,6 +383,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				Size:   imageReq.Size,
 			}
 			c.Set("task_request", taskReq)
+
+			// Initialize body storage so GetBodyStorage doesn't panic in channel test
+			bodyJSON, _ := common.Marshal(imageReq)
+			storage, _ := common.CreateBodyStorage(bodyJSON)
+			c.Set(common.KeyBodyStorage, storage)
 		}
 
 		requestBody, err := taskAdaptor.BuildRequestBody(c, info)
