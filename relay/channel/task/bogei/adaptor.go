@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -43,7 +45,11 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
-	req.Header.Set("Content-Type", "application/json")
+	if ct, ok := c.Get("bogei_content_type"); ok {
+		req.Header.Set("Content-Type", ct.(string))
+	} else {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	return nil
 }
 
@@ -75,36 +81,89 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
-	bogeiBody := make(map[string]interface{})
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
 
-	if model, ok := bodyMap["model"].(string); ok && model != "" {
-		bogeiBody["model"] = model
+	// model
+	model := info.UpstreamModelName
+	if v, ok := bodyMap["model"].(string); ok && v != "" {
+		model = v
 	}
-	if prompt, ok := bodyMap["prompt"].(string); ok {
-		bogeiBody["prompt"] = prompt
+	writer.WriteField("model", model)
+
+	// prompt
+	if prompt, ok := bodyMap["prompt"].(string); ok && prompt != "" {
+		writer.WriteField("prompt", prompt)
 	}
+
+	// aspect_ratio / size
+	aspectRatio := ""
+	if v, ok := bodyMap["aspect_ratio"].(string); ok && v != "" {
+		aspectRatio = v
+	} else if v, ok := bodyMap["size"].(string); ok && v != "" {
+		aspectRatio = mapSizeToAspectRatio(v)
+	}
+	if aspectRatio != "" {
+		writer.WriteField("aspect_ratio", aspectRatio)
+	}
+
+	// images (URL or base64 strings)
 	if images, ok := bodyMap["images"]; ok {
-		bogeiBody["images"] = images
+		if imgList, ok := images.([]interface{}); ok {
+			for _, img := range imgList {
+				if imgStr, ok := img.(string); ok && imgStr != "" {
+					writer.WriteField("images", imgStr)
+				}
+			}
+		} else if imgStr, ok := images.(string); ok && imgStr != "" {
+			writer.WriteField("images", imgStr)
+		}
 	}
-	if enhancePrompt, ok := bodyMap["enhance_prompt"]; ok {
-		bogeiBody["enhance_prompt"] = enhancePrompt
-	} else {
-		bogeiBody["enhance_prompt"] = true
-	}
-	if enableUpsample, ok := bodyMap["enable_upsample"]; ok {
-		bogeiBody["enable_upsample"] = enableUpsample
-	} else {
-		bogeiBody["enable_upsample"] = true
-	}
-	if aspectRatio, ok := bodyMap["aspect_ratio"].(string); ok && aspectRatio != "" {
-		bogeiBody["aspect_ratio"] = aspectRatio
+	if image, ok := bodyMap["image"].(string); ok && image != "" {
+		writer.WriteField("images", image)
 	}
 
-	jsonData, err := common.Marshal(bogeiBody)
-	if err != nil {
-		return nil, err
+	// enhance_prompt (default true)
+	enhancePrompt := "true"
+	if v, ok := bodyMap["enhance_prompt"].(bool); ok {
+		enhancePrompt = strconv.FormatBool(v)
+	} else if v, ok := bodyMap["enhance_prompt"].(string); ok {
+		enhancePrompt = v
 	}
-	return bytes.NewReader(jsonData), nil
+	writer.WriteField("enhance_prompt", enhancePrompt)
+
+	// enable_upsample (default true)
+	enableUpsample := "true"
+	if v, ok := bodyMap["enable_upsample"].(bool); ok {
+		enableUpsample = strconv.FormatBool(v)
+	} else if v, ok := bodyMap["enable_upsample"].(string); ok {
+		enableUpsample = v
+	}
+	writer.WriteField("enable_upsample", enableUpsample)
+
+	writer.Close()
+
+	// Store content type with boundary for BuildRequestHeader
+	c.Set("bogei_content_type", writer.FormDataContentType())
+
+	return &buf, nil
+}
+
+func mapSizeToAspectRatio(size string) string {
+	switch size {
+	case "1024x1024":
+		return "1:1"
+	case "1024x1792":
+		return "9:16"
+	case "1792x1024":
+		return "16:9"
+	case "1280x720":
+		return "16:9"
+	case "720x1280":
+		return "9:16"
+	default:
+		return ""
+	}
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
