@@ -255,8 +255,31 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	if strings.HasPrefix(contentType, "application/json") {
 		var bodyMap map[string]interface{}
-		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
+		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil && len(bodyMap) > 0 {
 			bodyMap["model"] = info.UpstreamModelName
+			if newBody, err := common.Marshal(bodyMap); err == nil {
+				return bytes.NewReader(newBody), nil
+			}
+		}
+		// Fallback: build from task_request context (for channel test etc.)
+		if taskReq, err := relaycommon.GetTaskRequest(c); err == nil && taskReq.Prompt != "" {
+			bodyMap = map[string]interface{}{
+				"prompt": taskReq.Prompt,
+				"model":  info.UpstreamModelName,
+			}
+			if taskReq.Size != "" {
+				bodyMap["size"] = taskReq.Size
+			}
+			if taskReq.Duration > 0 {
+				bodyMap["duration"] = taskReq.Duration
+			}
+			if len(taskReq.Metadata) > 0 {
+				for k, v := range taskReq.Metadata {
+					if _, exists := bodyMap[k]; !exists {
+						bodyMap[k] = v
+					}
+				}
+			}
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}

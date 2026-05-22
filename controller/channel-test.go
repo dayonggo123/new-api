@@ -370,7 +370,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	// Task platform channels (GetToken, etc.) use task adaptor for testing
 	platform := relay.GetTaskPlatform(c)
-	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil {
+	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil && channel.Type != constant.ChannelTypeVeo {
 		taskAdaptor.Init(info)
 
 		// Initialize request body for task adaptor to avoid nil pointer panic in GetBodyStorage
