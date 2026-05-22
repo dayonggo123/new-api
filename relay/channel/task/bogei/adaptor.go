@@ -7,6 +7,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -84,27 +86,47 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
-	// model
+	// model: prefer info.UpstreamModelName, fallback to bodyMap, then info.OriginModelName
 	model := info.UpstreamModelName
-	if v, ok := bodyMap["model"].(string); ok && v != "" {
-		model = v
+	if model == "" {
+		if m, ok := bodyMap["model"].(string); ok && m != "" {
+			model = m
+		}
 	}
-	writer.WriteField("model", model)
+	if model == "" {
+		model = info.OriginModelName
+	}
+	if err := writer.WriteField("model", model); err != nil {
+		return nil, fmt.Errorf("write model field failed: %w", err)
+	}
 
 	// prompt
-	if prompt, ok := bodyMap["prompt"].(string); ok && prompt != "" {
-		writer.WriteField("prompt", prompt)
+	prompt := ""
+	if p, ok := bodyMap["prompt"].(string); ok && p != "" {
+		prompt = p
+	}
+	if prompt == "" {
+		if taskReq, err := relaycommon.GetTaskRequest(c); err == nil {
+			prompt = taskReq.Prompt
+		}
+	}
+	if prompt != "" {
+		if err := writer.WriteField("prompt", prompt); err != nil {
+			return nil, fmt.Errorf("write prompt field failed: %w", err)
+		}
 	}
 
 	// aspect_ratio / size
 	aspectRatio := ""
 	if v, ok := bodyMap["aspect_ratio"].(string); ok && v != "" {
-		aspectRatio = v
+		aspectRatio = strings.TrimSpace(v)
 	} else if v, ok := bodyMap["size"].(string); ok && v != "" {
-		aspectRatio = mapSizeToAspectRatio(v)
+		aspectRatio = mapSizeToAspectRatio(strings.TrimSpace(v))
 	}
 	if aspectRatio != "" {
-		writer.WriteField("aspect_ratio", aspectRatio)
+		if err := writer.WriteField("aspect_ratio", aspectRatio); err != nil {
+			return nil, fmt.Errorf("write aspect_ratio field failed: %w", err)
+		}
 	}
 
 	// images (URL or base64 strings)
@@ -112,15 +134,21 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if imgList, ok := images.([]interface{}); ok {
 			for _, img := range imgList {
 				if imgStr, ok := img.(string); ok && imgStr != "" {
-					writer.WriteField("images", imgStr)
+					if err := writer.WriteField("images", imgStr); err != nil {
+						return nil, fmt.Errorf("write images field failed: %w", err)
+					}
 				}
 			}
 		} else if imgStr, ok := images.(string); ok && imgStr != "" {
-			writer.WriteField("images", imgStr)
+			if err := writer.WriteField("images", imgStr); err != nil {
+				return nil, fmt.Errorf("write images field failed: %w", err)
+			}
 		}
 	}
 	if image, ok := bodyMap["image"].(string); ok && image != "" {
-		writer.WriteField("images", image)
+		if err := writer.WriteField("images", image); err != nil {
+			return nil, fmt.Errorf("write images field failed: %w", err)
+		}
 	}
 
 	// enhance_prompt (default true)
@@ -130,7 +158,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	} else if v, ok := bodyMap["enhance_prompt"].(string); ok {
 		enhancePrompt = v
 	}
-	writer.WriteField("enhance_prompt", enhancePrompt)
+	if err := writer.WriteField("enhance_prompt", enhancePrompt); err != nil {
+		return nil, fmt.Errorf("write enhance_prompt field failed: %w", err)
+	}
 
 	// enable_upsample (default true)
 	enableUpsample := "true"
@@ -139,14 +169,20 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	} else if v, ok := bodyMap["enable_upsample"].(string); ok {
 		enableUpsample = v
 	}
-	writer.WriteField("enable_upsample", enableUpsample)
+	if err := writer.WriteField("enable_upsample", enableUpsample); err != nil {
+		return nil, fmt.Errorf("write enable_upsample field failed: %w", err)
+	}
 
-	writer.Close()
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("close multipart writer failed: %w", err)
+	}
 
 	// Store content type with boundary for BuildRequestHeader
 	c.Set("bogei_content_type", writer.FormDataContentType())
 
-	return bytes.NewReader(buf.Bytes()), nil
+	bodyBytes := buf.Bytes()
+	common.SysLog(fmt.Sprintf("[BogeiAI] upstream request body (%s): %s", writer.FormDataContentType(), string(bodyBytes)))
+	return bytes.NewReader(bodyBytes), nil
 }
 
 func mapSizeToAspectRatio(size string) string {
@@ -196,6 +232,17 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("task id is empty, response: %s", string(responseBody)), "invalid_response", http.StatusInternalServerError)
 		return
 	}
+
+	// Write OpenAI Video API format response to downstream client
+	ov := dto.NewOpenAIVideo()
+	ov.ID = info.PublicTaskID
+	ov.TaskID = info.PublicTaskID
+	ov.CreatedAt = time.Now().Unix()
+	ov.Model = info.OriginModelName
+	if ov.Model == "" {
+		ov.Model = info.UpstreamModelName
+	}
+	c.JSON(http.StatusOK, ov)
 
 	return dResp.ID, responseBody, nil
 }
