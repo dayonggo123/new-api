@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -47,11 +45,7 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
-	if ct, ok := c.Get("bogei_content_type"); ok {
-		req.Header.Set("Content-Type", ct.(string))
-	} else {
-		req.Header.Set("Content-Type", "application/json")
-	}
+	req.Header.Set("Content-Type", "application/json")
 	return nil
 }
 
@@ -83,8 +77,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
+	bogeiBody := make(map[string]interface{})
 
 	// model: prefer info.UpstreamModelName, fallback to bodyMap, then info.OriginModelName
 	model := info.UpstreamModelName
@@ -96,8 +89,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if model == "" {
 		model = info.OriginModelName
 	}
-	if err := writer.WriteField("model", model); err != nil {
-		return nil, fmt.Errorf("write model field failed: %w", err)
+	if model != "" {
+		bogeiBody["model"] = mapModelName(model)
 	}
 
 	// prompt
@@ -111,9 +104,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 	if prompt != "" {
-		if err := writer.WriteField("prompt", prompt); err != nil {
-			return nil, fmt.Errorf("write prompt field failed: %w", err)
-		}
+		bogeiBody["prompt"] = prompt
 	}
 
 	// aspect_ratio / size
@@ -124,81 +115,80 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		aspectRatio = mapSizeToAspectRatio(strings.TrimSpace(v))
 	}
 	if aspectRatio != "" {
-		if err := writer.WriteField("aspect_ratio", aspectRatio); err != nil {
-			return nil, fmt.Errorf("write aspect_ratio field failed: %w", err)
-		}
+		bogeiBody["aspect_ratio"] = aspectRatio
 	}
 
-	// images (URL or base64 strings)
-	if images, ok := bodyMap["images"]; ok {
-		if imgList, ok := images.([]interface{}); ok {
+	// images (URL strings)
+	var images []string
+	if imgs, ok := bodyMap["images"]; ok {
+		if imgList, ok := imgs.([]interface{}); ok {
 			for _, img := range imgList {
 				if imgStr, ok := img.(string); ok && imgStr != "" {
-					if err := writer.WriteField("images", imgStr); err != nil {
-						return nil, fmt.Errorf("write images field failed: %w", err)
-					}
+					images = append(images, imgStr)
 				}
 			}
-		} else if imgStr, ok := images.(string); ok && imgStr != "" {
-			if err := writer.WriteField("images", imgStr); err != nil {
-				return nil, fmt.Errorf("write images field failed: %w", err)
-			}
+		} else if imgStr, ok := imgs.(string); ok && imgStr != "" {
+			images = append(images, imgStr)
 		}
 	}
-	if image, ok := bodyMap["image"].(string); ok && image != "" {
-		if err := writer.WriteField("images", image); err != nil {
-			return nil, fmt.Errorf("write images field failed: %w", err)
-		}
+	if img, ok := bodyMap["image"].(string); ok && img != "" {
+		images = append(images, img)
+	}
+	if len(images) > 0 {
+		bogeiBody["images"] = images
 	}
 
 	// enhance_prompt (default true)
-	enhancePrompt := "true"
+	enhancePrompt := true
 	if v, ok := bodyMap["enhance_prompt"].(bool); ok {
-		enhancePrompt = strconv.FormatBool(v)
-	} else if v, ok := bodyMap["enhance_prompt"].(string); ok {
 		enhancePrompt = v
+	} else if v, ok := bodyMap["enhance_prompt"].(string); ok {
+		enhancePrompt = strings.ToLower(v) == "true"
 	}
-	if err := writer.WriteField("enhance_prompt", enhancePrompt); err != nil {
-		return nil, fmt.Errorf("write enhance_prompt field failed: %w", err)
-	}
+	bogeiBody["enhance_prompt"] = enhancePrompt
 
-	// enable_upsample (default true)
-	enableUpsample := "true"
+	// enable_upsample (default true) — upstream accepts boolean
+	enableUpsample := true
 	if v, ok := bodyMap["enable_upsample"].(bool); ok {
-		enableUpsample = strconv.FormatBool(v)
-	} else if v, ok := bodyMap["enable_upsample"].(string); ok {
 		enableUpsample = v
+	} else if v, ok := bodyMap["enable_upsample"].(string); ok {
+		enableUpsample = strings.ToLower(v) == "true"
 	}
-	if err := writer.WriteField("enable_upsample", enableUpsample); err != nil {
-		return nil, fmt.Errorf("write enable_upsample field failed: %w", err)
+	bogeiBody["enable_upsample"] = enableUpsample
+
+	jsonData, err := common.Marshal(bogeiBody)
+	if err != nil {
+		return nil, err
 	}
+	common.SysLog(fmt.Sprintf("[BogeiAI] upstream request body: %s", string(jsonData)))
+	return bytes.NewReader(jsonData), nil
+}
 
-	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("close multipart writer failed: %w", err)
+func mapModelName(model string) string {
+	// Strip provider prefix if any
+	if idx := strings.Index(model, "/"); idx >= 0 {
+		model = model[idx+1:]
 	}
-
-	// Store content type with boundary for BuildRequestHeader
-	c.Set("bogei_content_type", writer.FormDataContentType())
-
-	bodyBytes := buf.Bytes()
-	common.SysLog(fmt.Sprintf("[BogeiAI] upstream request body (%s): %s", writer.FormDataContentType(), string(bodyBytes)))
-	return bytes.NewReader(bodyBytes), nil
+	switch model {
+	case "veo-3.1-fast", "veo_3_1-fast":
+		return "veo_3_1-components"
+	case "veo-3.1", "veo_3_1":
+		return "veo_3_1-components"
+	default:
+		return model
+	}
 }
 
 func mapSizeToAspectRatio(size string) string {
 	switch size {
 	case "1024x1024":
 		return "1:1"
-	case "1024x1792":
+	case "1024x1792", "720x1280", "1080x1920":
 		return "9:16"
-	case "1792x1024":
+	case "1792x1024", "1280x720", "1920x1080":
 		return "16:9"
-	case "1280x720":
-		return "16:9"
-	case "720x1280":
-		return "9:16"
 	default:
-		return ""
+		return "16:9"
 	}
 }
 
@@ -206,12 +196,28 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
+// submitResponse matches BogeiAI's submit API response.
 type submitResponse struct {
 	ID               string `json:"id"`
 	Status           string `json:"status"`
 	StatusUpdateTime int64  `json:"status_update_time"`
-	VideoURL         string `json:"video_url"`
-	EnhancedPrompt   string `json:"enhanced_prompt"`
+}
+
+// queryResponse matches BogeiAI's query API response.
+// It may contain either a flat structure or a nested "detail" object.
+type queryResponse struct {
+	ID               string      `json:"id"`
+	Status           string      `json:"status"`
+	VideoURL         string      `json:"video_url"`
+	EnhancedPrompt   string      `json:"enhanced_prompt"`
+	StatusUpdateTime int64       `json:"status_update_time"`
+	Detail           *taskDetail `json:"detail"`
+}
+
+type taskDetail struct {
+	ID       string `json:"id"`
+	Status   string `json:"status"`
+	VideoURL string `json:"video_url"`
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
@@ -268,8 +274,8 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
-	var dResp submitResponse
-	if err := common.Unmarshal(respBody, &dResp); err != nil {
+	var qResp queryResponse
+	if err := common.Unmarshal(respBody, &qResp); err != nil {
 		return nil, fmt.Errorf("unmarshal query response failed: %w", err)
 	}
 
@@ -277,11 +283,23 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		Code: 0,
 	}
 
-	switch dResp.Status {
+	// Use nested detail.status if available, otherwise fall back to top-level status
+	status := qResp.Status
+	if qResp.Detail != nil && qResp.Detail.Status != "" {
+		status = qResp.Detail.Status
+	}
+
+	// Use nested detail.video_url if available
+	videoURL := qResp.VideoURL
+	if qResp.Detail != nil && qResp.Detail.VideoURL != "" {
+		videoURL = qResp.Detail.VideoURL
+	}
+
+	switch status {
 	case "success", "completed", "succeeded":
 		taskInfo.Status = model.TaskStatusSuccess
 		taskInfo.Progress = "100%"
-		taskInfo.Url = dResp.VideoURL
+		taskInfo.Url = videoURL
 	case "failed", "failure":
 		taskInfo.Status = model.TaskStatusFailure
 		taskInfo.Progress = "100%"
