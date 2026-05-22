@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -63,18 +64,57 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return bytes.NewReader(cachedBody), nil
 	}
 
+	// Fallback: build from task_request context (for channel test etc.)
+	if len(bodyMap) == 0 {
+		if taskReq, err := relaycommon.GetTaskRequest(c); err == nil && taskReq.Prompt != "" {
+			bodyMap = map[string]interface{}{
+				"prompt": taskReq.Prompt,
+				"model":  info.UpstreamModelName,
+			}
+			if taskReq.Size != "" {
+				bodyMap["size"] = taskReq.Size
+			}
+		}
+	}
+
 	zhangyugeBody := make(map[string]interface{})
 
+	// model
 	if model, ok := bodyMap["model"].(string); ok && model != "" {
 		zhangyugeBody["model"] = mapModelName(model)
 	}
-	if prompt, ok := bodyMap["prompt"].(string); ok {
+
+	// prompt
+	if prompt, ok := bodyMap["prompt"].(string); ok && prompt != "" {
 		zhangyugeBody["prompt"] = prompt
 	}
-	if size, ok := bodyMap["size"].(string); ok && size != "" {
-		zhangyugeBody["size"] = size
+
+	// size: map 1080p/720p to widthxheight, respecting aspect_ratio
+	size := ""
+	if v, ok := bodyMap["size"].(string); ok {
+		size = v
 	}
-	if images, ok := bodyMap["images"]; ok {
+	aspectRatio := ""
+	if v, ok := bodyMap["aspect_ratio"].(string); ok {
+		aspectRatio = v
+	}
+	if size != "" {
+		zhangyugeBody["size"] = mapSizeToZhangyuge(size, aspectRatio)
+	}
+
+	// images: support both "images" (array) and "image" (single string)
+	var images []interface{}
+	if imgs, ok := bodyMap["images"]; ok {
+		if imgList, ok := imgs.([]interface{}); ok {
+			images = append(images, imgList...)
+		} else if imgStr, ok := imgs.(string); ok && imgStr != "" {
+			images = append(images, imgStr)
+		}
+	}
+	if img, ok := bodyMap["image"].(string); ok && img != "" {
+		images = append(images, img)
+	}
+	if len(images) > 0 {
 		zhangyugeBody["images"] = images
 	}
 
@@ -82,6 +122,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	common.SysLog(fmt.Sprintf("[ZhangyugeAI] upstream request body: %s", string(jsonData)))
 	return bytes.NewReader(jsonData), nil
 }
 
@@ -198,6 +239,10 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 }
 
 func mapModelName(model string) string {
+	// Strip provider prefix if any
+	if idx := strings.Index(model, "/"); idx >= 0 {
+		model = model[idx+1:]
+	}
 	switch model {
 	case "veo-3.1-fast":
 		return "veo_3_1-fast"
@@ -205,6 +250,23 @@ func mapModelName(model string) string {
 		return "veo_3_1-fast-fl"
 	default:
 		return model
+	}
+}
+
+func mapSizeToZhangyuge(size string, aspectRatio string) string {
+	switch size {
+	case "1080p":
+		if aspectRatio == "9:16" {
+			return "1080x1920"
+		}
+		return "1920x1080"
+	case "720p":
+		if aspectRatio == "9:16" {
+			return "720x1280"
+		}
+		return "1280x720"
+	default:
+		return size
 	}
 }
 
