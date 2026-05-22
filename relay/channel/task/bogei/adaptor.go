@@ -62,6 +62,19 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return bytes.NewReader(cachedBody), nil
 	}
 
+	// Fallback: build from task_request context (for channel test etc.)
+	if len(bodyMap) == 0 {
+		if taskReq, err := relaycommon.GetTaskRequest(c); err == nil && taskReq.Prompt != "" {
+			bodyMap = map[string]interface{}{
+				"prompt": taskReq.Prompt,
+				"model":  info.UpstreamModelName,
+			}
+			if taskReq.Size != "" {
+				bodyMap["size"] = taskReq.Size
+			}
+		}
+	}
+
 	bogeiBody := make(map[string]interface{})
 
 	if model, ok := bodyMap["model"].(string); ok && model != "" {
