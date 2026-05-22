@@ -139,6 +139,7 @@ type submitResponse struct {
 	CreatedAt   int64  `json:"created_at"`
 	CompletedAt int64  `json:"completed_at"`
 	URL         string `json:"url"`
+	VideoURL    string `json:"video_url"`
 	Size        string `json:"size"`
 	Error       string `json:"error"`
 }
@@ -199,7 +200,11 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "success", "completed", "succeeded":
 		taskInfo.Status = model.TaskStatusSuccess
 		taskInfo.Progress = "100%"
-		taskInfo.Url = dResp.URL
+		if dResp.VideoURL != "" {
+			taskInfo.Url = dResp.VideoURL
+		} else {
+			taskInfo.Url = dResp.URL
+		}
 	case "failed", "failure":
 		taskInfo.Status = model.TaskStatusFailure
 		taskInfo.Progress = "100%"
@@ -244,9 +249,9 @@ func mapModelName(model string) string {
 		model = model[idx+1:]
 	}
 	switch model {
-	case "veo-3.1-fast":
-		return "veo_3_1-fast"
-	case "veo-3.1-fast-fl":
+	case "veo-3.1-fast", "veo_3_1-fast":
+		return "veo_3_1"
+	case "veo-3.1-fast-fl", "veo_3_1-fast-fl":
 		return "veo_3_1-fast-fl"
 	default:
 		return model
