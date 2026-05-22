@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -61,7 +66,15 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	var bodyMap map[string]interface{}
 	if err := common.Unmarshal(cachedBody, &bodyMap); err != nil {
-		return bytes.NewReader(cachedBody), nil
+		// Try parsing as multipart/form-data (e.g. OpenAI Video API with image uploads)
+		contentType := c.Request.Header.Get("Content-Type")
+		if strings.Contains(contentType, "multipart/form-data") {
+			bodyMap = parseMultipartBody(c, cachedBody, contentType)
+		}
+		if len(bodyMap) == 0 {
+			common.SysLog(fmt.Sprintf("[ZhangyugeAI] JSON unmarshal failed, content-type=%s, returning raw body", contentType))
+			return bytes.NewReader(cachedBody), nil
+		}
 	}
 
 	// Fallback: build from task_request context (for channel test etc.)
@@ -280,6 +293,127 @@ func mapSizeToZhangyuge(size string, aspectRatio string) string {
 	default:
 		return size
 	}
+}
+
+// parseMultipartBody parses multipart/form-data into a map similar to JSON body.
+// Text fields are extracted directly. File fields (images) are handled as follows:
+//   - If content looks like a URL or base64 data URI, use it directly.
+//   - If binary image data, save to uploads/ and generate a public URL.
+func parseMultipartBody(c *gin.Context, body []byte, contentType string) map[string]interface{} {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return nil
+	}
+	boundary, ok := params["boundary"]
+	if !ok || boundary == "" {
+		return nil
+	}
+
+	reader := multipart.NewReader(bytes.NewReader(body), boundary)
+	result := make(map[string]interface{})
+	var images []interface{}
+
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			continue
+		}
+
+		name := part.FormName()
+		data, err := io.ReadAll(part)
+		if err != nil {
+			continue
+		}
+		if len(data) == 0 {
+			continue
+		}
+
+		// File parts (images)
+		if part.FileName() != "" || isImageFieldName(name) {
+			imgURL := handleImagePart(c, data, part.Header.Get("Content-Type"))
+			if imgURL != "" {
+				images = append(images, imgURL)
+			}
+			continue
+		}
+
+		// Text parts
+		result[name] = string(data)
+	}
+
+	if len(images) > 0 {
+		result["images"] = images
+	}
+	return result
+}
+
+func isImageFieldName(name string) bool {
+	lower := strings.ToLower(name)
+	return lower == "image" || lower == "images" || lower == "input_reference" || lower == "input_references"
+}
+
+// handleImagePart processes an image part. If it looks like a URL or base64, returns as-is.
+// Otherwise saves binary data to uploads/ and returns a public URL.
+func handleImagePart(c *gin.Context, data []byte, contentType string) string {
+	str := string(data)
+	str = strings.TrimSpace(str)
+
+	// Direct URL
+	if strings.HasPrefix(str, "http://") || strings.HasPrefix(str, "https://") {
+		return str
+	}
+
+	// Base64 data URI
+	if strings.HasPrefix(str, "data:") {
+		return str
+	}
+
+	// Binary image data: save to uploads/
+	if contentType == "" || contentType == "application/octet-stream" {
+		contentType = http.DetectContentType(data)
+	}
+	if !strings.HasPrefix(contentType, "image/") {
+		// Not an image, try treating as URL string anyway
+		return str
+	}
+
+	uploadDir := "./uploads"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		common.SysLog(fmt.Sprintf("[ZhangyugeAI] failed to create upload dir: %v", err))
+		return ""
+	}
+
+	ext := "bin"
+	switch contentType {
+	case "image/png":
+		ext = "png"
+	case "image/jpeg", "image/jpg":
+		ext = "jpg"
+	case "image/gif":
+		ext = "gif"
+	case "image/webp":
+		ext = "webp"
+	}
+
+	filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
+	filePath := filepath.Join(uploadDir, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		common.SysLog(fmt.Sprintf("[ZhangyugeAI] failed to write upload file: %v", err))
+		return ""
+	}
+
+	scheme := "https"
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	return fmt.Sprintf("%s://%s/uploads/%s", scheme, host, filename)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
