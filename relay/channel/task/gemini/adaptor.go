@@ -168,6 +168,11 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 
+	// For image generation (has images but no video duration), don't charge by seconds
+	if len(req.Images) > 0 || req.Image != "" {
+		return nil
+	}
+
 	seconds := ResolveVeoDuration(req.Metadata, req.Duration, req.Seconds)
 	resolution := ResolveVeoResolution(req.Metadata, req.Size)
 	resRatio := VeoResolutionRatio(info.UpstreamModelName, resolution)
