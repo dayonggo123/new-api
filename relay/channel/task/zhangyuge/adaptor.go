@@ -112,14 +112,22 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	// size: map 1080p/720p to widthxheight, respecting aspect_ratio
 	size := ""
 	if v, ok := bodyMap["size"].(string); ok {
-		size = v
+		size = strings.TrimSpace(v)
 	}
 	aspectRatio := ""
 	if v, ok := bodyMap["aspect_ratio"].(string); ok {
-		aspectRatio = v
+		aspectRatio = strings.TrimSpace(v)
 	}
+	// Also check "resolution" field used by some clients
+	if size == "" {
+		if v, ok := bodyMap["resolution"].(string); ok {
+			size = strings.TrimSpace(v)
+		}
+	}
+	common.SysLog(fmt.Sprintf("[ZhangyugeAI] raw size=%q aspect_ratio=%q", size, aspectRatio))
 	if size != "" {
 		zhangyugeBody["size"] = mapSizeToZhangyuge(size, aspectRatio)
+		common.SysLog(fmt.Sprintf("[ZhangyugeAI] mapped size=%q", zhangyugeBody["size"]))
 	}
 
 	// images: support both "images" (array) and "image" (single string)
@@ -290,6 +298,13 @@ func mapSizeToZhangyuge(size string, aspectRatio string) string {
 			return "720x1280"
 		}
 		return "1280x720"
+	// Handle aspect-ratio sent directly as size (common in some client integrations)
+	case "9:16":
+		return "1080x1920"
+	case "16:9":
+		return "1920x1080"
+	case "1:1":
+		return "1080x1080"
 	default:
 		return size
 	}
@@ -340,8 +355,8 @@ func parseMultipartBody(c *gin.Context, body []byte, contentType string) map[str
 			continue
 		}
 
-		// Text parts
-		result[name] = string(data)
+		// Text parts — trim trailing CRLF/LF from multipart form values
+		result[name] = strings.TrimSpace(string(data))
 	}
 
 	if len(images) > 0 {
