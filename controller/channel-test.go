@@ -385,6 +385,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			}
 			c.Request.Body = io.NopCloser(bytes.NewReader(bodyJSON))
 			c.Request.ContentLength = int64(len(bodyJSON))
+			c.Request.Header.Set("Content-Type", "application/json")
 		}
 
 		// Build task request from ImageRequest and store in context
@@ -412,6 +413,23 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				context:     c,
 				localErr:    err,
 				newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError),
+			}
+		}
+
+		if resp != nil && resp.StatusCode != http.StatusOK {
+			responseBody, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			errMsg := string(responseBody)
+			if code, msg := dto.TryParseGeminiGenError(responseBody); msg != "" {
+				errMsg = msg
+				if code != "" {
+					errMsg = fmt.Sprintf("[%s] %s", code, msg)
+				}
+			}
+			return testResult{
+				context:     c,
+				localErr:    fmt.Errorf("%s", errMsg),
+				newAPIError: types.NewErrorWithStatusCode(fmt.Errorf("%s", errMsg), types.ErrorCodeBadResponseStatusCode, resp.StatusCode),
 			}
 		}
 
