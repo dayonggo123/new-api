@@ -774,11 +774,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
 	isWanXiangMedia := (isWanXiangChannel || isWanXiangBaseURL) && hasMediaKeyword
 	if endpointType == "" && (isWanXiangMedia || strings.Contains(model, "veo") || strings.Contains(model, "gemini")) {
+		size := "1024x1024"
+		if strings.Contains(model, "veo") {
+			size = "1280x720"
+		}
 		return &dto.ImageRequest{
 			Model:  model,
 			Prompt: "a beautiful sunset over ocean",
 			N:      lo.ToPtr(uint(1)),
-			Size:   "1024x1024",
+			Size:   size,
 		}
 	}
 
@@ -791,13 +795,21 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Model: model,
 				Input: []any{"hello world"},
 			}
-		case constant.EndpointTypeImageGeneration, constant.EndpointTypeOpenAIVideo:
+		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
 			return &dto.ImageRequest{
 				Model:  model,
 				Prompt: "a beautiful sunset over ocean",
 				N:      lo.ToPtr(uint(1)),
 				Size:   "1024x1024",
+			}
+		case constant.EndpointTypeOpenAIVideo:
+			// 返回 ImageRequest
+			return &dto.ImageRequest{
+				Model:  model,
+				Prompt: "a beautiful sunset over ocean",
+				N:      lo.ToPtr(uint(1)),
+				Size:   "1280x720",
 			}
 		case constant.EndpointTypeJinaRerank:
 			// 返回 RerankRequest
