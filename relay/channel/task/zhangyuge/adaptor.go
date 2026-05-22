@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 )
 
 // TaskAdaptor implements the task platform interface for ZhangyugeAI (章鱼哥AI).
@@ -65,7 +66,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	zhangyugeBody := make(map[string]interface{})
 
 	if model, ok := bodyMap["model"].(string); ok && model != "" {
-		zhangyugeBody["model"] = model
+		zhangyugeBody["model"] = mapModelName(model)
 	}
 	if prompt, ok := bodyMap["prompt"].(string); ok {
 		zhangyugeBody["prompt"] = prompt
@@ -167,6 +168,44 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 
 	return taskInfo, nil
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
+	var zResp submitResponse
+	if err := common.Unmarshal(task.Data, &zResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal zhangyuge task data failed")
+	}
+
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = task.TaskID
+	openAIVideo.Status = task.Status.ToVideoStatus()
+	openAIVideo.SetProgressStr(task.Progress)
+	openAIVideo.CreatedAt = task.CreatedAt
+	openAIVideo.CompletedAt = task.UpdatedAt
+
+	if zResp.URL != "" {
+		openAIVideo.SetMetadata("url", zResp.URL)
+	}
+
+	if task.Status == model.TaskStatusFailure && task.FailReason != "" {
+		openAIVideo.Error = &dto.OpenAIVideoError{
+			Message: task.FailReason,
+			Code:    "task_failed",
+		}
+	}
+
+	return common.Marshal(openAIVideo)
+}
+
+func mapModelName(model string) string {
+	switch model {
+	case "veo-3.1-fast":
+		return "veo_3_1-fast"
+	case "veo-3.1-fast-fl":
+		return "veo_3_1-fast-fl"
+	default:
+		return model
+	}
 }
 
 func (a *TaskAdaptor) GetModelList() []string {

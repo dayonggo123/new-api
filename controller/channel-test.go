@@ -54,7 +54,7 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
-	if channel != nil && (channel.Type == constant.ChannelTypeVeo || channel.Type == constant.ChannelTypeGetToken || channel.Type == constant.ChannelTypeBogeiAI) {
+	if channel != nil && (channel.Type == constant.ChannelTypeVeo || channel.Type == constant.ChannelTypeGetToken || channel.Type == constant.ChannelTypeBogeiAI || channel.Type == constant.ChannelTypeZhangyuge) {
 		return string(constant.EndpointTypeOpenAIVideo)
 	}
 	// 图像生成模型自动检测
