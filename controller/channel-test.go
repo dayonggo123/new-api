@@ -169,7 +169,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
 		isWanXiangChannel := channel.Type == constant.ChannelTypeWanXiangAI
 		isWanXiangBaseURL := strings.Contains(channel.GetBaseURL(), "lk888.ai") ||
-			(channel.Type >= 0 && channel.Type < len(constant.ChannelBaseURLs) && strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai"))
+			strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai")
 		isWanXiangMedia = (isWanXiangChannel || isWanXiangBaseURL) && hasMediaKeyword
 	}
 	if isWanXiangMedia {
@@ -367,87 +367,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	}
 
 	adaptor.Init(info)
-
-	// Task platform channels (GetToken, etc.) use task adaptor for testing
-	platform := relay.GetTaskPlatform(c)
-	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil && channel.Type != constant.ChannelTypeVeo {
-		taskAdaptor.Init(info)
-
-		// Initialize request body for task adaptor to avoid nil pointer panic in GetBodyStorage
-		if c.Request.Body == nil {
-			bodyJSON, marshalErr := common.Marshal(request)
-			if marshalErr != nil {
-				return testResult{
-					context:     c,
-					localErr:    marshalErr,
-					newAPIError: types.NewError(marshalErr, types.ErrorCodeJsonMarshalFailed),
-				}
-			}
-			c.Request.Body = io.NopCloser(bytes.NewReader(bodyJSON))
-			c.Request.ContentLength = int64(len(bodyJSON))
-			c.Request.Header.Set("Content-Type", "application/json")
-		}
-
-		// Build task request from ImageRequest and store in context
-		if imageReq, ok := request.(*dto.ImageRequest); ok {
-			taskReq := relaycommon.TaskSubmitReq{
-				Prompt: imageReq.Prompt,
-				Model:  imageReq.Model,
-				Size:   imageReq.Size,
-			}
-			c.Set("task_request", taskReq)
-		}
-
-		requestBody, err := taskAdaptor.BuildRequestBody(c, info)
-		if err != nil {
-			return testResult{
-				context:     c,
-				localErr:    err,
-				newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
-			}
-		}
-
-		resp, err := taskAdaptor.DoRequest(c, info, requestBody)
-		if err != nil {
-			return testResult{
-				context:     c,
-				localErr:    err,
-				newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError),
-			}
-		}
-
-		if resp != nil && resp.StatusCode != http.StatusOK {
-			responseBody, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			errMsg := string(responseBody)
-			if code, msg := dto.TryParseGeminiGenError(responseBody); msg != "" {
-				errMsg = msg
-				if code != "" {
-					errMsg = fmt.Sprintf("[%s] %s", code, msg)
-				}
-			}
-			return testResult{
-				context:     c,
-				localErr:    fmt.Errorf("%s", errMsg),
-				newAPIError: types.NewErrorWithStatusCode(fmt.Errorf("%s", errMsg), types.ErrorCodeBadResponseStatusCode, resp.StatusCode),
-			}
-		}
-
-		_, _, taskErr := taskAdaptor.DoResponse(c, resp, info)
-		if taskErr != nil {
-			return testResult{
-				context:     c,
-				localErr:    taskErr.Error,
-				newAPIError: types.NewErrorWithStatusCode(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode),
-			}
-		}
-
-		return testResult{
-			context:     c,
-			localErr:    nil,
-			newAPIError: nil,
-		}
-	}
 
 	var convertedRequest any
 	// 根据 RelayMode 选择正确的转换函数
@@ -793,7 +712,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	lowerModel := strings.ToLower(model)
 	isWanXiangChannel := channel != nil && channel.Type == constant.ChannelTypeWanXiangAI
 	isWanXiangBaseURL := channel != nil && (strings.Contains(channel.GetBaseURL(), "lk888.ai") ||
-		(channel.Type >= 0 && channel.Type < len(constant.ChannelBaseURLs) && strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai")))
+		strings.Contains(constant.ChannelBaseURLs[channel.Type], "lk888.ai"))
 	hasMediaKeyword := strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") ||
 		strings.Contains(lowerModel, "nano") || strings.Contains(lowerModel, "banana") ||
 		strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
