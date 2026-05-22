@@ -79,8 +79,15 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	zhangyugeBody := make(map[string]interface{})
 
-	// model
-	if model, ok := bodyMap["model"].(string); ok && model != "" {
+	// model: prefer info.UpstreamModelName (already processed by ModelMappedHelper),
+	// fallback to bodyMap["model"] for direct API calls without channel mapping
+	model := info.UpstreamModelName
+	if model == "" {
+		if m, ok := bodyMap["model"].(string); ok && m != "" {
+			model = m
+		}
+	}
+	if model != "" {
 		zhangyugeBody["model"] = mapModelName(model)
 	}
 
