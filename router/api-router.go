@@ -541,5 +541,27 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
+
+		// Ecommerce Image Wizard Routes
+		// Public routes
+		apiRouter.GET("/ecommerce/model-poses", middleware.TryUserAuth(), controller.GetEnabledModelPoses)
+		apiRouter.GET("/ecommerce/case-categories", middleware.TryUserAuth(), controller.GetEnabledCaseCategories)
+		apiRouter.GET("/ecommerce/case-detail", middleware.TryUserAuth(), controller.GetCaseDetail)
+
+		// Admin routes
+		apiRouter.GET("/admin/ecommerce/model-poses", middleware.AdminAuth(), controller.GetAllModelPoses)
+		apiRouter.POST("/admin/ecommerce/model-poses", middleware.AdminAuth(), controller.CreateModelPose)
+		apiRouter.PUT("/admin/ecommerce/model-poses/:id", middleware.AdminAuth(), controller.UpdateModelPose)
+		apiRouter.DELETE("/admin/ecommerce/model-poses/:id", middleware.AdminAuth(), controller.DeleteModelPose)
+
+		apiRouter.GET("/admin/ecommerce/case-categories", middleware.AdminAuth(), controller.GetAllCaseCategories)
+		apiRouter.POST("/admin/ecommerce/case-categories", middleware.AdminAuth(), controller.CreateCaseCategory)
+		apiRouter.PUT("/admin/ecommerce/case-categories/:id", middleware.AdminAuth(), controller.UpdateCaseCategory)
+		apiRouter.DELETE("/admin/ecommerce/case-categories/:id", middleware.AdminAuth(), controller.DeleteCaseCategory)
+
+		apiRouter.GET("/admin/ecommerce/case-details", middleware.AdminAuth(), controller.GetCaseDetails)
+		apiRouter.POST("/admin/ecommerce/case-details", middleware.AdminAuth(), controller.CreateCaseDetail)
+		apiRouter.PUT("/admin/ecommerce/case-details/:id", middleware.AdminAuth(), controller.UpdateCaseDetail)
+		apiRouter.DELETE("/admin/ecommerce/case-details/:id", middleware.AdminAuth(), controller.DeleteCaseDetail)
 	}
 }

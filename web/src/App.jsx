@@ -42,6 +42,7 @@ import ArticleDetail from './pages/ArticleDetail';
 import SEOManagement from './pages/SEOManagement';
 import SEOTrends from './pages/SEOTrends';
 import ArticleManagement from './pages/ArticleManagement';
+import EcommerceWizardManagement from './pages/EcommerceWizardManagement';
 import ImageStudio from './pages/ImageStudio';
 import NotificationManagement from './pages/NotificationManagement';
 import PresetPrompt from './pages/PresetPrompt';
@@ -199,6 +200,14 @@ function App() {
           element={
             <AdminRoute>
               <ArticleManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/ecommerce-wizard'
+          element={
+            <AdminRoute>
+              <EcommerceWizardManagement />
             </AdminRoute>
           }
         />
