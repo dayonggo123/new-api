@@ -56,16 +56,16 @@ func DeleteCaseCategoryById(id int) error {
 
 // ==================== Case Detail ====================
 
-func GetCaseDetails(startIdx, num int, categoryId, platformId string) (details []*model.EcommerceCaseDetail, total int64, err error) {
-	return model.GetCaseDetails(startIdx, num, categoryId, platformId)
+func GetCaseDetails(startIdx, num int, categoryId, platformId, poseId string) (details []*model.EcommerceCaseDetail, total int64, err error) {
+	return model.GetCaseDetails(startIdx, num, categoryId, platformId, poseId)
 }
 
 func GetCaseDetailById(id int) (*model.EcommerceCaseDetail, error) {
 	return model.GetCaseDetailById(id)
 }
 
-func GetCaseDetailByCategoryAndPlatform(categoryId, platformId string) (*model.EcommerceCaseDetail, error) {
-	return model.GetCaseDetailByCategoryAndPlatform(categoryId, platformId)
+func GetCaseDetailByPlatformAndPose(platformId, poseId string) (*model.EcommerceCaseDetail, error) {
+	return model.GetCaseDetailByPlatformAndPose(platformId, poseId)
 }
 
 func CreateCaseDetail(detail *model.EcommerceCaseDetail) error {

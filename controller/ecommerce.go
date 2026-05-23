@@ -32,13 +32,13 @@ func GetEnabledCaseCategories(c *gin.Context) {
 }
 
 func GetCaseDetail(c *gin.Context) {
-	categoryId := c.Query("category")
 	platformId := c.Query("platform")
-	if categoryId == "" || platformId == "" {
-		common.ApiErrorMsg(c, "category and platform are required")
+	poseId := c.Query("pose")
+	if platformId == "" || poseId == "" {
+		common.ApiErrorMsg(c, "platform and pose are required")
 		return
 	}
-	detail, err := service.GetCaseDetailByCategoryAndPlatform(categoryId, platformId)
+	detail, err := service.GetCaseDetailByPlatformAndPose(platformId, poseId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -226,7 +226,8 @@ func GetCaseDetails(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	categoryId := c.Query("category_id")
 	platformId := c.Query("platform_id")
-	details, total, err := service.GetCaseDetails(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), categoryId, platformId)
+	poseId := c.Query("pose_id")
+	details, total, err := service.GetCaseDetails(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), categoryId, platformId, poseId)
 	if err != nil {
 		common.ApiError(c, err)
 		return

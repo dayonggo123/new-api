@@ -93,6 +93,7 @@ type EcommerceCaseDetail struct {
 	Id              int            `json:"id"`
 	CategoryId      string         `json:"category_id" gorm:"index;size:64"`
 	PlatformId      string         `json:"platform_id" gorm:"index;size:64"` // taobao, jd, etc.
+	PoseId          string         `json:"pose_id" gorm:"index;size:64"`     // white_bg, model_wear, etc.
 	PlatformName    string         `json:"platform_name"`
 	VisualFeatures  string         `json:"visual_features" gorm:"type:text"` // JSON array
 	Composition     string         `json:"composition" gorm:"type:text"`     // JSON array
@@ -107,12 +108,12 @@ type EcommerceCaseDetail struct {
 func (d *EcommerceCaseDetail) Insert() error { return DB.Create(d).Error }
 
 func (d *EcommerceCaseDetail) Update() error {
-	return DB.Model(d).Select("category_id", "platform_id", "platform_name", "visual_features", "composition", "lighting", "background_style", "case_reference").Updates(d).Error
+	return DB.Model(d).Select("category_id", "platform_id", "pose_id", "platform_name", "visual_features", "composition", "lighting", "background_style", "case_reference").Updates(d).Error
 }
 
 func (d *EcommerceCaseDetail) Delete() error { return DB.Delete(d).Error }
 
-func GetCaseDetails(startIdx, num int, categoryId, platformId string) (details []*EcommerceCaseDetail, total int64, err error) {
+func GetCaseDetails(startIdx, num int, categoryId, platformId, poseId string) (details []*EcommerceCaseDetail, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -129,6 +130,9 @@ func GetCaseDetails(startIdx, num int, categoryId, platformId string) (details [
 	}
 	if platformId != "" {
 		query = query.Where("platform_id = ?", platformId)
+	}
+	if poseId != "" {
+		query = query.Where("pose_id = ?", poseId)
 	}
 
 	err = query.Count(&total).Error
@@ -162,15 +166,15 @@ func GetCaseDetailById(id int) (*EcommerceCaseDetail, error) {
 	return &detail, err
 }
 
-func GetCaseDetailByCategoryAndPlatform(categoryId, platformId string) (*EcommerceCaseDetail, error) {
-	if categoryId == "" {
-		return nil, errors.New("category_id is empty")
-	}
+func GetCaseDetailByPlatformAndPose(platformId, poseId string) (*EcommerceCaseDetail, error) {
 	if platformId == "" {
 		return nil, errors.New("platform_id is empty")
 	}
+	if poseId == "" {
+		return nil, errors.New("pose_id is empty")
+	}
 	var detail EcommerceCaseDetail
-	err := DB.Where("category_id = ? AND platform_id = ?", categoryId, platformId).First(&detail).Error
+	err := DB.Where("platform_id = ? AND pose_id = ?", platformId, poseId).First(&detail).Error
 	return &detail, err
 }
 

@@ -346,6 +346,7 @@ const CaseDetailEditSheet = ({ visible, onCancel, record, refresh, categoryOptio
   const getInitValues = () => ({
     category_id: '',
     platform_id: '',
+    pose_id: '',
     platform_name: '',
     visual_features: '',
     composition: '',
@@ -455,6 +456,11 @@ const CaseDetailEditSheet = ({ visible, onCancel, record, refresh, categoryOptio
                   </Col>
                   <Col span={12}>
                     <Form.Input field='platform_id' label={t('平台标识')} placeholder={t('如 taobao, jd')} rules={[{ required: true, message: t('请输入平台标识') }]} showClear />
+                  </Col>
+                </Row>
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <Form.Input field='pose_id' label={t('拍摄方式标识')} placeholder={t('如 white_bg, model_wear')} rules={[{ required: true, message: t('请输入拍摄方式标识') }]} showClear />
                   </Col>
                   <Col span={24}>
                     <Form.Input field='platform_name' label={t('平台名称')} placeholder={t('如淘宝、京东')} showClear />
@@ -813,6 +819,12 @@ const EcommerceWizardManagement = () => {
           )}
         </div>
       ),
+    },
+    {
+      title: t('拍摄方式'),
+      dataIndex: 'pose_id',
+      width: 120,
+      render: (text) => text || '-',
     },
     {
       title: t('视觉特征'),
