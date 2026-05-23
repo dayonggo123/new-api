@@ -49,6 +49,10 @@ func cleanUploads(retentionDays int) {
 		if strings.Contains(path, "/permanent/") || strings.Contains(path, "\\permanent\\") {
 			return nil
 		}
+		// Skip ecommerce wizard images
+		if strings.Contains(path, "/ecommerce/") || strings.Contains(path, "\\ecommerce\\") {
+			return nil
+		}
 		if info.ModTime().Before(cutoff) {
 			size := info.Size()
 			if rmErr := os.Remove(path); rmErr == nil {
