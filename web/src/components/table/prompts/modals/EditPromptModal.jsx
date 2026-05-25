@@ -102,6 +102,7 @@ const EditPromptModal = (props) => {
     content_en: '',
     description: '',
     cover_image_url: '',
+    video_url: '',
     author: '',
     model: '',
     category_id: '',
@@ -134,6 +135,24 @@ const EditPromptModal = (props) => {
     }
   };
 
+  const handleVideoUpload = async ({ fileInstance, onSuccess, onError }) => {
+    const formData = new FormData();
+    formData.append('videos', fileInstance);
+    try {
+      const res = await API.post('/uapi/v1/upload_videos', formData);
+      if (res.data.urls && res.data.urls.length > 0) {
+        onSuccess(res.data);
+        formApiRef.current?.setValue('video_url', res.data.urls[0]);
+        showSuccess(t('视频上传成功'));
+      } else {
+        onError(new Error('Upload failed'));
+      }
+    } catch (err) {
+      showError(err.message || t('上传失败'));
+      onError(err);
+    }
+  };
+
   const loadPrompt = async () => {
     setLoading(true);
     try {
@@ -145,6 +164,7 @@ const EditPromptModal = (props) => {
           status: data.status === 1,
           media_type: data.media_type || 'image',
           variables: data.variables || '',
+          video_url: data.video_url || '',
           tags: data.tags ? JSON.parse(data.tags) : [],
         };
         let parsed = {};
@@ -430,6 +450,35 @@ const EditPromptModal = (props) => {
                         }
                       />
                     </Col>
+                    <Form.Subscribe to={['media_type']}>
+                      {({ media_type }) => media_type === 'video' && (
+                        <Col span={24}>
+                          <Form.Input
+                            field='video_url'
+                            label={t('视频文件')}
+                            placeholder={t('请输入视频地址或点击上传')}
+                            style={{ width: '100%' }}
+                            showClear
+                            suffix={
+                              <Upload
+                                customRequest={handleVideoUpload}
+                                accept='video/*'
+                                showUploadList={false}
+                                limit={1}
+                              >
+                                <Button
+                                  icon={<IconUpload size={14} />}
+                                  type='tertiary'
+                                  size='small'
+                                >
+                                  {t('上传')}
+                                </Button>
+                              </Upload>
+                            }
+                          />
+                        </Col>
+                      )}
+                    </Form.Subscribe>
                     <Col span={24}>
                       <Form.Input
                         field='title'

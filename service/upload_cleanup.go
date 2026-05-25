@@ -53,6 +53,10 @@ func cleanUploads(retentionDays int) {
 		if strings.Contains(path, "/ecommerce/") || strings.Contains(path, "\\ecommerce\\") {
 			return nil
 		}
+		// Skip video uploads
+		if strings.Contains(path, "/videos/") || strings.Contains(path, "\\videos\\") {
+			return nil
+		}
 		if info.ModTime().Before(cutoff) {
 			size := info.Size()
 			if rmErr := os.Remove(path); rmErr == nil {

@@ -135,6 +135,16 @@ func extFromMime(mime string) string {
 		return "heic"
 	case "image/heif":
 		return "heif"
+	case "video/mp4":
+		return "mp4"
+	case "video/webm":
+		return "webm"
+	case "video/quicktime":
+		return "mov"
+	case "video/x-msvideo":
+		return "avi"
+	case "video/mpeg":
+		return "mpeg"
 	default:
 		return "bin"
 	}

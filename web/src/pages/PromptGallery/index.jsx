@@ -315,7 +315,12 @@ export default function PromptGallery() {
                   }}
                 />
                 <div className='gallery-card-overlay'>
-                  <span className='gallery-card-badge'>{t('AI 生图')}</span>
+                  <span className='gallery-card-badge'>
+                    {prompt.media_type === 'video' ? t('AI 视频') : t('AI 生图')}
+                  </span>
+                  {prompt.media_type === 'video' && (
+                    <div className='gallery-card-play-icon'>▶</div>
+                  )}
                 </div>
               </div>
               <div className='gallery-card-footer'>
@@ -388,15 +393,24 @@ export default function PromptGallery() {
 
             {/* Modal Body */}
             <div className='detail-modal-body'>
-              {/* Cover Image */}
+              {/* Cover Image / Video */}
               <div className='detail-cover-image'>
-                <img
-                  src={selectedPrompt.cover_image_url || FALLBACK_IMAGE}
-                  alt={selectedPrompt.title}
-                  onError={(e) => {
-                    e.target.src = FALLBACK_IMAGE;
-                  }}
-                />
+                {selectedPrompt.media_type === 'video' && selectedPrompt.video_url ? (
+                  <video
+                    src={selectedPrompt.video_url}
+                    poster={selectedPrompt.cover_image_url || FALLBACK_IMAGE}
+                    controls
+                    style={{ width: '100%', maxWidth: 640, borderRadius: 12 }}
+                  />
+                ) : (
+                  <img
+                    src={selectedPrompt.cover_image_url || FALLBACK_IMAGE}
+                    alt={selectedPrompt.title}
+                    onError={(e) => {
+                      e.target.src = FALLBACK_IMAGE;
+                    }}
+                  />
+                )}
               </div>
 
               {/* Variables Input */}

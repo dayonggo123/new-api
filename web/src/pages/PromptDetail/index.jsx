@@ -238,15 +238,24 @@ export default function PromptDetail() {
             })}
           </div>
 
-          {/* Cover Image */}
-          {prompt.cover_image_url && (
+          {/* Cover Image / Video */}
+          {(prompt.cover_image_url || (prompt.media_type === 'video' && prompt.video_url)) && (
             <div style={{ marginBottom: 24 }}>
-              <img
-                src={prompt.cover_image_url || FALLBACK_IMAGE}
-                alt={prompt.title}
-                style={{ width: '100%', maxWidth: 640, borderRadius: 12, objectFit: 'cover' }}
-                onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
-              />
+              {prompt.media_type === 'video' && prompt.video_url ? (
+                <video
+                  src={prompt.video_url}
+                  poster={prompt.cover_image_url || FALLBACK_IMAGE}
+                  controls
+                  style={{ width: '100%', maxWidth: 640, borderRadius: 12 }}
+                />
+              ) : (
+                <img
+                  src={prompt.cover_image_url || FALLBACK_IMAGE}
+                  alt={prompt.title}
+                  style={{ width: '100%', maxWidth: 640, borderRadius: 12, objectFit: 'cover' }}
+                  onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
+                />
+              )}
             </div>
           )}
 

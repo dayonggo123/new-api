@@ -22,6 +22,7 @@ type Prompt struct {
 	ContentEn     string         `json:"content_en" gorm:"type:text"`
 	Description   string         `json:"description"`
 	CoverImageUrl string         `json:"cover_image_url"`
+	VideoUrl      string         `json:"video_url"`
 	Author        string         `json:"author"`                     // 来源/作者，如 @username
 	Model         string         `json:"model"`                      // 使用的AI模型，如 ChatGPT
 	Variables     string         `json:"variables" gorm:"type:text"` // JSON array of variable definitions
@@ -210,7 +211,7 @@ func (prompt *Prompt) Insert() error {
 }
 
 func (prompt *Prompt) Update() error {
-	return DB.Model(prompt).Select("category_id", "title", "content", "content_en", "description", "cover_image_url", "author", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n").Updates(prompt).Error
+	return DB.Model(prompt).Select("category_id", "title", "content", "content_en", "description", "cover_image_url", "video_url", "author", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n").Updates(prompt).Error
 }
 
 func (prompt *Prompt) Delete() error {
