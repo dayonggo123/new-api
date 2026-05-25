@@ -119,12 +119,13 @@ const EditPromptModal = (props) => {
 
   const handleCoverUpload = async ({ fileInstance, onSuccess, onError }) => {
     const formData = new FormData();
-    formData.append('images', fileInstance);
+    formData.append('file', fileInstance);
+    formData.append('media_type', 'cover_image');
     try {
-      const res = await API.post('/uapi/v1/upload_images?permanent=true', formData);
-      if (res.data.urls && res.data.urls.length > 0) {
+      const res = await API.post('/api/prompt-media', formData);
+      if (res.data.url) {
         onSuccess(res.data);
-        formApiRef.current?.setValue('cover_image_url', res.data.urls[0]);
+        formApiRef.current?.setValue('cover_image_url', res.data.url);
         showSuccess(t('封面上传成功'));
       } else {
         onError(new Error('Upload failed'));
@@ -137,12 +138,13 @@ const EditPromptModal = (props) => {
 
   const handleVideoUpload = async ({ fileInstance, onSuccess, onError }) => {
     const formData = new FormData();
-    formData.append('videos', fileInstance);
+    formData.append('file', fileInstance);
+    formData.append('media_type', 'video');
     try {
-      const res = await API.post('/uapi/v1/upload_videos', formData);
-      if (res.data.urls && res.data.urls.length > 0) {
+      const res = await API.post('/api/prompt-media', formData);
+      if (res.data.url) {
         onSuccess(res.data);
-        formApiRef.current?.setValue('video_url', res.data.urls[0]);
+        formApiRef.current?.setValue('video_url', res.data.url);
         showSuccess(t('视频上传成功'));
       } else {
         onError(new Error('Upload failed'));
