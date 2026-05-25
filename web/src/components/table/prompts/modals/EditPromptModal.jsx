@@ -317,6 +317,11 @@ const EditPromptModal = (props) => {
 
     localInputs.sort_order = parseInt(localInputs.sort_order) || 0;
 
+    // Auto-fill content_en if empty (fallback to content)
+    if (!localInputs.content_en || localInputs.content_en.trim() === '') {
+      localInputs.content_en = localInputs.content || '';
+    }
+
     // 多语言内容：content_en 从 i18nData 同步，i18n 排除英文（由 content_en 存储）
     const i18nForSave = { ...i18nData };
     delete i18nForSave.en; // 英文存 content_en
@@ -563,6 +568,9 @@ const EditPromptModal = (props) => {
                           placeholder={t('请输入提示词内容')}
                           rows={4}
                           style={{ width: '100%' }}
+                          rules={[
+                            { required: true, message: t('请输入内容') },
+                          ]}
                         />
                       </div>
 
@@ -585,9 +593,6 @@ const EditPromptModal = (props) => {
                           placeholder={t('请输入英文提示词内容')}
                           rows={4}
                           style={{ width: '100%' }}
-                          rules={[
-                            { required: true, message: t('请输入英文内容') },
-                          ]}
                         />
                       </div>
 
