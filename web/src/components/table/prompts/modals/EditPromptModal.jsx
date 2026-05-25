@@ -74,6 +74,7 @@ const EditPromptModal = (props) => {
   const [translating, setTranslating] = useState(false);
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState({});
+  const [mediaType, setMediaType] = useState('image');
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const pollRef = useRef(null);
@@ -169,6 +170,7 @@ const EditPromptModal = (props) => {
           video_url: data.video_url || '',
           tags: data.tags ? JSON.parse(data.tags) : [],
         };
+        setMediaType(values.media_type);
         let parsed = {};
         try { if (data.i18n) parsed = JSON.parse(data.i18n); } catch (e) {}
         setI18nData(parsed);
@@ -188,6 +190,7 @@ const EditPromptModal = (props) => {
       if (isEdit) {
         loadPrompt();
       } else {
+        setMediaType('image');
         formApiRef.current.setValues(getInitValues());
         setI18nData({});
         setActiveLang(DEFAULT_LANG);
@@ -403,6 +406,11 @@ const EditPromptModal = (props) => {
             initValues={getInitValues()}
             getFormApi={(api) => (formApiRef.current = api)}
             onSubmit={submit}
+            onValueChange={(values) => {
+              if (values.media_type !== undefined && values.media_type !== mediaType) {
+                setMediaType(values.media_type);
+              }
+            }}
           >
             {() => (
               <div className='p-2'>
@@ -452,35 +460,33 @@ const EditPromptModal = (props) => {
                         }
                       />
                     </Col>
-                    <Form.Subscribe to={['media_type']}>
-                      {({ media_type }) => media_type === 'video' && (
-                        <Col span={24}>
-                          <Form.Input
-                            field='video_url'
-                            label={t('视频文件')}
-                            placeholder={t('请输入视频地址或点击上传')}
-                            style={{ width: '100%' }}
-                            showClear
-                            suffix={
-                              <Upload
-                                customRequest={handleVideoUpload}
-                                accept='video/*'
-                                showUploadList={false}
-                                limit={1}
+                    {mediaType === 'video' && (
+                      <Col span={24}>
+                        <Form.Input
+                          field='video_url'
+                          label={t('视频文件')}
+                          placeholder={t('请输入视频地址或点击上传')}
+                          style={{ width: '100%' }}
+                          showClear
+                          suffix={
+                            <Upload
+                              customRequest={handleVideoUpload}
+                              accept='video/*'
+                              showUploadList={false}
+                              limit={1}
+                            >
+                              <Button
+                                icon={<IconUpload size={14} />}
+                                type='tertiary'
+                                size='small'
                               >
-                                <Button
-                                  icon={<IconUpload size={14} />}
-                                  type='tertiary'
-                                  size='small'
-                                >
-                                  {t('上传')}
-                                </Button>
-                              </Upload>
-                            }
-                          />
-                        </Col>
-                      )}
-                    </Form.Subscribe>
+                                {t('上传')}
+                              </Button>
+                            </Upload>
+                          }
+                        />
+                      </Col>
+                    )}
                     <Col span={24}>
                       <Form.Input
                         field='title'
