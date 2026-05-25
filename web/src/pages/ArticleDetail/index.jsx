@@ -225,15 +225,24 @@ export default function ArticleDetail() {
             </div>
           )}
 
-          {/* Cover Image */}
-          {currentArticle.cover_image_url && (
+          {/* Cover Image / Video */}
+          {(currentArticle.cover_image_url || (currentArticle.media_type === 'video' && currentArticle.video_url)) && (
             <div style={{ marginBottom: 24 }}>
-              <img
-                src={currentArticle.cover_image_url || FALLBACK_IMAGE}
-                alt={currentArticle.title}
-                style={{ width: '100%', maxWidth: 640, borderRadius: 12, objectFit: 'cover' }}
-                onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
-              />
+              {currentArticle.media_type === 'video' && currentArticle.video_url ? (
+                <video
+                  src={currentArticle.video_url}
+                  poster={currentArticle.cover_image_url || FALLBACK_IMAGE}
+                  controls
+                  style={{ width: '100%', maxWidth: 640, borderRadius: 12, objectFit: 'cover' }}
+                />
+              ) : (
+                <img
+                  src={currentArticle.cover_image_url || FALLBACK_IMAGE}
+                  alt={currentArticle.title}
+                  style={{ width: '100%', maxWidth: 640, borderRadius: 12, objectFit: 'cover' }}
+                  onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
+                />
+              )}
             </div>
           )}
 

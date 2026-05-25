@@ -47,14 +47,19 @@ func UploadArticleMedia(c *gin.Context) {
 		mediaType = "content_image"
 	}
 
-	// Validate: only image allowed for articles
-	if !strings.HasPrefix(contentType, "image/") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "only image files are allowed"})
+	// Validate: only image/video allowed
+	isImage := strings.HasPrefix(contentType, "image/")
+	isVideo := strings.HasPrefix(contentType, "video/")
+	if !isImage && !isVideo {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only image and video files are allowed"})
 		return
 	}
 
-	// Limit size: max 20MB
+	// Limit size: images max 20MB, videos max 100MB
 	maxSize := 20 * 1024 * 1024
+	if isVideo {
+		maxSize = 100 * 1024 * 1024
+	}
 	if len(data) > maxSize {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large, max 20 MB"})
 		return

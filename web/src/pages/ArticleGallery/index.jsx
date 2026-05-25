@@ -215,12 +215,23 @@ function ArticleCard({ article, getCategoryName, onClick, t }) {
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
     >
       <div style={{ height: 160, overflow: 'hidden', background: '#f5f5f5' }}>
-        <img
-          src={article.cover_image_url || FALLBACK_IMAGE}
-          alt={article.title}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
-        />
+        {article.media_type === 'video' && article.video_url ? (
+          <video
+            src={article.video_url}
+            poster={article.cover_image_url || FALLBACK_IMAGE}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            muted
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <img
+            src={article.cover_image_url || FALLBACK_IMAGE}
+            alt={article.title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
+          />
+        )}
       </div>
       <div style={{ padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

@@ -117,6 +117,8 @@ type Article struct {
 	Content        string         `json:"content" gorm:"type:text"`
 	Summary        string         `json:"summary" gorm:"type:text"`
 	CoverImageUrl  string         `json:"cover_image_url"`
+	VideoUrl       string         `json:"video_url"`
+	MediaType      string         `json:"media_type" gorm:"default:'image'"` // image | video
 	Author         string         `json:"author"`
 	Tags           string         `json:"tags" gorm:"type:text"` // JSON array
 	Status         int            `json:"status" gorm:"default:1"`          // 1=enabled, 2=disabled
@@ -303,7 +305,7 @@ func (article *Article) Insert() error {
 func (article *Article) Update() error {
 	return DB.Model(article).Select(
 		"category_id", "title", "slug", "content", "summary",
-		"cover_image_url", "author", "tags", "status", "is_featured",
+		"cover_image_url", "video_url", "media_type", "author", "tags", "status", "is_featured",
 		"seo_title", "seo_description", "seo_keywords", "i18n", "seo_i18n",
 	).Updates(article).Error
 }

@@ -281,6 +281,8 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
         category_id: categories[0]?.id || 0,
         author: initialData.author || '',
         cover_image_url: initialData.cover_image_url || '',
+        video_url: initialData.video_url || '',
+        media_type: initialData.media_type || 'image',
         tags: initialData.tags || '',
         status: true,
         is_featured: false,
@@ -304,6 +306,8 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
         category_id: categories[0]?.id || 0,
         author: '',
         cover_image_url: '',
+        video_url: '',
+        media_type: 'image',
         tags: '',
         status: true,
         is_featured: false,
@@ -534,6 +538,25 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
     }
   };
 
+  const handleVideoUpload = async ({ fileInstance, onSuccess, onError }) => {
+    const formData = new FormData();
+    formData.append('file', fileInstance);
+    formData.append('media_type', 'video');
+    try {
+      const res = await API.post('/api/article-media', formData);
+      if (res.data.url) {
+        onSuccess(res.data);
+        formApiRef.current?.setValue('video_url', res.data.url);
+        showSuccess('视频上传成功');
+      } else {
+        onError(new Error('Upload failed'));
+      }
+    } catch (err) {
+      showError(err.message || '上传失败');
+      onError(err);
+    }
+  };
+
   const handleGenerateImages = async () => {
     if (!imageGenPrompt.trim()) {
       showError('请输入图片生成提示词');
@@ -694,36 +717,83 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                       <Form.Input field='author' label={t('作者')} placeholder={t('作者名称')} />
                     </Col>
                     <Col span={12}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                        <div style={{ flex: 1 }}>
-                          <Form.Input
-                            field='cover_image_url'
-                            label={t('封面图 URL')}
-                            placeholder={t('封面图片地址')}
-                            showClear
-                            suffix={
-                              <Upload
-                                customRequest={handleCoverUpload}
-                                accept='image/*'
-                                showUploadList={false}
-                                limit={1}
-                              >
-                                <Button
-                                  icon={<IconUpload size={14} />}
-                                  type='tertiary'
-                                  size='small'
-                                >
-                                  {t('上传')}
-                                </Button>
-                              </Upload>
-                            }
-                          />
-                        </div>
-                        <Button type='tertiary' size='small' onClick={handleOpenImageGen} style={{ marginBottom: 8 }}>
-                          {t('AI 生成')}
-                        </Button>
-                      </div>
+                      <Form.Select
+                        field='media_type'
+                        label={t('封面类型')}
+                        optionList={[
+                          { label: t('图片'), value: 'image' },
+                          { label: t('视频'), value: 'video' },
+                        ]}
+                      />
                     </Col>
+                    <Form.Subscribe to={['media_type']}>
+                      {({ media_type }) => (
+                        <>
+                          {media_type === 'video' ? (
+                            <Col span={12}>
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                                <div style={{ flex: 1 }}>
+                                  <Form.Input
+                                    field='video_url'
+                                    label={t('视频 URL')}
+                                    placeholder={t('视频地址')}
+                                    showClear
+                                    suffix={
+                                      <Upload
+                                        customRequest={handleVideoUpload}
+                                        accept='video/*'
+                                        showUploadList={false}
+                                        limit={1}
+                                      >
+                                        <Button
+                                          icon={<IconUpload size={14} />}
+                                          type='tertiary'
+                                          size='small'
+                                        >
+                                          {t('上传')}
+                                        </Button>
+                                      </Upload>
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            </Col>
+                          ) : (
+                            <Col span={12}>
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                                <div style={{ flex: 1 }}>
+                                  <Form.Input
+                                    field='cover_image_url'
+                                    label={t('封面图 URL')}
+                                    placeholder={t('封面图片地址')}
+                                    showClear
+                                    suffix={
+                                      <Upload
+                                        customRequest={handleCoverUpload}
+                                        accept='image/*'
+                                        showUploadList={false}
+                                        limit={1}
+                                      >
+                                        <Button
+                                          icon={<IconUpload size={14} />}
+                                          type='tertiary'
+                                          size='small'
+                                        >
+                                          {t('上传')}
+                                        </Button>
+                                      </Upload>
+                                    }
+                                  />
+                                </div>
+                                <Button type='tertiary' size='small' onClick={handleOpenImageGen} style={{ marginBottom: 8 }}>
+                                  {t('AI 生成')}
+                                </Button>
+                              </div>
+                            </Col>
+                          )}
+                        </>
+                      )}
+                    </Form.Subscribe>
                     <Col span={24}>
                       <Form.Input field='tags' label={t('标签')} placeholder={t('JSON 数组格式，如 ["tag1", "tag2"]')} />
                     </Col>
