@@ -44,7 +44,7 @@ export default function GeneralSettings(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
-  const [inputs, setInputs] = useState({
+  const defaultInputs = {
     TopUpLink: '',
     'general_setting.docs_link': '',
     'general_setting.quota_display_type': 'USD',
@@ -60,7 +60,9 @@ export default function GeneralSettings(props) {
     DemoSiteEnabled: false,
     SelfUseModeEnabled: false,
     'token_setting.max_user_tokens': 1000,
-  });
+  };
+
+  const [inputs, setInputs] = useState(defaultInputs);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
 
@@ -202,10 +204,9 @@ export default function GeneralSettings(props) {
 
   useEffect(() => {
     const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
-      }
+    // 以 defaultInputs 的 key 为模板，props.options 有值则覆盖，否则用默认值兜底
+    for (let key of Object.keys(defaultInputs)) {
+      currentInputs[key] = props.options[key] !== undefined ? props.options[key] : defaultInputs[key];
     }
     // 若旧字段存在且新字段缺失，则做一次兜底映射
     if (
