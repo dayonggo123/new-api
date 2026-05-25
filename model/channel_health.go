@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
 // ChannelHealth tracks per-(channelID, model) request outcomes in memory.
@@ -15,6 +16,8 @@ type ChannelHealth struct {
 	FailCount        int
 	ConsecutiveFails int
 	LastRequestTime  time.Time
+	// DisabledUntil 临时禁用到期时间，零值表示未禁用
+	DisabledUntil time.Time
 }
 
 var (
@@ -45,6 +48,16 @@ func RecordChannelRequestResult(channelID int, model string, success bool) {
 	} else {
 		health.FailCount++
 		health.ConsecutiveFails++
+
+		// 检查是否触发自动临时禁用
+		setting := operation_setting.GetChannelHealthSetting()
+		threshold := setting.AutoDisableConsecutiveFails
+		if threshold > 0 && health.ConsecutiveFails >= threshold {
+			health.DisabledUntil = time.Now().Add(time.Duration(setting.AutoEnableMinutes) * time.Minute)
+			health.ConsecutiveFails = 0 // 禁用后重置，避免重复触发
+			common.SysLog(fmt.Sprintf("[ChannelHealth] channel=%d model=%s auto-disabled for %d min (consecutive fails reached %d)",
+				channelID, model, setting.AutoEnableMinutes, threshold))
+		}
 	}
 }
 
@@ -58,6 +71,11 @@ func GetChannelEffectiveWeight(channelID int, model string, baseWeight int) int 
 	health := getChannelHealth(channelID, model)
 	if health == nil {
 		return baseWeight
+	}
+
+	// 如果处于临时禁用状态，返回 0 权重（不参与选择）
+	if !health.DisabledUntil.IsZero() && health.DisabledUntil.After(time.Now()) {
+		return 0
 	}
 
 	total := health.SuccessCount + health.FailCount
@@ -86,15 +104,21 @@ func getChannelHealth(channelID int, model string) *ChannelHealth {
 
 // DecayChannelHealth halves all counters to fade old data.
 // If both SuccessCount and FailCount reach 0, ConsecutiveFails is also reset.
+// Also clears expired DisabledUntil flags.
 func DecayChannelHealth() {
 	channelHealthMu.Lock()
 	defer channelHealthMu.Unlock()
 
+	now := time.Now()
 	for _, health := range channelHealthStats {
 		health.SuccessCount = health.SuccessCount / 2
 		health.FailCount = health.FailCount / 2
 		if health.SuccessCount == 0 && health.FailCount == 0 {
 			health.ConsecutiveFails = 0
+		}
+		// 清除已过期的禁用标记
+		if !health.DisabledUntil.IsZero() && health.DisabledUntil.Before(now) {
+			health.DisabledUntil = time.Time{}
 		}
 	}
 }
