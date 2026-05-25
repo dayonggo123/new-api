@@ -542,19 +542,72 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
     }
   };
 
+  const extractVideoFirstFrame = (videoFile) => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      video.crossOrigin = 'anonymous';
+      const url = URL.createObjectURL(videoFile);
+      video.src = url;
+      const cleanup = () => {
+        URL.revokeObjectURL(url);
+        video.remove();
+      };
+      video.addEventListener('loadeddata', () => {
+        video.currentTime = 0.1;
+      });
+      video.addEventListener('seeked', () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          cleanup();
+          if (blob) {
+            const frameFile = new File([blob], 'cover.jpg', { type: 'image/jpeg' });
+            resolve(frameFile);
+          } else {
+            reject(new Error('Failed to extract frame'));
+          }
+        }, 'image/jpeg', 0.92);
+      });
+      video.addEventListener('error', (e) => {
+        cleanup();
+        reject(e);
+      });
+    });
+  };
+
   const handleVideoUpload = async ({ fileInstance, onSuccess, onError }) => {
-    const formData = new FormData();
-    formData.append('file', fileInstance);
-    formData.append('media_type', 'video');
     try {
-      const res = await API.post('/api/article-media', formData);
-      if (res.data.url) {
-        onSuccess(res.data);
-        formApiRef.current?.setValue('video_url', res.data.url);
-        showSuccess('视频上传成功');
-      } else {
+      const videoFormData = new FormData();
+      videoFormData.append('file', fileInstance);
+      videoFormData.append('media_type', 'video');
+      const videoRes = await API.post('/api/article-media', videoFormData);
+      if (!videoRes.data.url) {
         onError(new Error('Upload failed'));
+        return;
       }
+
+      try {
+        const frameFile = await extractVideoFirstFrame(fileInstance);
+        const coverFormData = new FormData();
+        coverFormData.append('file', frameFile);
+        coverFormData.append('media_type', 'cover_image');
+        const coverRes = await API.post('/api/article-media', coverFormData);
+        if (coverRes.data.url) {
+          formApiRef.current?.setValue('cover_image_url', coverRes.data.url);
+        }
+      } catch (frameErr) {
+        console.warn('Failed to extract video frame:', frameErr);
+      }
+
+      formApiRef.current?.setValue('video_url', videoRes.data.url);
+      onSuccess(videoRes.data);
+      showSuccess('视频上传成功');
     } catch (err) {
       showError(err.message || '上传失败');
       onError(err);
