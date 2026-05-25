@@ -39,6 +39,7 @@ import {
   TextArea,
   Select,
   Modal,
+  Upload,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -49,6 +50,7 @@ import {
   IconLanguage,
   IconSearch,
   IconRefresh,
+  IconUpload,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -513,6 +515,25 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
     setImageGenModalVisible(true);
   };
 
+  const handleCoverUpload = async ({ fileInstance, onSuccess, onError }) => {
+    const formData = new FormData();
+    formData.append('file', fileInstance);
+    formData.append('media_type', 'cover_image');
+    try {
+      const res = await API.post('/api/article-media', formData);
+      if (res.data.url) {
+        onSuccess(res.data);
+        formApiRef.current?.setValue('cover_image_url', res.data.url);
+        showSuccess('封面上传成功');
+      } else {
+        onError(new Error('Upload failed'));
+      }
+    } catch (err) {
+      showError(err.message || '上传失败');
+      onError(err);
+    }
+  };
+
   const handleGenerateImages = async () => {
     if (!imageGenPrompt.trim()) {
       showError('请输入图片生成提示词');
@@ -675,7 +696,28 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                     <Col span={12}>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                         <div style={{ flex: 1 }}>
-                          <Form.Input field='cover_image_url' label={t('封面图 URL')} placeholder={t('封面图片地址')} />
+                          <Form.Input
+                            field='cover_image_url'
+                            label={t('封面图 URL')}
+                            placeholder={t('封面图片地址')}
+                            showClear
+                            suffix={
+                              <Upload
+                                customRequest={handleCoverUpload}
+                                accept='image/*'
+                                showUploadList={false}
+                                limit={1}
+                              >
+                                <Button
+                                  icon={<IconUpload size={14} />}
+                                  type='tertiary'
+                                  size='small'
+                                >
+                                  {t('上传')}
+                                </Button>
+                              </Upload>
+                            }
+                          />
                         </div>
                         <Button type='tertiary' size='small' onClick={handleOpenImageGen} style={{ marginBottom: 8 }}>
                           {t('AI 生成')}

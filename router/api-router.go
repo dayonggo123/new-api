@@ -328,7 +328,9 @@ func SetApiRouter(router *gin.Engine) {
 			promptRoute.DELETE("/:id", controller.DeletePrompt)
 		// Prompt Media Admin Routes
 		apiRouter.POST("/prompt-media", middleware.AdminAuth(), controller.UploadPromptMedia)
+		apiRouter.POST("/article-media", middleware.AdminAuth(), controller.UploadArticleMedia)
 		apiRouter.DELETE("/prompt-media/:id", middleware.AdminAuth(), controller.DeletePromptMedia)
+		apiRouter.DELETE("/article-media/:id", middleware.AdminAuth(), controller.DeleteArticleMedia)
 		}
 
 		// Preset Prompt Admin Routes
@@ -429,6 +431,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
 		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
 		apiRouter.GET("/public/prompt-media/:id", controller.GetPromptMedia)
+		apiRouter.GET("/public/article-media/:id", controller.GetArticleMedia)
 
 		// Article Public Routes (no auth required)
 		apiRouter.GET("/public/articles", controller.GetPublicArticles)

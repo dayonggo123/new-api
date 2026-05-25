@@ -592,7 +592,8 @@ func GenerateArticleImages(c *gin.Context) {
 		return
 	}
 
-	result, err := service.GenerateImagesForArticle(req.Prompt, req.N, req.Size)
+	baseURL := getUploadBaseURL(c)
+	result, err := service.GenerateImagesForArticle(req.Prompt, req.N, req.Size, baseURL)
 	if err != nil {
 		logger.LogError(context.Background(), fmt.Sprintf("generate article images failed: %v", err))
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "AI 生成图片失败: " + err.Error()})

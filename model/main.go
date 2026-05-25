@@ -305,6 +305,7 @@ func migrateDB() error {
 		&EcommerceCaseCategory{},
 		&EcommerceCaseDetail{},
 		&PromptMedia{},
+		&ArticleMedia{},
 	)
 	if err != nil {
 		return err
