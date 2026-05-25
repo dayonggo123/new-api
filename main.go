@@ -120,6 +120,9 @@ func main() {
 	// Upload file auto-cleanup task (remove images/videos/proxy-cache older than 3 days)
 	service.StartUploadCleanupTask(3)
 
+	// Top-up order auto-expire task (mark pending orders as expired after 30 minutes)
+	service.StartTopUpExpireTask()
+
 	// SEO keyword auto-update task (fetch Google Suggest trends daily)
 	service.StartSEOKeywordUpdateTask()
 

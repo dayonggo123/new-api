@@ -435,3 +435,17 @@ func RechargeWaffo(tradeNo string) (err error) {
 
 	return nil
 }
+
+// ExpirePendingTopUps 将超过指定时间的待支付订单标记为过期
+// expireAfterSeconds: 订单创建后多少秒视为过期
+// batchSize: 每批处理数量
+func ExpirePendingTopUps(expireAfterSeconds int64, batchSize int) (int64, error) {
+	expireTime := common.GetTimestamp() - expireAfterSeconds
+	result := DB.Model(&TopUp{}).
+		Where("status = ? AND create_time < ?", common.TopUpStatusPending, expireTime).
+		Limit(batchSize).
+		Updates(map[string]interface{}{
+			"status": common.TopUpStatusExpired,
+		})
+	return result.RowsAffected, result.Error
+}
