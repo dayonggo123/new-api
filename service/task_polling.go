@@ -372,24 +372,49 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
 	}
 
-	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask response: %s", string(responseBody)))
+	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask response (status=%d): %s", resp.StatusCode, string(responseBody)))
 
 	snap := task.Snapshot()
 
 	taskResult := &relaycommon.TaskInfo{}
-	// try parse as New API response format
-	var responseItems dto.TaskResponse[model.Task]
-	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
-		logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask parsed as new api response format: %+v", responseItems))
-		t := responseItems.Data
-		taskResult.TaskID = t.TaskID
-		taskResult.Status = string(t.Status)
-		taskResult.Url = t.GetResultURL()
-		taskResult.Progress = t.Progress
-		taskResult.Reason = t.FailReason
-		task.Data = t.Data
-	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
-		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
+
+	// 状态码非200时，优先走错误解析逻辑
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			// 4xx 通常表示任务不存在或参数错误，直接标记为失败
+			failReason := fmt.Sprintf("upstream query returned %d", resp.StatusCode)
+			if code, msg := dto.TryParseGeminiGenError(responseBody); msg != "" {
+				failReason = fmt.Sprintf("[%s] %s", code, msg)
+			} else {
+				errResp := &dto.GeneralErrorResponse{}
+				if err := common.Unmarshal(responseBody, &errResp); err == nil {
+					if oe := errResp.TryToOpenAIError(); oe != nil && oe.Message != "" {
+						failReason = oe.Message
+					} else if m := errResp.ToMessage(); m != "" {
+						failReason = m
+					}
+				}
+			}
+			taskResult = relaycommon.FailTaskInfo(failReason)
+		} else {
+			// 5xx 等临时性错误，保持原状态等待下一轮轮询
+			return fmt.Errorf("upstream query returned status code %d for task %s", resp.StatusCode, taskId)
+		}
+	} else {
+		// try parse as New API response format
+		var responseItems dto.TaskResponse[model.Task]
+		if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
+			logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask parsed as new api response format: %+v", responseItems))
+			t := responseItems.Data
+			taskResult.TaskID = t.TaskID
+			taskResult.Status = string(t.Status)
+			taskResult.Url = t.GetResultURL()
+			taskResult.Progress = t.Progress
+			taskResult.Reason = t.FailReason
+			task.Data = t.Data
+		} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
+			return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
+		}
 	}
 
 	task.Data = redactVideoResponseBody(responseBody)
