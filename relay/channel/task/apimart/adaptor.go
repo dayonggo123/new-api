@@ -298,42 +298,42 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 	}
 
 	if isImage {
-		payload := imageCreateRequest{
-			Model:  info.UpstreamModelName,
-			Prompt: req.Prompt,
-			N:      1,
+		payload := map[string]interface{}{
+			"model":  info.UpstreamModelName,
+			"prompt": req.Prompt,
+			"n":      1,
 		}
 
 		// 设置尺寸：优先用像素串（如果 req.Size 是像素格式），
 		// 否则把 aspectRatio 映射为像素尺寸；兜底 1:1
 		if req.Size != "" && strings.Contains(req.Size, "x") {
-			payload.Size = req.Size
+			payload["size"] = req.Size
 		} else if aspectRatio != "" {
-			payload.AspectRatio = aspectRatio
-			payload.Size = mapAspectRatioToPixelSize(aspectRatio)
+			payload["aspect_ratio"] = aspectRatio
+			payload["size"] = mapAspectRatioToPixelSize(aspectRatio)
 		} else {
-			payload.Size = "1024x1024"
+			payload["size"] = "1024x1024"
 		}
 
 		if len(imageURLs) > 0 {
-			payload.ImageURLs = imageURLs
+			payload["image_urls"] = imageURLs
 		}
 
 		// Metadata overrides
 		if req.Metadata != nil {
 			if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
-				payload.Resolution = v
+				payload["resolution"] = v
 			} else {
-				payload.Resolution = "1k"
+				payload["resolution"] = "1k"
 			}
 			if v, ok := req.Metadata["n"].(float64); ok {
-				payload.N = int(v)
+				payload["n"] = int(v)
 			}
 			if v, ok := req.Metadata["official_fallback"].(bool); ok {
-				payload.OfficialFallback = v
+				payload["official_fallback"] = v
 			}
 		} else {
-			payload.Resolution = "1k"
+			payload["resolution"] = "1k"
 		}
 
 		body, _ := common.Marshal(payload)
@@ -342,58 +342,58 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 	}
 
 	// Video generation
-	payload := videoCreateRequest{
-		Model:  info.UpstreamModelName,
-		Prompt: req.Prompt,
+	payload := map[string]interface{}{
+		"model":  info.UpstreamModelName,
+		"prompt": req.Prompt,
 	}
-	apimartLog(fmt.Sprintf("[APIMart] video payload before marshal: model=%s prompt=%q duration=%d aspect_ratio=%s resolution=%s", payload.Model, payload.Prompt, payload.Duration, payload.AspectRatio, payload.Resolution))
+	apimartLog(fmt.Sprintf("[APIMart] video payload before marshal: model=%s prompt=%q duration=%d aspect_ratio=%s resolution=%s", info.UpstreamModelName, req.Prompt, req.Duration, aspectRatio, ""))
 
 	if req.Duration > 0 {
-		payload.Duration = req.Duration
+		payload["duration"] = req.Duration
 	} else {
-		payload.Duration = 8
+		payload["duration"] = 8
 	}
 
 	if len(imageURLs) > 0 {
-		payload.ImageURLs = imageURLs
+		payload["image_urls"] = imageURLs
 	}
 
 	// aspect_ratio from collected value, req.Size, or default
 	if aspectRatio != "" {
-		payload.AspectRatio = aspectRatio
+		payload["aspect_ratio"] = aspectRatio
 	} else if req.Size != "" {
-		payload.AspectRatio = mapSizeToAspectRatio(req.Size)
+		payload["aspect_ratio"] = mapSizeToAspectRatio(req.Size)
 	} else {
-		payload.AspectRatio = "16:9"
+		payload["aspect_ratio"] = "16:9"
 	}
 
 	if req.Metadata != nil {
 		if v, ok := req.Metadata["generation_type"].(string); ok && v != "" {
-			payload.GenerationType = v
+			payload["generation_type"] = v
 		} else if len(imageURLs) > 0 {
 			// Auto-detect: 2 images = frame (first/last), 3 images = reference
 			if len(imageURLs) == 2 {
-				payload.GenerationType = "frame"
+				payload["generation_type"] = "frame"
 			} else if len(imageURLs) >= 3 {
-				payload.GenerationType = "reference"
+				payload["generation_type"] = "reference"
 			}
 		}
 		if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
-			payload.Resolution = strings.ToLower(v)
+			payload["resolution"] = strings.ToLower(v)
 		} else {
-			payload.Resolution = "720p"
+			payload["resolution"] = "720p"
 		}
 		if v, ok := req.Metadata["enable_gif"].(bool); ok {
-			payload.EnableGIF = v
+			payload["enable_gif"] = v
 		}
 		if v, ok := req.Metadata["official_fallback"].(bool); ok {
-			payload.OfficialFallback = v
+			payload["official_fallback"] = v
 		}
 	} else {
 		if req.Size != "" {
-			payload.AspectRatio = mapSizeToAspectRatio(req.Size)
+			payload["aspect_ratio"] = mapSizeToAspectRatio(req.Size)
 		}
-		payload.Resolution = "720p"
+		payload["resolution"] = "720p"
 	}
 
 	body, _ := common.Marshal(payload)

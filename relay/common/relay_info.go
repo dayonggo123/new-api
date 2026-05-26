@@ -694,8 +694,11 @@ func (t *TaskSubmitReq) HasImage() bool {
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	type Alias TaskSubmitReq
 	aux := &struct {
-		Metadata json.RawMessage `json:"metadata,omitempty"`
-		Duration json.RawMessage `json:"duration,omitempty"`
+		Metadata        json.RawMessage `json:"metadata,omitempty"`
+		Duration        json.RawMessage `json:"duration,omitempty"`
+		ImageURLs       json.RawMessage `json:"image_urls,omitempty"`
+		ReferenceImages json.RawMessage `json:"reference_images,omitempty"`
+		Images          json.RawMessage `json:"images,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -703,6 +706,41 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 
 	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
+	}
+
+	// 兼容 image_urls / reference_images / images 为字符串的情况（自动转 []string）
+	if len(aux.ImageURLs) > 0 {
+		var arr []string
+		if err := common.Unmarshal(aux.ImageURLs, &arr); err == nil {
+			t.ImageURLs = arr
+		} else {
+			var str string
+			if err := common.Unmarshal(aux.ImageURLs, &str); err == nil && str != "" {
+				t.ImageURLs = []string{str}
+			}
+		}
+	}
+	if len(aux.ReferenceImages) > 0 {
+		var arr []string
+		if err := common.Unmarshal(aux.ReferenceImages, &arr); err == nil {
+			t.ReferenceImages = arr
+		} else {
+			var str string
+			if err := common.Unmarshal(aux.ReferenceImages, &str); err == nil && str != "" {
+				t.ReferenceImages = []string{str}
+			}
+		}
+	}
+	if len(aux.Images) > 0 {
+		var arr []string
+		if err := common.Unmarshal(aux.Images, &arr); err == nil {
+			t.Images = arr
+		} else {
+			var str string
+			if err := common.Unmarshal(aux.Images, &str); err == nil && str != "" {
+				t.Images = []string{str}
+			}
+		}
 	}
 
 	if len(aux.Duration) > 0 {
