@@ -164,13 +164,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	common.SysError(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q size=%q aspect_ratio=%q images=%d imageURLs=%d referenceImages=%d metadata=%v", req.Prompt, req.Size, req.AspectRatio, len(req.Images), len(req.ImageURLs), len(req.ReferenceImages), req.Metadata))
+	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q size=%q aspect_ratio=%q images=%d imageURLs=%d referenceImages=%d metadata=%v", req.Prompt, req.Size, req.AspectRatio, len(req.Images), len(req.ImageURLs), len(req.ReferenceImages), req.Metadata))
 
 	body, err := a.convertToRequestPayload(req, info)
 	if err != nil {
 		return nil, err
 	}
-	common.SysError(fmt.Sprintf("[APIMart] request body: %s", string(body)))
+	common.SysLog(fmt.Sprintf("[APIMart] request body: %s", string(body)))
 	c.Set("apimart_request_body", string(body))
 	return bytes.NewReader(body), nil
 }
@@ -234,17 +234,30 @@ func mapAspectRatioToPixelSize(ratio string) string {
 func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) ([]byte, error) {
 	isImage := a.isImageGeneration(info)
 
-	// Collect image URLs from req.Images / req.ImageURLs / req.ReferenceImages / req.Image
-	imageURLs := req.Images
+	// Collect image URLs - 图生图场景优先使用 ReferenceImages，向下兼容 Images / ImageURLs / Image
+	imageURLs := req.ReferenceImages
 	if len(imageURLs) == 0 {
-		imageURLs = req.ImageURLs
+		imageURLs = req.Images
 	}
 	if len(imageURLs) == 0 {
-		imageURLs = req.ReferenceImages
+		imageURLs = req.ImageURLs
 	}
 	if len(imageURLs) == 0 && req.Image != "" {
 		imageURLs = []string{req.Image}
 	}
+
+	// 过滤掉非 http/https/data 协议的 URL（如 asset:// 等本地协议 APIMart 不接受）
+	var validURLs []string
+	for _, url := range imageURLs {
+		url = strings.TrimSpace(url)
+		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "data:") {
+			validURLs = append(validURLs, url)
+		}
+	}
+	imageURLs = validURLs
+
+	common.SysLog(fmt.Sprintf("[APIMart] image source: referenceImages=%d images=%d imageURLs=%d image=%q final=%d",
+		len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), req.Image, len(imageURLs)))
 
 	// Collect aspect ratio from req.AspectRatio / metadata["aspect_ratio"] / req.Size
 	aspectRatio := ""
