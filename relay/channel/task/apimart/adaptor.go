@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +23,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
+
+// apimartLog writes debug logs to a fixed file so they survive Gin ReleaseMode.
+func apimartLog(s string) {
+	f, err := os.OpenFile("/tmp/apimart_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = fmt.Fprintf(f, "[%s] %s\n", time.Now().Format("2006/01/02 15:04:05"), s)
+}
+
+var base64Pattern = regexp.MustCompile(`^[A-Za-z0-9+/]+={0,2}$`)
+
+func looksLikeBase64(s string) bool {
+	if len(s) < 100 {
+		return false
+	}
+	return base64Pattern.MatchString(s)
+}
 
 // ============================
 // Request / Response structures
@@ -164,13 +185,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q size=%q aspect_ratio=%q images=%d imageURLs=%d referenceImages=%d metadata=%v", req.Prompt, req.Size, req.AspectRatio, len(req.Images), len(req.ImageURLs), len(req.ReferenceImages), req.Metadata))
+	apimartLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q size=%q aspect_ratio=%q images=%d imageURLs=%d referenceImages=%d metadata=%v", req.Prompt, req.Size, req.AspectRatio, len(req.Images), len(req.ImageURLs), len(req.ReferenceImages), req.Metadata))
 
 	body, err := a.convertToRequestPayload(req, info)
 	if err != nil {
 		return nil, err
 	}
-	common.SysLog(fmt.Sprintf("[APIMart] request body: %s", string(body)))
+	apimartLog(fmt.Sprintf("[APIMart] request body: %s", string(body)))
 	c.Set("apimart_request_body", string(body))
 	return bytes.NewReader(body), nil
 }
@@ -247,16 +268,20 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 	}
 
 	// 过滤掉非 http/https/data 协议的 URL（如 asset:// 等本地协议 APIMart 不接受）
+	// 同时兼容纯 base64 字符串（无 data: 前缀的自动补上）
 	var validURLs []string
 	for _, url := range imageURLs {
 		url = strings.TrimSpace(url)
 		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "data:") {
 			validURLs = append(validURLs, url)
+		} else if looksLikeBase64(url) {
+			// 下游传了纯 base64，自动补前缀（APIMart 支持 png/jpeg，先统一用 png）
+			validURLs = append(validURLs, "data:image/png;base64,"+url)
 		}
 	}
 	imageURLs = validURLs
 
-	common.SysLog(fmt.Sprintf("[APIMart] image source: referenceImages=%d images=%d imageURLs=%d image=%q final=%d",
+	apimartLog(fmt.Sprintf("[APIMart] image source: referenceImages=%d images=%d imageURLs=%d image=%q final=%d",
 		len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), req.Image, len(imageURLs)))
 
 	// Collect aspect ratio from req.AspectRatio / metadata["aspect_ratio"] / req.Size
@@ -312,7 +337,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		}
 
 		body, _ := common.Marshal(payload)
-		common.SysLog(fmt.Sprintf("[APIMart] image request payload: %s", string(body)))
+		apimartLog(fmt.Sprintf("[APIMart] image request payload: %s", string(body)))
 		return body, nil
 	}
 
@@ -321,7 +346,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		Model:  info.UpstreamModelName,
 		Prompt: req.Prompt,
 	}
-	common.SysLog(fmt.Sprintf("[APIMart] video payload before marshal: model=%s prompt=%q duration=%d aspect_ratio=%s resolution=%s", payload.Model, payload.Prompt, payload.Duration, payload.AspectRatio, payload.Resolution))
+	apimartLog(fmt.Sprintf("[APIMart] video payload before marshal: model=%s prompt=%q duration=%d aspect_ratio=%s resolution=%s", payload.Model, payload.Prompt, payload.Duration, payload.AspectRatio, payload.Resolution))
 
 	if req.Duration > 0 {
 		payload.Duration = req.Duration
@@ -372,7 +397,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 	}
 
 	body, _ := common.Marshal(payload)
-	common.SysLog(fmt.Sprintf("[APIMart] video request payload: %s", string(body)))
+	apimartLog(fmt.Sprintf("[APIMart] video request payload: %s", string(body)))
 	return body, nil
 }
 
@@ -398,7 +423,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	common.SysLog(fmt.Sprintf("[APIMart] create response body: %s", string(responseBody)))
+	apimartLog(fmt.Sprintf("[APIMart] create response body: %s", string(responseBody)))
 
 	// Handle upstream error
 	if cResp.Error != nil {
