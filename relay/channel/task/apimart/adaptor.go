@@ -162,7 +162,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q duration=%d size=%q images=%d imageURLs=%d metadata=%v", req.Prompt, req.Duration, req.Size, len(req.Images), len(req.ImageURLs), req.Metadata))
+	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q duration=%d size=%q images=%d imageURLs=%d referenceImages=%d metadata=%v", req.Prompt, req.Duration, req.Size, len(req.Images), len(req.ImageURLs), len(req.ReferenceImages), req.Metadata))
 
 	body, err := a.convertToRequestPayload(req, info)
 	if err != nil {
@@ -200,10 +200,13 @@ func mapSizeToAspectRatio(size string) string {
 func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) ([]byte, error) {
 	isImage := a.isImageGeneration(info)
 
-	// Collect image URLs from req.Images / req.ImageURLs / req.Image
+	// Collect image URLs from req.Images / req.ImageURLs / req.ReferenceImages / req.Image
 	imageURLs := req.Images
 	if len(imageURLs) == 0 {
 		imageURLs = req.ImageURLs
+	}
+	if len(imageURLs) == 0 {
+		imageURLs = req.ReferenceImages
 	}
 	if len(imageURLs) == 0 && req.Image != "" {
 		imageURLs = []string{req.Image}
