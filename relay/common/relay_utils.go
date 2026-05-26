@@ -103,6 +103,9 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 	if images := formData["images"]; len(images) > 0 {
 		req.Images = images
 	}
+	if refImages := formData["reference_images"]; len(refImages) > 0 {
+		req.ReferenceImages = refImages
+	}
 
 	for key, values := range formData {
 		if len(values) > 0 && !isKnownTaskField(key) {
@@ -183,14 +186,15 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 
 func isKnownTaskField(field string) bool {
 	knownFields := map[string]bool{
-		"prompt":          true,
-		"model":           true,
-		"mode":            true,
-		"image":           true,
-		"images":          true,
-		"size":            true,
-		"duration":        true,
-		"input_reference": true, // Sora 特有字段
+		"prompt":           true,
+		"model":            true,
+		"mode":             true,
+		"image":            true,
+		"images":           true,
+		"reference_images": true,
+		"size":             true,
+		"duration":         true,
+		"input_reference":  true, // Sora 特有字段
 	}
 	return knownFields[field]
 }
@@ -217,6 +221,26 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
 		// 兼容单图上传
 		req.Images = []string{req.Image}
+	}
+
+	// 兼容旧逻辑：reference_images 之前可能被解析进 metadata
+	if len(req.ReferenceImages) == 0 && req.Metadata != nil {
+		if v, ok := req.Metadata["reference_images"]; ok {
+			switch val := v.(type) {
+			case []string:
+				req.ReferenceImages = val
+			case []interface{}:
+				for _, item := range val {
+					if s, ok := item.(string); ok {
+						req.ReferenceImages = append(req.ReferenceImages, s)
+					}
+				}
+			case string:
+				if val != "" {
+					req.ReferenceImages = []string{val}
+				}
+			}
+		}
 	}
 
 	storeTaskRequest(c, info, action, req)
