@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,13 +29,14 @@ import (
 // ---- Create (Image) ----
 
 type imageCreateRequest struct {
-	Model           string   `json:"model"`
-	Prompt          string   `json:"prompt"`
-	N               int      `json:"n,omitempty"`
-	Size            string   `json:"size,omitempty"`
-	Resolution      string   `json:"resolution,omitempty"`
-	ImageURLs       []string `json:"image_urls,omitempty"`
-	OfficialFallback bool    `json:"official_fallback,omitempty"`
+	Model            string   `json:"model"`
+	Prompt           string   `json:"prompt"`
+	N                int      `json:"n,omitempty"`
+	Size             string   `json:"size,omitempty"`
+	AspectRatio      string   `json:"aspect_ratio,omitempty"`
+	Resolution       string   `json:"resolution,omitempty"`
+	ImageURLs        []string `json:"image_urls,omitempty"`
+	OfficialFallback bool     `json:"official_fallback,omitempty"`
 }
 
 // ---- Create (Video) ----
@@ -197,6 +199,36 @@ func mapSizeToAspectRatio(size string) string {
 	return "1:1"
 }
 
+// mapAspectRatioToPixelSize 把常见比例映射为 OpenAI gpt-image-2 支持的像素尺寸。
+// gpt-image-2 支持：1024x1024 / 1024x1536 / 1536x1024
+func mapAspectRatioToPixelSize(ratio string) string {
+	ratio = strings.ToLower(strings.TrimSpace(ratio))
+	switch ratio {
+	case "1:1", "1/1":
+		return "1024x1024"
+	case "9:16", "2:3", "3:4", "4:5", "5:8", "10:16", "3:5":
+		return "1024x1536"
+	case "16:9", "3:2", "4:3", "16:10", "21:9", "2:1", "5:4", "5:3":
+		return "1536x1024"
+	default:
+		// 尝试按冒号解析宽高比，粗略判断横竖屏
+		if strings.Contains(ratio, ":") {
+			parts := strings.Split(ratio, ":")
+			if len(parts) == 2 {
+				w, err1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+				h, err2 := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+				if err1 == nil && err2 == nil && h > 0 {
+					if w/h < 1.0 {
+						return "1024x1536"
+					}
+					return "1536x1024"
+				}
+			}
+		}
+		return ratio // fallback：原样返回（可能是像素串）
+	}
+}
+
 func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) ([]byte, error) {
 	isImage := a.isImageGeneration(info)
 
@@ -212,6 +244,19 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		imageURLs = []string{req.Image}
 	}
 
+	// Collect aspect ratio from req.AspectRatio / metadata["aspect_ratio"] / req.Size
+	aspectRatio := ""
+	if req.AspectRatio != "" {
+		aspectRatio = req.AspectRatio
+	} else if req.Metadata != nil {
+		if v, ok := req.Metadata["aspect_ratio"].(string); ok && v != "" {
+			aspectRatio = v
+		}
+	}
+	if aspectRatio == "" && strings.Contains(req.Size, ":") {
+		aspectRatio = req.Size
+	}
+
 	if isImage {
 		payload := imageCreateRequest{
 			Model:  info.UpstreamModelName,
@@ -219,17 +264,16 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 			N:      1,
 		}
 
-		// Size 映射：优先用 metadata 中的 aspect_ratio，其次映射 req.Size
-		size := "1:1"
-		if req.Metadata != nil {
-			if v, ok := req.Metadata["aspect_ratio"].(string); ok && v != "" {
-				size = v
-			}
+		// 设置尺寸：优先用像素串（如果 req.Size 是像素格式），
+		// 否则把 aspectRatio 映射为像素尺寸；兜底 1:1
+		if req.Size != "" && strings.Contains(req.Size, "x") {
+			payload.Size = req.Size
+		} else if aspectRatio != "" {
+			payload.AspectRatio = aspectRatio
+			payload.Size = mapAspectRatioToPixelSize(aspectRatio)
+		} else {
+			payload.Size = "1024x1024"
 		}
-		if size == "1:1" && req.Size != "" {
-			size = mapSizeToAspectRatio(req.Size)
-		}
-		payload.Size = size
 
 		if len(imageURLs) > 0 {
 			payload.ImageURLs = imageURLs
@@ -274,15 +318,16 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		payload.ImageURLs = imageURLs
 	}
 
-	// aspect_ratio from metadata, req.Size, or default
+	// aspect_ratio from collected value, req.Size, or default
+	if aspectRatio != "" {
+		payload.AspectRatio = aspectRatio
+	} else if req.Size != "" {
+		payload.AspectRatio = mapSizeToAspectRatio(req.Size)
+	} else {
+		payload.AspectRatio = "16:9"
+	}
+
 	if req.Metadata != nil {
-		if v, ok := req.Metadata["aspect_ratio"].(string); ok && v != "" {
-			payload.AspectRatio = v
-		} else if req.Size != "" {
-			payload.AspectRatio = mapSizeToAspectRatio(req.Size)
-		} else {
-			payload.AspectRatio = "16:9"
-		}
 		if v, ok := req.Metadata["generation_type"].(string); ok && v != "" {
 			payload.GenerationType = v
 		} else if len(imageURLs) > 0 {
@@ -307,8 +352,6 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 	} else {
 		if req.Size != "" {
 			payload.AspectRatio = mapSizeToAspectRatio(req.Size)
-		} else {
-			payload.AspectRatio = "16:9"
 		}
 		payload.Resolution = "720p"
 	}
