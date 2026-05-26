@@ -2,6 +2,7 @@ package apimart
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -181,6 +182,26 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	contentType := c.GetHeader("Content-Type")
+
+	// 下游改为 multipart/form-data + 二进制文件上传时的处理路径
+	if strings.Contains(contentType, "multipart/form-data") {
+		req, err := a.parseMultipartToTaskSubmitReq(c)
+		if err != nil {
+			return nil, err
+		}
+		apimartLog(fmt.Sprintf("[APIMart] BuildRequestBody (multipart): prompt=%q size=%q aspect_ratio=%q referenceImages=%d images=%d imageURLs=%d image=%q metadata=%v",
+			req.Prompt, req.Size, req.AspectRatio, len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), req.Image, req.Metadata))
+		body, err := a.convertToRequestPayload(req, info)
+		if err != nil {
+			return nil, err
+		}
+		apimartLog(fmt.Sprintf("[APIMart] request body: %s", string(body)))
+		c.Set("apimart_request_body", string(body))
+		return bytes.NewReader(body), nil
+	}
+
+	// 原有的 JSON 处理路径
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil, err
@@ -194,6 +215,115 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	apimartLog(fmt.Sprintf("[APIMart] request body: %s", string(body)))
 	c.Set("apimart_request_body", string(body))
 	return bytes.NewReader(body), nil
+}
+
+// parseMultipartToTaskSubmitReq 从 multipart/form-data 请求中解析出 TaskSubmitReq。
+// 兼容下游 ewapi/client.rs 的新逻辑：文本字段 + 文件字段（ref_images）上传参考图。
+func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon.TaskSubmitReq, error) {
+	formData, err := common.ParseMultipartFormReusable(c)
+	if err != nil {
+		return relaycommon.TaskSubmitReq{}, err
+	}
+	defer formData.RemoveAll()
+
+	req := relaycommon.TaskSubmitReq{
+		Metadata: make(map[string]interface{}),
+	}
+
+	// ----- 文本字段 -----
+	if v, ok := formData.Value["prompt"]; ok && len(v) > 0 {
+		req.Prompt = v[0]
+	}
+	if v, ok := formData.Value["model"]; ok && len(v) > 0 {
+		req.Model = v[0]
+	}
+	if v, ok := formData.Value["size"]; ok && len(v) > 0 {
+		req.Size = v[0]
+	}
+	if v, ok := formData.Value["aspect_ratio"]; ok && len(v) > 0 {
+		req.AspectRatio = v[0]
+	}
+	if v, ok := formData.Value["image"]; ok && len(v) > 0 {
+		req.Image = v[0]
+	}
+	if v, ok := formData.Value["duration"]; ok && len(v) > 0 {
+		if d, err := strconv.Atoi(v[0]); err == nil {
+			req.Duration = d
+		}
+	}
+	if v, ok := formData.Value["seconds"]; ok && len(v) > 0 {
+		if d, err := strconv.Atoi(v[0]); err == nil {
+			req.Duration = d
+		}
+	}
+
+	// 文本形式的图片 URL / base64（向下兼容）
+	if images, ok := formData.Value["images"]; ok {
+		req.Images = images
+	}
+	if refImages, ok := formData.Value["reference_images"]; ok {
+		req.ReferenceImages = refImages
+	}
+
+	// ----- 文件字段（二进制图片）-----
+	// 下游 ewapi 使用 ref_images 作为文件字段名；同时兼容 images / files
+	fileFieldNames := []string{"ref_images", "images", "files"}
+	for _, fieldName := range fileFieldNames {
+		fileHeaders, ok := formData.File[fieldName]
+		if !ok {
+			continue
+		}
+		for _, fh := range fileHeaders {
+			f, err := fh.Open()
+			if err != nil {
+				apimartLog(fmt.Sprintf("[APIMart] failed to open multipart file %s: %v", fh.Filename, err))
+				continue
+			}
+			data, err := io.ReadAll(f)
+			f.Close()
+			if err != nil {
+				apimartLog(fmt.Sprintf("[APIMart] failed to read multipart file %s: %v", fh.Filename, err))
+				continue
+			}
+			if len(data) == 0 {
+				continue
+			}
+
+			ct := fh.Header.Get("Content-Type")
+			if ct == "" || ct == "application/octet-stream" {
+				ct = http.DetectContentType(data)
+			}
+			b64 := base64.StdEncoding.EncodeToString(data)
+			dataURL := fmt.Sprintf("data:%s;base64,%s", ct, b64)
+			req.ReferenceImages = append(req.ReferenceImages, dataURL)
+			apimartLog(fmt.Sprintf("[APIMart] multipart file %s -> data URL (%s, %d bytes)", fh.Filename, ct, len(data)))
+		}
+	}
+
+	// ----- Metadata：收集未知字段 -----
+	knownFields := map[string]bool{
+		"prompt": true, "model": true, "size": true, "aspect_ratio": true,
+		"image": true, "images": true, "reference_images": true,
+		"duration": true, "seconds": true, "mode": true,
+		"ref_images": true, "files": true,
+	}
+	for key, values := range formData.Value {
+		if knownFields[key] || len(values) == 0 {
+			continue
+		}
+		valStr := values[0]
+		if intVal, err := strconv.Atoi(valStr); err == nil {
+			req.Metadata[key] = intVal
+		} else if floatVal, err := strconv.ParseFloat(valStr, 64); err == nil {
+			req.Metadata[key] = floatVal
+		} else if boolVal, err := strconv.ParseBool(valStr); err == nil {
+			req.Metadata[key] = boolVal
+		} else {
+			req.Metadata[key] = valStr
+		}
+	}
+
+	return req, nil
 }
 
 // mapSizeToAspectRatio 将常见 size 值映射为 APIMart 支持的宽高比或像素串。
