@@ -193,7 +193,16 @@ func RequestEpay(c *gin.Context) {
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, _ := url.Parse(system_setting.ServerAddress + "/console/log")
+	serverAddress := service.GetServerAddress()
+	if serverAddress == "" {
+		// 兜底：从请求 Host 推断
+		scheme := "https"
+		if c.Request.TLS == nil {
+			scheme = "http"
+		}
+		serverAddress = scheme + "://" + c.Request.Host
+	}
+	returnUrl, _ := url.Parse(serverAddress + "/console/log")
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
 	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
