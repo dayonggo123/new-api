@@ -200,8 +200,11 @@ func mapSizeToAspectRatio(size string) string {
 func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) ([]byte, error) {
 	isImage := a.isImageGeneration(info)
 
-	// Collect image URLs from req.Images / req.Image
+	// Collect image URLs from req.Images / req.ImageURLs / req.Image
 	imageURLs := req.Images
+	if len(imageURLs) == 0 {
+		imageURLs = req.ImageURLs
+	}
 	if len(imageURLs) == 0 && req.Image != "" {
 		imageURLs = []string{req.Image}
 	}
