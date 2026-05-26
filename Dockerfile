@@ -1,4 +1,12 @@
-# 前端在宿主机预先 build: cd web && npm install --legacy-peer-deps && npm run build
+# 阶段1：构建前端
+FROM node:22-slim AS webbuilder
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm install --legacy-peer-deps
+COPY web/ ./
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN npm run build
+
 FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder2
 ENV GO111MODULE=on CGO_ENABLED=0
 
@@ -18,7 +26,7 @@ COPY . .
 COPY main.go ./main.go
 COPY controller/misc.go ./controller/misc.go
 COPY router/web-router.go ./router/web-router.go
-COPY ./web/dist ./web/dist
+COPY --from=webbuilder /web/dist ./web/dist
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
