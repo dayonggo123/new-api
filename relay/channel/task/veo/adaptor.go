@@ -590,7 +590,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 
 	if historyUUID == "" {
-		return nil, fmt.Errorf("history not found for task_id: %s", taskID)
+		// Return a 404-like response so the generic polling logic can mark the task as failed
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Body:       io.NopCloser(strings.NewReader(`{"error":"history not found"}`)),
+		}, nil
 	}
 
 	// Step 2: Get detailed history with video URL

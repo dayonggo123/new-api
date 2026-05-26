@@ -162,7 +162,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q duration=%d size=%q images=%d metadata=%v", req.Prompt, req.Duration, req.Size, len(req.Images), req.Metadata))
+	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q duration=%d size=%q images=%d imageURLs=%d metadata=%v", req.Prompt, req.Duration, req.Size, len(req.Images), len(req.ImageURLs), req.Metadata))
 
 	body, err := a.convertToRequestPayload(req, info)
 	if err != nil {

@@ -173,7 +173,7 @@ type submitResponse struct {
 	URL         string `json:"url"`
 	VideoURL    string `json:"video_url"`
 	Size        string `json:"size"`
-	Error       string `json:"error"`
+	Error       any    `json:"error"`
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
@@ -251,7 +251,20 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "failed", "failure":
 		taskInfo.Status = model.TaskStatusFailure
 		taskInfo.Progress = "100%"
-		taskInfo.Reason = dResp.Error
+		if dResp.Error != nil {
+			switch v := dResp.Error.(type) {
+			case string:
+				taskInfo.Reason = v
+			case map[string]any:
+				if msg, ok := v["message"].(string); ok {
+					taskInfo.Reason = msg
+				} else {
+					taskInfo.Reason = fmt.Sprintf("%v", v)
+				}
+			default:
+				taskInfo.Reason = fmt.Sprintf("%v", v)
+			}
+		}
 	default:
 		taskInfo.Status = model.TaskStatusInProgress
 	}
