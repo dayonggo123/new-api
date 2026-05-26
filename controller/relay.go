@@ -589,6 +589,11 @@ func RelayTask(c *gin.Context) {
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		}
+		if v, exists := c.Get("apimart_request_body"); exists {
+			if s, ok := v.(string); ok {
+				task.PrivateData.RequestPayload = s
+			}
+		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action

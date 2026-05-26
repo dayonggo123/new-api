@@ -164,12 +164,14 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	common.SysLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q duration=%d size=%q images=%d imageURLs=%d referenceImages=%d metadata=%v", req.Prompt, req.Duration, req.Size, len(req.Images), len(req.ImageURLs), len(req.ReferenceImages), req.Metadata))
+	common.SysError(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q size=%q aspect_ratio=%q images=%d imageURLs=%d referenceImages=%d metadata=%v", req.Prompt, req.Size, req.AspectRatio, len(req.Images), len(req.ImageURLs), len(req.ReferenceImages), req.Metadata))
 
 	body, err := a.convertToRequestPayload(req, info)
 	if err != nil {
 		return nil, err
 	}
+	common.SysError(fmt.Sprintf("[APIMart] request body: %s", string(body)))
+	c.Set("apimart_request_body", string(body))
 	return bytes.NewReader(body), nil
 }
 
