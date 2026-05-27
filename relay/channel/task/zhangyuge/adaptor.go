@@ -2,13 +2,12 @@ package zhangyuge
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -147,7 +145,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		images = append(images, img)
 	}
 	if len(images) > 0 {
+		// Zhangyuge omni_flash-10s supports up to 7 reference images
+		if len(images) > 7 {
+			common.SysLog(fmt.Sprintf("[ZhangyugeAI] warning: %d images provided, truncating to 7", len(images)))
+			images = images[:7]
+		}
 		zhangyugeBody["images"] = images
+		common.SysLog(fmt.Sprintf("[ZhangyugeAI] sending %d images", len(images)))
 	}
 
 	jsonData, err := common.Marshal(zhangyugeBody)
@@ -265,6 +269,16 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 				taskInfo.Reason = fmt.Sprintf("%v", v)
 			}
 		}
+	case "queued":
+		taskInfo.Status = model.TaskStatusInProgress
+		taskInfo.Progress = taskcommon.ProgressQueued
+	case "processing":
+		taskInfo.Status = model.TaskStatusInProgress
+		if dResp.Progress > 0 {
+			taskInfo.Progress = fmt.Sprintf("%d%%", dResp.Progress)
+		} else {
+			taskInfo.Progress = taskcommon.ProgressInProgress
+		}
 	default:
 		taskInfo.Status = model.TaskStatusInProgress
 	}
@@ -285,7 +299,9 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	openAIVideo.CreatedAt = task.CreatedAt
 	openAIVideo.CompletedAt = task.UpdatedAt
 
-	if zResp.URL != "" {
+	if zResp.VideoURL != "" {
+		openAIVideo.SetMetadata("url", zResp.VideoURL)
+	} else if zResp.URL != "" {
 		openAIVideo.SetMetadata("url", zResp.URL)
 	}
 
@@ -309,6 +325,8 @@ func mapModelName(model string) string {
 		return "veo_3_1"
 	case "veo-3.1-fast-fl", "veo_3_1-fast-fl":
 		return "veo_3_1-fast-fl"
+	case "omni-flash-10s", "omni_flash_10s":
+		return "omni_flash-10s"
 	default:
 		return model
 	}
@@ -341,7 +359,7 @@ func mapSizeToZhangyuge(size string, aspectRatio string) string {
 // parseMultipartBody parses multipart/form-data into a map similar to JSON body.
 // Text fields are extracted directly. File fields (images) are handled as follows:
 //   - If content looks like a URL or base64 data URI, use it directly.
-//   - If binary image data, save to uploads/ and generate a public URL.
+//   - If binary image data, encode as base64 data URI.
 func parseMultipartBody(c *gin.Context, body []byte, contentType string) map[string]interface{} {
 	_, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
@@ -376,6 +394,10 @@ func parseMultipartBody(c *gin.Context, body []byte, contentType string) map[str
 
 		// File parts (images)
 		if part.FileName() != "" || isImageFieldName(name) {
+			if len(images) >= 7 {
+				common.SysLog(fmt.Sprintf("[ZhangyugeAI] multipart: skipping image #%d, max 7 allowed", len(images)+1))
+				continue
+			}
 			imgURL := handleImagePart(c, data, part.Header.Get("Content-Type"))
 			if imgURL != "" {
 				images = append(images, imgURL)
@@ -389,17 +411,18 @@ func parseMultipartBody(c *gin.Context, body []byte, contentType string) map[str
 
 	if len(images) > 0 {
 		result["images"] = images
+		common.SysLog(fmt.Sprintf("[ZhangyugeAI] multipart: collected %d images", len(images)))
 	}
 	return result
 }
 
 func isImageFieldName(name string) bool {
 	lower := strings.ToLower(name)
-	return lower == "image" || lower == "images" || lower == "input_reference" || lower == "input_references"
+	return lower == "image" || lower == "images" || strings.HasPrefix(lower, "input_reference")
 }
 
 // handleImagePart processes an image part. If it looks like a URL or base64, returns as-is.
-// Binary image data >10MB is compressed before saving to uploads/.
+// Binary image data is encoded as base64 data URI so Zhangyuge servers can access it directly.
 func handleImagePart(c *gin.Context, data []byte, contentType string) string {
 	str := string(data)
 	str = strings.TrimSpace(str)
@@ -409,7 +432,7 @@ func handleImagePart(c *gin.Context, data []byte, contentType string) string {
 		return str
 	}
 
-	// Base64 data URI — pass through, CompressImageInBodyMap will handle it later
+	// Base64 data URI — pass through
 	if strings.HasPrefix(str, "data:") {
 		return str
 	}
@@ -436,44 +459,19 @@ func handleImagePart(c *gin.Context, data []byte, contentType string) string {
 		}
 	}
 
-	uploadDir := "./uploads"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		common.SysLog(fmt.Sprintf("[ZhangyugeAI] failed to create upload dir: %v", err))
-		return ""
-	}
-
-	ext := "bin"
-	switch contentType {
-	case "image/png":
-		ext = "png"
-	case "image/jpeg", "image/jpg":
-		ext = "jpg"
-	case "image/gif":
-		ext = "gif"
-	case "image/webp":
-		ext = "webp"
-	}
-
-	filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
-	filePath := filepath.Join(uploadDir, filename)
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		common.SysLog(fmt.Sprintf("[ZhangyugeAI] failed to write upload file: %v", err))
-		return ""
-	}
-
-	scheme := "https"
-	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	host := c.GetHeader("X-Forwarded-Host")
-	if host == "" {
-		host = c.Request.Host
-	}
-	return fmt.Sprintf("%s://%s/uploads/%s", scheme, host, filename)
+	// Encode binary image as base64 data URI — Zhangyuge accepts data URIs directly
+	b64 := base64.StdEncoding.EncodeToString(data)
+	dataURI := fmt.Sprintf("data:%s;base64,%s", contentType, b64)
+	common.SysLog(fmt.Sprintf("[ZhangyugeAI] encoded multipart image to data URI: %s, %d bytes", contentType, len(data)))
+	return dataURI
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{"default"}
+	return []string{
+		"omni_flash-10s",
+		"veo_3_1-fast",
+		"veo_3_1",
+	}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {
