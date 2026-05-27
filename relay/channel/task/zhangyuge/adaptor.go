@@ -8,6 +8,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,11 +127,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			size = strings.TrimSpace(v)
 		}
 	}
-	common.SysLog(fmt.Sprintf("[ZhangyugeAI] raw size=%q aspect_ratio=%q", size, aspectRatio))
-	if size != "" {
-		zhangyugeBody["size"] = mapSizeToZhangyuge(size, aspectRatio)
-		common.SysLog(fmt.Sprintf("[ZhangyugeAI] mapped size=%q", zhangyugeBody["size"]))
-	}
+	common.SysLog(fmt.Sprintf("[ZhangyugeAI] raw size=%q aspect_ratio=%q model=%q", size, aspectRatio, model))
 
 	// images: support both "images" (array) and "image" (single string)
 	var images []interface{}
@@ -144,14 +141,50 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if img, ok := bodyMap["image"].(string); ok && img != "" {
 		images = append(images, img)
 	}
-	if len(images) > 0 {
-		// Zhangyuge omni_flash-10s supports up to 7 reference images
-		if len(images) > 7 {
-			common.SysLog(fmt.Sprintf("[ZhangyugeAI] warning: %d images provided, truncating to 7", len(images)))
-			images = images[:7]
+
+	// Distinguish request format by model type
+	isGPTImage := strings.HasPrefix(model, "gpt-image-2")
+	if isGPTImage {
+		// gpt-image-2 uses metadata.aspect_ratio and metadata.urls
+		metadata := make(map[string]interface{})
+
+		// aspect_ratio: prefer explicit aspect_ratio, fallback to size mapping
+		ar := aspectRatio
+		if ar == "" && size != "" {
+			ar = mapSizeToAspectRatio(size)
 		}
-		zhangyugeBody["images"] = images
-		common.SysLog(fmt.Sprintf("[ZhangyugeAI] sending %d images", len(images)))
+		if ar != "" {
+			metadata["aspect_ratio"] = ar
+		}
+
+		// urls: reference images (max 5 for gpt-image-2)
+		if len(images) > 0 {
+			if len(images) > 5 {
+				common.SysLog(fmt.Sprintf("[ZhangyugeAI] warning: %d images provided for gpt-image-2, truncating to 5", len(images)))
+				images = images[:5]
+			}
+			metadata["urls"] = images
+			common.SysLog(fmt.Sprintf("[ZhangyugeAI] sending %d reference images for gpt-image-2", len(images)))
+		}
+
+		if len(metadata) > 0 {
+			zhangyugeBody["metadata"] = metadata
+		}
+	} else {
+		// omni_flash-10s / veo use size and images
+		if size != "" {
+			zhangyugeBody["size"] = mapSizeToZhangyuge(size, aspectRatio)
+			common.SysLog(fmt.Sprintf("[ZhangyugeAI] mapped size=%q", zhangyugeBody["size"]))
+		}
+		if len(images) > 0 {
+			// omni_flash-10s supports up to 7 reference images
+			if len(images) > 7 {
+				common.SysLog(fmt.Sprintf("[ZhangyugeAI] warning: %d images provided, truncating to 7", len(images)))
+				images = images[:7]
+			}
+			zhangyugeBody["images"] = images
+			common.SysLog(fmt.Sprintf("[ZhangyugeAI] sending %d images", len(images)))
+		}
 	}
 
 	jsonData, err := common.Marshal(zhangyugeBody)
@@ -356,6 +389,64 @@ func mapSizeToZhangyuge(size string, aspectRatio string) string {
 	}
 }
 
+// mapSizeToAspectRatio converts widthxheight to aspect ratio string.
+// Supports common sizes used by GPT image generation APIs.
+func mapSizeToAspectRatio(size string) string {
+	switch size {
+	case "1024x1024", "1080x1080", "512x512", "768x768":
+		return "1:1"
+	case "1024x1536", "1080x1920", "720x1280", "768x1344", "576x1024":
+		return "9:16"
+	case "1920x1080", "1280x720", "1344x768", "1024x576":
+		return "16:9"
+	case "1024x1280", "768x960":
+		return "4:5"
+	case "1280x1024", "960x768":
+		return "5:4"
+	case "1024x768":
+		return "4:3"
+	case "768x1024":
+		return "3:4"
+	case "1536x1024", "1152x768":
+		return "3:2"
+	case "768x1152":
+		return "2:3"
+	case "1920x823", "2560x1080":
+		return "21:9"
+	default:
+		// Try to parse widthxheight and compute ratio
+		parts := strings.Split(size, "x")
+		if len(parts) == 2 {
+			w, err1 := strconv.Atoi(parts[0])
+			h, err2 := strconv.Atoi(parts[1])
+			if err1 == nil && err2 == nil && h > 0 {
+				// Simplify ratio by GCD
+				g := gcd(w, h)
+				if g > 0 {
+					return fmt.Sprintf("%d:%d", w/g, h/g)
+				}
+			}
+		}
+		return "1:1" // default
+	}
+}
+
+func gcd(a, b int) int {
+	if a < 0 {
+		a = -a
+	}
+	if b < 0 {
+		b = -b
+	}
+	for b != 0 {
+		a, b = b, a%b
+	}
+	if a == 0 {
+		return 1
+	}
+	return a
+}
+
 // parseMultipartBody parses multipart/form-data into a map similar to JSON body.
 // Text fields are extracted directly. File fields (images) are handled as follows:
 //   - If content looks like a URL or base64 data URI, use it directly.
@@ -471,6 +562,9 @@ func (a *TaskAdaptor) GetModelList() []string {
 		"omni_flash-10s",
 		"veo_3_1-fast",
 		"veo_3_1",
+		"gpt-image-2",
+		"gpt-image-2-2K",
+		"gpt-image-2-4K",
 	}
 }
 
