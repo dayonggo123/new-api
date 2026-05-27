@@ -371,12 +371,13 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	// Task platform channels (BogeiAI, etc.) use task adaptor for testing.
 	// Skip ChannelTypeVeo because its upstream requires multipart form data,
 	// while the task adaptor test path uses JSON body.
+	// Task adaptor only handles image/video generation requests (ImageRequest).
+	// For chat/completion requests (GeneralOpenAIRequest), use the normal adaptor path.
 	platform := relay.GetTaskPlatform(c)
 	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil && channel.Type != constant.ChannelTypeVeo {
-		taskAdaptor.Init(info)
-
-		// Build task request from ImageRequest and store in context
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
+			taskAdaptor.Init(info)
+
 			taskReq := relaycommon.TaskSubmitReq{
 				Prompt: imageReq.Prompt,
 				Model:  imageReq.Model,
@@ -388,39 +389,39 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			bodyJSON, _ := common.Marshal(imageReq)
 			storage, _ := common.CreateBodyStorage(bodyJSON)
 			c.Set(common.KeyBodyStorage, storage)
-		}
 
-		requestBody, err := taskAdaptor.BuildRequestBody(c, info)
-		if err != nil {
+			requestBody, err := taskAdaptor.BuildRequestBody(c, info)
+			if err != nil {
+				return testResult{
+					context:     c,
+					localErr:    err,
+					newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
+				}
+			}
+
+			resp, err := taskAdaptor.DoRequest(c, info, requestBody)
+			if err != nil {
+				return testResult{
+					context:     c,
+					localErr:    err,
+					newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError),
+				}
+			}
+
+			_, _, taskErr := taskAdaptor.DoResponse(c, resp, info)
+			if taskErr != nil {
+				return testResult{
+					context:     c,
+					localErr:    taskErr.Error,
+					newAPIError: types.NewErrorWithStatusCode(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode),
+				}
+			}
+
 			return testResult{
 				context:     c,
-				localErr:    err,
-				newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
+				localErr:    nil,
+				newAPIError: nil,
 			}
-		}
-
-		resp, err := taskAdaptor.DoRequest(c, info, requestBody)
-		if err != nil {
-			return testResult{
-				context:     c,
-				localErr:    err,
-				newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError),
-			}
-		}
-
-		_, _, taskErr := taskAdaptor.DoResponse(c, resp, info)
-		if taskErr != nil {
-			return testResult{
-				context:     c,
-				localErr:    taskErr.Error,
-				newAPIError: types.NewErrorWithStatusCode(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode),
-			}
-		}
-
-		return testResult{
-			context:     c,
-			localErr:    nil,
-			newAPIError: nil,
 		}
 	}
 
