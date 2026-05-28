@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -137,12 +138,18 @@ func (t *Task) GetUpstreamTaskID() string {
 }
 
 // GetResultURL 获取任务结果 URL（视频地址等）
-// 新数据存在 PrivateData.ResultURL 中；旧数据回退到 FailReason（历史兼容）
+// 新数据存在 PrivateData.ResultURL 中；旧数据回退到 FailReason（仅当是 URL 格式时）
 func (t *Task) GetResultURL() string {
 	if t.PrivateData.ResultURL != "" {
 		return t.PrivateData.ResultURL
 	}
-	return t.FailReason
+	// 历史兼容：旧数据可能用 FailReason 存储了 URL
+	// 但需确保 FailReason 确实是 URL 格式，避免将错误消息作为 URL 返回
+	fr := strings.TrimSpace(t.FailReason)
+	if strings.HasPrefix(fr, "http://") || strings.HasPrefix(fr, "https://") || strings.HasPrefix(fr, "data:") {
+		return fr
+	}
+	return ""
 }
 
 // GenerateTaskID 生成对外暴露的 task_xxxx 格式 ID
@@ -515,6 +522,17 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.SetProgressStr(t.Progress)
 	openAIVideo.CreatedAt = t.CreatedAt
 	openAIVideo.CompletedAt = t.UpdatedAt
-	openAIVideo.SetMetadata("url", t.GetResultURL())
+
+	// 失败时返回结构化错误信息，而不是将错误消息污染到 metadata.url
+	if t.Status == TaskStatusFailure {
+		if t.FailReason != "" {
+			openAIVideo.Error = &dto.OpenAIVideoError{
+				Message: t.FailReason,
+				Code:    "task_failed",
+			}
+		}
+	} else {
+		openAIVideo.SetMetadata("url", t.GetResultURL())
+	}
 	return openAIVideo
 }
