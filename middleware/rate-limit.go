@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -53,6 +54,11 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		// See: https://stackoverflow.com/questions/50970900/why-is-time-since-returning-negative-durations-on-windows
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
+			retryAfter := duration - int64(nowTime.Sub(oldTime).Seconds())
+			if retryAfter < 1 {
+				retryAfter = 1
+			}
+			c.Header("Retry-After", strconv.FormatInt(retryAfter, 10))
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
@@ -67,6 +73,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	key := mark + c.ClientIP()
 	if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
+		c.Header("Retry-After", strconv.FormatInt(duration, 10))
 		c.Status(http.StatusTooManyRequests)
 		c.Abort()
 		return
@@ -143,6 +150,7 @@ func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c
 		}
 		key := fmt.Sprintf("%s:user:%d", mark, userId)
 		if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
+			c.Header("Retry-After", strconv.FormatInt(duration, 10))
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
@@ -184,6 +192,11 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 		}
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
+			retryAfter := duration - int64(nowTime.Sub(oldTime).Seconds())
+			if retryAfter < 1 {
+				retryAfter = 1
+			}
+			c.Header("Retry-After", strconv.FormatInt(retryAfter, 10))
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return

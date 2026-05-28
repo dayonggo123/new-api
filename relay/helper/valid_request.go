@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -85,10 +86,10 @@ func GetAndValidateRerankRequest(c *gin.Context) (*dto.RerankRequest, error) {
 	}
 
 	if rerankRequest.Query == "" {
-		return nil, types.NewError(fmt.Errorf("query is empty"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return nil, types.NewErrorWithStatusCode(errors.New("query is empty"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("query")
 	}
 	if len(rerankRequest.Documents) == 0 {
-		return nil, types.NewError(fmt.Errorf("documents is empty"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return nil, types.NewErrorWithStatusCode(errors.New("documents is empty"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("documents")
 	}
 	return rerankRequest, nil
 }
@@ -188,20 +189,20 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		}
 
 		if strings.Contains(imageRequest.Size, "×") {
-			return nil, errors.New("size an unexpected error occurred in the parameter, please use 'x' instead of the multiplication sign '×'")
+			return nil, types.NewErrorWithStatusCode(errors.New("size contains unexpected multiplication sign '×', please use 'x' instead"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("size")
 		}
 
 		// Not "256x256", "512x512", or "1024x1024"
 		if imageRequest.Model == "dall-e-2" || imageRequest.Model == "dall-e" {
 			if imageRequest.Size != "" && imageRequest.Size != "256x256" && imageRequest.Size != "512x512" && imageRequest.Size != "1024x1024" {
-				return nil, errors.New("size must be one of 256x256, 512x512, or 1024x1024 for dall-e-2 or dall-e")
+				return nil, types.NewErrorWithStatusCode(errors.New("size must be one of 256x256, 512x512, or 1024x1024 for dall-e-2 or dall-e"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("size")
 			}
 			if imageRequest.Size == "" {
 				imageRequest.Size = "1024x1024"
 			}
 		} else if imageRequest.Model == "dall-e-3" {
 			if imageRequest.Size != "" && imageRequest.Size != "1024x1024" && imageRequest.Size != "1024x1792" && imageRequest.Size != "1792x1024" {
-				return nil, errors.New("size must be one of 1024x1024, 1024x1792 or 1792x1024 for dall-e-3")
+				return nil, types.NewErrorWithStatusCode(errors.New("size must be one of 1024x1024, 1024x1792 or 1792x1024 for dall-e-3"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("size")
 			}
 			if imageRequest.Quality == "" {
 				imageRequest.Quality = "standard"
@@ -234,10 +235,10 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 		return nil, err
 	}
 	if textRequest.Messages == nil || len(textRequest.Messages) == 0 {
-		return nil, errors.New("field messages is required")
+		return nil, types.NewErrorWithStatusCode(errors.New("field messages is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("messages")
 	}
 	if textRequest.Model == "" {
-		return nil, errors.New("field model is required")
+		return nil, types.NewErrorWithStatusCode(errors.New("field model is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("model")
 	}
 
 	//if textRequest.Stream {
@@ -262,10 +263,10 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 	}
 
 	if lo.FromPtrOr(textRequest.MaxTokens, uint(0)) > math.MaxInt32/2 {
-		return nil, errors.New("max_tokens is invalid")
+		return nil, types.NewErrorWithStatusCode(errors.New("max_tokens is invalid"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("max_tokens")
 	}
 	if textRequest.Model == "" {
-		return nil, errors.New("model is required")
+		return nil, types.NewErrorWithStatusCode(errors.New("model is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("model")
 	}
 	if textRequest.WebSearchOptions != nil {
 		if textRequest.WebSearchOptions.SearchContextSize != "" {
@@ -284,22 +285,22 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 	switch relayMode {
 	case relayconstant.RelayModeCompletions:
 		if textRequest.Prompt == "" {
-			return nil, errors.New("field prompt is required")
+			return nil, types.NewErrorWithStatusCode(errors.New("field prompt is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("prompt")
 		}
 	case relayconstant.RelayModeChatCompletions:
 		// For FIM (Fill-in-the-middle) requests with prefix/suffix, messages is optional
 		// It will be filled by provider-specific adaptors if needed (e.g., SiliconFlow)。Or it is allowed by model vendor(s) (e.g., DeepSeek)
 		if len(textRequest.Messages) == 0 && textRequest.Prefix == nil && textRequest.Suffix == nil {
-			return nil, errors.New("field messages is required")
+			return nil, types.NewErrorWithStatusCode(errors.New("field messages is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("messages")
 		}
 	case relayconstant.RelayModeEmbeddings:
 	case relayconstant.RelayModeModerations:
 		if textRequest.Input == nil || textRequest.Input == "" {
-			return nil, errors.New("field input is required")
+			return nil, types.NewErrorWithStatusCode(errors.New("field input is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("input")
 		}
 	case relayconstant.RelayModeEdits:
 		if textRequest.Instruction == "" {
-			return nil, errors.New("field instruction is required")
+			return nil, types.NewErrorWithStatusCode(errors.New("field instruction is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("instruction")
 		}
 	}
 	return textRequest, nil

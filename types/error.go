@@ -11,11 +11,15 @@ import (
 )
 
 type OpenAIError struct {
-	Message  string          `json:"message"`
-	Type     string          `json:"type"`
-	Param    string          `json:"param"`
-	Code     any             `json:"code"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
+	Message                string                 `json:"message"`
+	Type                   string                 `json:"type"`
+	Param                  string                 `json:"param"`
+	Code                   any                    `json:"code"`
+	Metadata               json.RawMessage        `json:"metadata,omitempty"`
+	// === 新增扩展字段 ===
+	Detail                 string                 `json:"detail,omitempty"`
+	Help                   string                 `json:"help,omitempty"`
+	ProviderSpecificFields map[string]interface{} `json:"provider_specific_fields,omitempty"`
 }
 
 type ClaudeError struct {
@@ -88,14 +92,20 @@ const (
 )
 
 type NewAPIError struct {
-	Err            error
-	RelayError     any
-	skipRetry      bool
-	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
+	Err                    error
+	RelayError             any
+	skipRetry              bool
+	recordErrorLog         *bool
+	errorType              ErrorType
+	errorCode              ErrorCode
+	StatusCode             int
+	Metadata               json.RawMessage
+	// === 新增字段 ===
+	RequestID              string                 `json:"-"` // 从 gin context 获取
+	Param                  string                 `json:"-"` // 出错参数名
+	Detail                 string                 `json:"-"` // 调试详情（给开发者）
+	ProviderSpecificFields map[string]interface{} `json:"-"` // 上游原始错误结构
+	Lang                   string                 `json:"-"` // 错误消息语言，zh 或 en
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -177,6 +187,44 @@ func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
 }
 
+// SetParam 设置出错参数名，支持链式调用
+func (e *NewAPIError) SetParam(param string) *NewAPIError {
+	e.Param = param
+	return e
+}
+
+// SetDetail 设置调试详情，支持链式调用
+func (e *NewAPIError) SetDetail(detail string) *NewAPIError {
+	e.Detail = detail
+	return e
+}
+
+// SetProviderSpecificFields 保留上游原始错误结构，支持链式调用
+func (e *NewAPIError) SetProviderSpecificFields(fields map[string]interface{}) *NewAPIError {
+	e.ProviderSpecificFields = fields
+	return e
+}
+
+// SetRequestID 设置请求追踪 ID，支持链式调用
+func (e *NewAPIError) SetRequestID(requestID string) *NewAPIError {
+	e.RequestID = requestID
+	return e
+}
+
+// SetLang 设置错误消息语言，支持链式调用
+func (e *NewAPIError) SetLang(lang string) *NewAPIError {
+	e.Lang = lang
+	return e
+}
+
+// GetLang 获取语言，空值时 fallback 到 zh
+func (e *NewAPIError) GetLang() string {
+	if e == nil || e.Lang == "" {
+		return "zh"
+	}
+	return e.Lang
+}
+
 func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	var result OpenAIError
 	switch e.errorType {
@@ -201,6 +249,43 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 			Code:    e.errorCode,
 		}
 	}
+
+	// === 新增：对内部错误使用模板替换 message ===
+	if e.errorType == ErrorTypeNewAPIError && e.errorCode != "" {
+		tpl := GetErrorTemplate(e.errorCode)
+		if tpl != nil {
+			lang := e.GetLang()
+			rendered := RenderTemplate(tpl, e, lang)
+			if rendered != "" {
+				result.Message = rendered
+				result.Type = tpl.Type
+				if tpl.HelpURL != "" {
+					result.Help = tpl.HelpURL
+				}
+			}
+			// 填充 detail 模板（如果手动未设置）
+			if e.Detail == "" && tpl.Detail != nil {
+				detailRendered := RenderDetailTemplate(tpl, e, lang)
+				if detailRendered == "" {
+					// fallback 到英文
+					detailRendered = RenderDetailTemplate(tpl, e, "en")
+				}
+				if detailRendered != "" {
+					result.Detail = detailRendered
+				}
+			}
+		}
+	}
+
+	// === 新增：填充扩展字段 ===
+	result.Param = e.Param
+	if e.Detail != "" {
+		result.Detail = e.Detail
+	}
+	result.ProviderSpecificFields = e.ProviderSpecificFields
+	// 对外 code 使用规范化格式
+	result.Code = e.errorCode.ToExternalCode()
+
 	if e.errorCode != ErrorCodeCountTokenFailed {
 		result.Message = common.MaskSensitiveInfo(result.Message)
 	}

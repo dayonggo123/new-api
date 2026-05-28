@@ -115,6 +115,11 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		oaiError := errResponse.TryToOpenAIError()
 		if oaiError != nil {
 			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+			// === 新增：保留上游原始错误结构 ===
+			var providerFields map[string]interface{}
+			if unmarshalErr := common.Unmarshal(responseBody, &providerFields); unmarshalErr == nil {
+				newApiErr.SetProviderSpecificFields(providerFields)
+			}
 			if showBodyWhenFail {
 				newApiErr.Err = buildErrWithBody(newApiErr.Error())
 			}
@@ -122,6 +127,11 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		}
 	}
 	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	// === 新增：保留上游原始错误结构（即使不是标准 OpenAI 格式）===
+	var providerFields map[string]interface{}
+	if unmarshalErr := common.Unmarshal(responseBody, &providerFields); unmarshalErr == nil {
+		newApiErr.SetProviderSpecificFields(providerFields)
+	}
 	if showBodyWhenFail {
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
@@ -197,11 +207,17 @@ func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
 		text = common.MaskSensitiveInfo(text)
 	}
 	//避免暴露内部错误
+	openaiErr := types.OpenAIError{
+		Message: text,
+		Type:    "task_error",
+		Code:    code,
+	}
 	taskError := &dto.TaskError{
 		Code:       code,
 		Message:    text,
 		StatusCode: statusCode,
 		Error:      err,
+		OpenAIErr:  openaiErr,
 	}
 
 	return taskError
@@ -212,10 +228,12 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *dto.TaskError {
 	if apiErr == nil {
 		return nil
 	}
+	openaiErr := apiErr.ToOpenAIError()
 	return &dto.TaskError{
 		Code:       string(apiErr.GetErrorCode()),
 		Message:    apiErr.Err.Error(),
 		StatusCode: apiErr.StatusCode,
 		Error:      apiErr.Err,
+		OpenAIErr:  openaiErr,
 	}
 }
