@@ -102,7 +102,7 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 }
 
 func (s *SubscriptionFunding) Settle(delta int) error {
-	if delta == 0 {
+	if delta == 0 || s.AmountTotal == 0 {
 		return nil
 	}
 	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))

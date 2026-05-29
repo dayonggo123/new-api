@@ -1008,6 +1008,15 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
 			}
+			// === 无限额度订阅：只验证有效性，不执行额度操作 ===
+			if sub.AmountTotal == 0 {
+				returnValue.UserSubscriptionId = sub.Id
+				returnValue.PreConsumed = 0
+				returnValue.AmountTotal = 0
+				returnValue.AmountUsedBefore = sub.AmountUsed
+				returnValue.AmountUsedAfter = sub.AmountUsed
+				return nil
+			}
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
 				remain := sub.AmountTotal - usedBefore
