@@ -264,6 +264,9 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon
 	if refImages, ok := formData.Value["reference_images"]; ok {
 		req.ReferenceImages = refImages
 	}
+	if videoURLs, ok := formData.Value["video_urls"]; ok {
+		req.VideoURLs = videoURLs
+	}
 
 	// ----- 文件字段（二进制图片）-----
 	// 下游 ewapi 使用 ref_images 作为文件字段名；同时兼容 images / files
@@ -304,7 +307,7 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon
 	knownFields := map[string]bool{
 		"prompt": true, "model": true, "size": true, "aspect_ratio": true,
 		"image": true, "images": true, "reference_images": true,
-		"duration": true, "seconds": true, "mode": true,
+		"video_urls": true, "duration": true, "seconds": true, "mode": true,
 		"ref_images": true, "files": true,
 	}
 	for key, values := range formData.Value {
@@ -476,42 +479,48 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		"model":  info.UpstreamModelName,
 		"prompt": req.Prompt,
 	}
-	apimartLog(fmt.Sprintf("[APIMart] video payload before marshal: model=%s prompt=%q duration=%d aspect_ratio=%s resolution=%s", info.UpstreamModelName, req.Prompt, req.Duration, aspectRatio, ""))
 
-	if req.Duration > 0 {
+	hasVideoURLs := len(req.VideoURLs) > 0
+
+	// Duration: default 6s; mutually exclusive with video_urls
+	if hasVideoURLs {
+		payload["video_urls"] = req.VideoURLs
+	} else if req.Duration > 0 {
 		payload["duration"] = req.Duration
 	} else {
-		payload["duration"] = 8
+		payload["duration"] = 6
 	}
 
 	if len(imageURLs) > 0 {
 		payload["image_urls"] = imageURLs
 	}
 
-	// aspect_ratio from collected value, req.Size, or default
+	// aspect_ratio from collected value, req.Size (if ratio format), or default
 	if aspectRatio != "" {
 		payload["aspect_ratio"] = aspectRatio
 	} else if req.Size != "" {
-		payload["aspect_ratio"] = mapSizeToAspectRatio(req.Size)
+		if strings.Contains(req.Size, ":") {
+			payload["aspect_ratio"] = req.Size
+		} else {
+			payload["aspect_ratio"] = mapSizeToAspectRatio(req.Size)
+		}
 	} else {
 		payload["aspect_ratio"] = "16:9"
 	}
 
+	// resolution: default 720p
+	resolution := "720p"
 	if req.Metadata != nil {
+		if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
+			resolution = strings.ToLower(v)
+		}
 		if v, ok := req.Metadata["generation_type"].(string); ok && v != "" {
 			payload["generation_type"] = v
 		} else if len(imageURLs) > 0 {
-			// Auto-detect: 2 images = frame (first/last), 3 images = reference
-			if len(imageURLs) == 2 {
-				payload["generation_type"] = "frame"
-			} else if len(imageURLs) >= 3 {
+			// Omni-Flash-Ext: 1 image = single image, 3 images = reference fusion
+			if len(imageURLs) >= 3 {
 				payload["generation_type"] = "reference"
 			}
-		}
-		if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
-			payload["resolution"] = strings.ToLower(v)
-		} else {
-			payload["resolution"] = "720p"
 		}
 		if v, ok := req.Metadata["enable_gif"].(bool); ok {
 			payload["enable_gif"] = v
@@ -519,12 +528,17 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		if v, ok := req.Metadata["official_fallback"].(bool); ok {
 			payload["official_fallback"] = v
 		}
-	} else {
-		if req.Size != "" {
-			payload["aspect_ratio"] = mapSizeToAspectRatio(req.Size)
+	} else if req.Size != "" {
+		// Allow size like "720p", "1080p", "4k" to be used as resolution
+		lowerSize := strings.ToLower(req.Size)
+		if lowerSize == "720p" || lowerSize == "1080p" || lowerSize == "4k" {
+			resolution = lowerSize
 		}
-		payload["resolution"] = "720p"
 	}
+	payload["resolution"] = resolution
+
+	apimartLog(fmt.Sprintf("[APIMart] video payload: model=%s prompt=%q duration=%d aspect_ratio=%s resolution=%s videoURLs=%d imageURLs=%d",
+		info.UpstreamModelName, req.Prompt, req.Duration, payload["aspect_ratio"], resolution, len(req.VideoURLs), len(imageURLs)))
 
 	body, _ := common.Marshal(payload)
 	apimartLog(fmt.Sprintf("[APIMart] video request payload: %s", string(body)))
@@ -704,6 +718,7 @@ func (a *TaskAdaptor) GetModelList() []string {
 		"veo3.1-fast",
 		"veo3.1-quality",
 		"veo3.1-lite",
+		"Omni-Flash-Ext",
 	}
 }
 

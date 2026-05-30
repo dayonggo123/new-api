@@ -675,6 +675,7 @@ type TaskSubmitReq struct {
 	Images          []string               `json:"images,omitempty"`
 	ImageURLs       []string               `json:"image_urls,omitempty"`
 	ReferenceImages []string               `json:"reference_images,omitempty"`
+	VideoURLs       []string               `json:"video_urls,omitempty"`
 	Size            string                 `json:"size,omitempty"`
 	AspectRatio     string                 `json:"aspect_ratio,omitempty"`
 	Duration        int                    `json:"duration,omitempty"`
@@ -699,6 +700,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		ImageURLs       json.RawMessage `json:"image_urls,omitempty"`
 		ReferenceImages json.RawMessage `json:"reference_images,omitempty"`
 		Images          json.RawMessage `json:"images,omitempty"`
+		VideoURLs       json.RawMessage `json:"video_urls,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -739,6 +741,17 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 			var str string
 			if err := common.Unmarshal(aux.Images, &str); err == nil && str != "" {
 				t.Images = []string{str}
+			}
+		}
+	}
+	if len(aux.VideoURLs) > 0 {
+		var arr []string
+		if err := common.Unmarshal(aux.VideoURLs, &arr); err == nil {
+			t.VideoURLs = arr
+		} else {
+			var str string
+			if err := common.Unmarshal(aux.VideoURLs, &str); err == nil && str != "" {
+				t.VideoURLs = []string{str}
 			}
 		}
 	}
