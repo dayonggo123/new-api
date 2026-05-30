@@ -774,9 +774,9 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		strings.Contains(lowerModel, "nano") || strings.Contains(lowerModel, "banana") ||
 		strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
 	isWanXiangMedia := (isWanXiangChannel || isWanXiangBaseURL) && hasMediaKeyword
-	if endpointType == "" && (isWanXiangMedia || strings.Contains(model, "veo") || strings.Contains(model, "gemini")) {
+	if endpointType == "" && (isWanXiangMedia || strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") || strings.Contains(lowerModel, "omni-flash") || strings.Contains(lowerModel, "gpt-image")) {
 		size := "1024x1024"
-		if strings.Contains(model, "veo") {
+		if strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "omni-flash") {
 			size = "1280x720"
 		}
 		return &dto.ImageRequest{
