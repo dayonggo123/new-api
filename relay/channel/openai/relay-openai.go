@@ -189,6 +189,13 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
+	firstItem := ""
+	if len(streamItems) > 0 {
+		firstItem = streamItems[0]
+	}
+	common.SysLog(fmt.Sprintf("[OaiStreamHandler] stream finished: channel=%d model=%s items=%d textLen=%d usage=%+v first=%q last=%q",
+		info.ChannelId, info.UpstreamModelName, len(streamItems), responseTextBuilder.Len(), usage, firstItem, lastStreamData))
+
 	return usage, nil
 }
 
@@ -203,6 +210,13 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if common.DebugEnabled {
 		println("upstream response body:", string(responseBody))
 	}
+	// 记录上游响应摘要（限制长度，避免日志过大）
+	logBody := string(responseBody)
+	if len(logBody) > 2000 {
+		logBody = logBody[:2000] + "... (truncated)"
+	}
+	common.SysLog(fmt.Sprintf("[OpenaiHandler] upstream response: channel=%d model=%s status=%d len=%d choices=%d body=%s",
+		info.ChannelId, info.UpstreamModelName, resp.StatusCode, len(responseBody), strings.Count(logBody, `"choices"`), logBody))
 	// Unmarshal to simpleResponse
 	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.IsOpenRouterEnterprise() {
 		// 尝试解析为 openrouter enterprise

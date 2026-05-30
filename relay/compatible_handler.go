@@ -196,6 +196,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+		common.SysLog(fmt.Sprintf("[TextHelper] upstream status=%d content-type=%s isStream=%v model=%s channel=%d",
+			httpResp.StatusCode, httpResp.Header.Get("Content-Type"), info.IsStream, info.OriginModelName, info.ChannelId))
 		if httpResp.StatusCode != http.StatusOK {
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
