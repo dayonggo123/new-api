@@ -2,11 +2,11 @@ package apimart
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -36,6 +37,56 @@ func apimartLog(s string) {
 }
 
 var base64Pattern = regexp.MustCompile(`^[A-Za-z0-9+/]+={0,2}$`)
+
+func getBaseURL(c *gin.Context) string {
+	scheme := "https"
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	return scheme + "://" + host
+}
+
+func extFromContentType(ct string) string {
+	switch strings.ToLower(ct) {
+	case "image/png":
+		return "png"
+	case "image/jpeg", "image/jpg":
+		return "jpg"
+	case "image/gif":
+		return "gif"
+	case "image/webp":
+		return "webp"
+	case "image/bmp":
+		return "bmp"
+	case "image/heic":
+		return "heic"
+	case "image/heif":
+		return "heif"
+	case "video/mp4":
+		return "mp4"
+	case "video/webm":
+		return "webm"
+	default:
+		return "bin"
+	}
+}
+
+func saveTempUpload(data []byte, ext string) (string, error) {
+	dir := "./uploads"
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
+	filePath := filepath.Join(dir, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return "", err
+	}
+	return filename, nil
+}
 
 func looksLikeBase64(s string) bool {
 	if len(s) < 100 {
@@ -186,10 +237,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	// 下游改为 multipart/form-data + 二进制文件上传时的处理路径
 	if strings.Contains(contentType, "multipart/form-data") {
-		req, err := a.parseMultipartToTaskSubmitReq(c)
+		req, err := a.parseMultipartToTaskSubmitReq(c, getBaseURL(c))
 		if err != nil {
 			return nil, err
 		}
+		common.SysLog(fmt.Sprintf("[APIMart] multipart req: prompt=%q model=%q size=%q aspect_ratio=%q refImages=%d images=%d imageURLs=%d videoURLs=%d image=%q metadata=%v",
+			req.Prompt, req.Model, req.Size, req.AspectRatio, len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), len(req.VideoURLs), req.Image, req.Metadata))
 		apimartLog(fmt.Sprintf("[APIMart] BuildRequestBody (multipart): prompt=%q size=%q aspect_ratio=%q referenceImages=%d images=%d imageURLs=%d image=%q metadata=%v",
 			req.Prompt, req.Size, req.AspectRatio, len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), req.Image, req.Metadata))
 		body, err := a.convertToRequestPayload(req, info)
@@ -206,6 +259,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	common.SysLog(fmt.Sprintf("[APIMart] json req: prompt=%q model=%q size=%q aspect_ratio=%q refImages=%d images=%d imageURLs=%d videoURLs=%d image=%q metadata=%v",
+		req.Prompt, req.Model, req.Size, req.AspectRatio, len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), len(req.VideoURLs), req.Image, req.Metadata))
 	apimartLog(fmt.Sprintf("[APIMart] BuildRequestBody: prompt=%q size=%q aspect_ratio=%q images=%d imageURLs=%d referenceImages=%d metadata=%v", req.Prompt, req.Size, req.AspectRatio, len(req.Images), len(req.ImageURLs), len(req.ReferenceImages), req.Metadata))
 
 	body, err := a.convertToRequestPayload(req, info)
@@ -219,7 +274,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 // parseMultipartToTaskSubmitReq 从 multipart/form-data 请求中解析出 TaskSubmitReq。
 // 兼容下游 ewapi/client.rs 的新逻辑：文本字段 + 文件字段（ref_images）上传参考图。
-func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon.TaskSubmitReq, error) {
+func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context, baseURL string) (relaycommon.TaskSubmitReq, error) {
 	formData, err := common.ParseMultipartFormReusable(c)
 	if err != nil {
 		return relaycommon.TaskSubmitReq{}, err
@@ -264,6 +319,9 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon
 	if refImages, ok := formData.Value["reference_images"]; ok {
 		req.ReferenceImages = refImages
 	}
+	if imageURLs, ok := formData.Value["image_urls"]; ok {
+		req.ImageURLs = imageURLs
+	}
 	if videoURLs, ok := formData.Value["video_urls"]; ok {
 		req.VideoURLs = videoURLs
 	}
@@ -296,10 +354,17 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon
 			if ct == "" || ct == "application/octet-stream" {
 				ct = http.DetectContentType(data)
 			}
-			b64 := base64.StdEncoding.EncodeToString(data)
-			dataURL := fmt.Sprintf("data:%s;base64,%s", ct, b64)
-			req.ReferenceImages = append(req.ReferenceImages, dataURL)
-			apimartLog(fmt.Sprintf("[APIMart] multipart file %s -> data URL (%s, %d bytes)", fh.Filename, ct, len(data)))
+			ext := extFromContentType(ct)
+			filename, err := saveTempUpload(data, ext)
+			if err != nil {
+				common.SysLog(fmt.Sprintf("[APIMart] failed to save upload file %s: %v", fh.Filename, err))
+				apimartLog(fmt.Sprintf("[APIMart] failed to save upload file %s: %v", fh.Filename, err))
+				continue
+			}
+			url := baseURL + "/uploads/" + filename
+			req.ReferenceImages = append(req.ReferenceImages, url)
+			common.SysLog(fmt.Sprintf("[APIMart] multipart file %s -> local URL %s (%s, %d bytes)", fh.Filename, url, ct, len(data)))
+			apimartLog(fmt.Sprintf("[APIMart] multipart file %s -> local URL %s (%s, %d bytes)", fh.Filename, url, ct, len(data)))
 		}
 	}
 
@@ -400,22 +465,25 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		imageURLs = []string{req.Image}
 	}
 
-	// 过滤掉非 http/https/data 协议的 URL（如 asset:// 等本地协议 APIMart 不接受）
-	// 同时兼容纯 base64 字符串（无 data: 前缀的自动补上）
+	// APIMart 只接受 http/https/asset:// 协议的 URL，data: 和 base64 字符串会被过滤
 	var validURLs []string
+	var droppedURLs []string
 	for _, url := range imageURLs {
 		url = strings.TrimSpace(url)
-		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "data:") {
+		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "asset://") {
 			validURLs = append(validURLs, url)
-		} else if looksLikeBase64(url) {
-			// 下游传了纯 base64，自动补前缀（APIMart 支持 png/jpeg，先统一用 png）
-			validURLs = append(validURLs, "data:image/png;base64,"+url)
+		} else {
+			droppedURLs = append(droppedURLs, url[:min(len(url), 80)])
 		}
 	}
 	imageURLs = validURLs
 
-	apimartLog(fmt.Sprintf("[APIMart] image source: referenceImages=%d images=%d imageURLs=%d image=%q final=%d",
-		len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), req.Image, len(imageURLs)))
+	if len(droppedURLs) > 0 {
+		common.SysLog(fmt.Sprintf("[APIMart] dropped %d unsupported URLs (only http/https/asset:// allowed): %v", len(droppedURLs), droppedURLs))
+	}
+
+	apimartLog(fmt.Sprintf("[APIMart] image source: referenceImages=%d images=%d imageURLs=%d image=%q final=%d dropped=%d",
+		len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), req.Image, len(imageURLs), len(droppedURLs)))
 
 	// Collect aspect ratio from req.AspectRatio / metadata["aspect_ratio"] / req.Size
 	aspectRatio := ""
