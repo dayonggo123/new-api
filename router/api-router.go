@@ -158,10 +158,11 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		// Subscription billing (plans, purchase, admin management)
+		// Plans list is publicly accessible (like pricing)
+		apiRouter.GET("/subscription/plans", middleware.TryUserAuth(), controller.GetSubscriptionPlans)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())
 		{
-			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
 			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
