@@ -58,6 +58,7 @@ const routerMap = {
   article: '/console/article',
   ecommerce_wizard: '/console/ecommerce-wizard',
   app_release: '/console/app-release',
+  popup: '/console/popup',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
