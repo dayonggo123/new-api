@@ -347,6 +347,7 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
       console.error('Auto save i18n failed:', err);
     }
   };
+  const updateI18nField = (langCode, field, value) => {
     setI18nData((prev) => ({
       ...prev,
       [langCode]: { ...prev[langCode], [field]: value },
