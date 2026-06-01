@@ -95,11 +95,16 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 
+	// 套餐价格存的是 USD，易支付收人民币，需要乘以汇率
+	cnyAmount := plan.PriceAmount * operation_setting.USDExchangeRate
+	moneyStr := strconv.FormatFloat(cnyAmount, 'f', 2, 64)
+	common.SysLog(fmt.Sprintf("[Epay] plan=%s, original=%.2f USD, rate=%.2f, cny=%s", plan.Title, plan.PriceAmount, operation_setting.USDExchangeRate, moneyStr))
+
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		Money:          moneyStr,
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
