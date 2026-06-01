@@ -50,6 +50,7 @@ import SkillManagement from './pages/SkillManagement';
 import AppReleaseManagement from './pages/AppReleaseManagement';
 import TierManagement from './pages/TierManagement';
 import TagManagement from './pages/TagManagement';
+import PopupManagement from './pages/PopupManagement';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
@@ -264,6 +265,14 @@ function App() {
           element={
             <AdminRoute>
               <TagManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/popup'
+          element={
+            <AdminRoute>
+              <PopupManagement />
             </AdminRoute>
           }
         />
