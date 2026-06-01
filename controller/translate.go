@@ -124,10 +124,10 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 		userPromptTemplate = skill.UserPromptTemplate
 	}
 	if systemPrompt == "" {
-		systemPrompt = "You are a professional translator. Your ONLY task is to translate the given fields from {{sourceLang}} to {{targetLang}}. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Preserve all variable placeholders like {{variableName}} exactly as-is. Return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON."
+		systemPrompt = "You are a professional translator. Your ONLY task is to translate the given fields from {{sourceLang}} to {{targetLang}}. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. If you accidentally start writing in {{sourceLang}}, STOP and rewrite everything in {{targetLang}}. Preserve all variable placeholders like {{variableName}} exactly as-is. Return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON."
 	}
 	if userPromptTemplate == "" {
-		userPromptTemplate = "Translate the following fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n\nOutput format example:\n{\"title\":\"Translated Title\",\"content\":\"Translated content...\"}"
+		userPromptTemplate = "Translate the following fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text — absolutely NO {{sourceLang}} allowed\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n5. If any value is still in {{sourceLang}}, you have failed — translate again into {{targetLang}}\n\nOutput format example:\n{\"title\":\"Translated Title\",\"content\":\"Translated content...\"}"
 	}
 
 	// 构建 {{items}} 变量内容（旧文本格式，向后兼容）
@@ -231,7 +231,14 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 				result[item.Key] = translated
 				missingKeys = append(missingKeys, item.Key)
 			} else {
-				result[item.Key] = item.Text
+				// 单条也失败了，用强制 prompt 再试一次
+				forced := translateSingleWithAIForced(cfg, item.Text, sourceLang, targetLang)
+				if forced != "" && forced != item.Text {
+					result[item.Key] = forced
+					missingKeys = append(missingKeys, item.Key+"(forced)")
+				} else {
+					result[item.Key] = item.Text
+				}
 			}
 		}
 	}
@@ -256,10 +263,10 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 		userPromptTemplate = skill.UserPromptTemplate
 	}
 	if systemPrompt == "" {
-		systemPrompt = "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}."
+		systemPrompt = "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in {{targetLang}}. If you output anything in {{sourceLang}}, you have failed."
 	}
 	if userPromptTemplate == "" {
-		userPromptTemplate = "Translate the following text from {{sourceLang}} to {{targetLang}}. Your response must be ONLY the translated text in {{targetLang}}, nothing else:\n\n\"\"\"\n{{prompt}}\n\"\"\""
+		userPromptTemplate = "Translate the following text from {{sourceLang}} to {{targetLang}}. Your response must be ONLY the translated text in {{targetLang}}, nothing else. Do NOT include the original {{sourceLang}} text. Do NOT explain. Output pure {{targetLang}} text only:\n\n\"\"\"\n{{prompt}}\n\"\"\""
 	}
 
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLangName)
@@ -271,6 +278,17 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 	// 兼容旧模板中使用 {{language}} 的写法
 	userPrompt = strings.ReplaceAll(userPrompt, "{{language}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{prompt}}", text)
+
+	return callTranslateAI(cfg, systemPrompt, userPrompt)
+}
+
+// translateSingleWithAIForced 强制翻译：使用更强烈的 prompt 确保模型用目标语言回复
+func translateSingleWithAIForced(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
+	targetLangName := getLangName(targetLang)
+	sourceLangName := getLangName(sourceLang)
+
+	systemPrompt := "You are a translator. CRITICAL RULE: Your entire response MUST be written in " + targetLangName + ". ZERO words in " + sourceLangName + " allowed. If you write even one word in " + sourceLangName + ", you failed. Output ONLY the translation."
+	userPrompt := "Translate this to " + targetLangName + ". Remember: ONLY " + targetLangName + " output. No " + sourceLangName + " at all:\n\n" + text
 
 	return callTranslateAI(cfg, systemPrompt, userPrompt)
 }
