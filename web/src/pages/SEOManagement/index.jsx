@@ -251,7 +251,24 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
           if (queue.status === 'done') {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
-            showSuccess('自动翻译完成');
+            // 基于翻译结果构建最新的 i18nData 并自动保存
+            const latestI18n = { ...i18nData };
+            if (queue.results) {
+              Object.entries(queue.results).forEach(([langCode, langResult]) => {
+                if (langResult && latestI18n[langCode]) {
+                  const newFaq = reassembleFaq(langResult);
+                  latestI18n[langCode] = {
+                    ...latestI18n[langCode],
+                    seo_keywords: langResult.seo_keywords || latestI18n[langCode].seo_keywords || '',
+                    intro: langResult.intro || latestI18n[langCode].intro || '',
+                    ...(newFaq ? { faq: newFaq } : {}),
+                  };
+                }
+              });
+              setI18nData(latestI18n);
+              autoSaveI18n(latestI18n);
+            }
+            showSuccess('自动翻译完成并已保存');
             setTranslating(false);
           } else if (queue.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -291,16 +308,18 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
       if (success && result && result[targetLang]) {
         const langResult = result[targetLang];
         const newFaq = reassembleFaq(langResult);
-        setI18nData((prev) => ({
-          ...prev,
+        const updatedI18n = {
+          ...i18nData,
           [targetLang]: {
-            ...prev[targetLang],
-            seo_keywords: langResult.seo_keywords || prev[targetLang]?.seo_keywords || '',
-            intro: langResult.intro || prev[targetLang]?.intro || '',
+            ...i18nData[targetLang],
+            seo_keywords: langResult.seo_keywords || i18nData[targetLang]?.seo_keywords || '',
+            intro: langResult.intro || i18nData[targetLang]?.intro || '',
             ...(newFaq ? { faq: newFaq } : {}),
           },
-        }));
-        showSuccess('翻译完成');
+        };
+        setI18nData(updatedI18n);
+        autoSaveI18n(updatedI18n);
+        showSuccess('翻译完成并已保存');
       } else {
         showError(message || '翻译失败');
       }
@@ -311,7 +330,23 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
     }
   };
 
-  const updateI18nField = (langCode, field, value) => {
+  const autoSaveI18n = async (newI18nData) => {
+    if (!promptId) return;
+    try {
+      const values = formApiRef.current?.getValues() || {};
+      const payload = {
+        id: promptId,
+        seo_keywords: values.seo_keywords || '',
+        intro: values.intro || '',
+        faq: values.faq || '',
+        seo_i18n: JSON.stringify(newI18nData),
+      };
+      await API.put(`/api/prompt/seo/${promptId}`, payload);
+      showSuccess(t('翻译结果已自动保存'));
+    } catch (err) {
+      console.error('Auto save i18n failed:', err);
+    }
+  };
     setI18nData((prev) => ({
       ...prev,
       [langCode]: { ...prev[langCode], [field]: value },

@@ -390,7 +390,7 @@ func UpdatePromptSEOFields(c *gin.Context) {
 		"faq":          req.Faq,
 		"seo_i18n":     req.SeoI18n,
 	}
-	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", req.Id).Updates(updates).Error; err != nil {
+	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", req.Id).Select("seo_keywords", "intro", "faq", "seo_i18n").Updates(updates).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}

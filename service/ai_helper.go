@@ -108,7 +108,7 @@ func UpdatePromptSEO(promptId int, result *AISEOResult) {
 		"intro":        result.Intro,
 		"faq":          string(faqJSON),
 	}
-	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", promptId).Updates(updates).Error; err != nil {
+	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", promptId).Select("seo_keywords", "intro", "faq").Updates(updates).Error; err != nil {
 		logger.LogError(context.Background(), fmt.Sprintf("update prompt seo failed: id=%d err=%v", promptId, err))
 	}
 }
