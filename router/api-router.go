@@ -157,6 +157,17 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		// Popup (daily announcement)
+		apiRouter.GET("/popups/daily", middleware.SubscriptionAuth(), controller.GetDailyPopup)
+		popupAdminRoute := apiRouter.Group("/admin/popups")
+		popupAdminRoute.Use(middleware.AdminAuth())
+		{
+			popupAdminRoute.GET("/", controller.AdminListPopups)
+			popupAdminRoute.POST("/", controller.AdminCreatePopup)
+			popupAdminRoute.PUT("/", controller.AdminUpdatePopup)
+			popupAdminRoute.DELETE("/:id", controller.AdminDeletePopup)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		// Plans list is publicly accessible (like pricing)
 		apiRouter.GET("/subscription/plans", middleware.TryUserAuth(), controller.GetSubscriptionPlans)
