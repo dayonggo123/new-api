@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
 	"strconv"
 	"time"
 
@@ -95,28 +94,22 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "创建订单失败")
 		return
 	}
-	// 构造支付参数（兼容不支持 device 参数的易支付平台）
-	requestParams := map[string]string{
-		"pid":          client.Config.PartnerID,
-		"type":         req.PaymentMethod,
-		"out_trade_no": tradeNo,
-		"notify_url":   notifyUrl.String(),
-		"name":         fmt.Sprintf("SUB:%s", plan.Title),
-		"money":        strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
-		"return_url":   returnUrl.String(),
-		"sign_type":    "MD5",
-		"sign":         "",
-	}
 
-	u, err := url.Parse(operation_setting.PayAddress)
+	uri, params, err := client.Purchase(&epay.PurchaseArgs{
+		Type:           req.PaymentMethod,
+		ServiceTradeNo: tradeNo,
+		Name:           fmt.Sprintf("SUB:%s", plan.Title),
+		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		Device:         epay.PC,
+		NotifyUrl:      notifyUrl,
+		ReturnUrl:      returnUrl,
+	})
 	if err != nil {
 		_ = model.ExpireSubscriptionOrder(tradeNo)
-		common.ApiErrorMsg(c, "支付地址配置错误")
+		common.ApiErrorMsg(c, "拉起支付失败")
 		return
 	}
-	u.Path = path.Join(u.Path, "/submit.php")
-	uri := u.String()
-	params := epay.GenerateParams(requestParams, client.Config.Key)
+
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
 }
 

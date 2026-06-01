@@ -161,12 +161,13 @@ func SetApiRouter(router *gin.Engine) {
 		// Plans list is publicly accessible (like pricing)
 		apiRouter.GET("/subscription/plans", middleware.TryUserAuth(), controller.GetSubscriptionPlans)
 		subscriptionRoute := apiRouter.Group("/subscription")
-		subscriptionRoute.Use(middleware.UserAuth())
+		subscriptionRoute.Use(middleware.SubscriptionAuth())
 		{
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
 			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
-			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
-			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
+		subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
+		subscriptionRoute.POST("/yizhifu/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestYizhifuV1)
+		subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
@@ -190,6 +191,11 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", controller.SubscriptionEpayReturn)
+
+		apiRouter.POST("/subscription/yizhifu/notify", controller.SubscriptionYizhifuV1Notify)
+		apiRouter.GET("/subscription/yizhifu/notify", controller.SubscriptionYizhifuV1Notify)
+		apiRouter.GET("/subscription/yizhifu/return", controller.SubscriptionYizhifuV1Return)
+		apiRouter.POST("/subscription/yizhifu/return", controller.SubscriptionYizhifuV1Return)
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{
