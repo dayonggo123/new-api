@@ -140,7 +140,10 @@ func SubscriptionRequestYizhifuV1(c *gin.Context) {
 	clientIP := c.ClientIP()
 
 	// 构造 V1 支付参数
-	moneyStr := strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64)
+	// 套餐价格存的是 USD，易支付收人民币，需要乘以汇率
+	cnyAmount := plan.PriceAmount * operation_setting.USDExchangeRate
+	moneyStr := strconv.FormatFloat(cnyAmount, 'f', 2, 64)
+	common.SysLog(fmt.Sprintf("[YizhifuV1] plan=%s, original=%.2f USD, rate=%.2f, cny=%s", plan.Title, plan.PriceAmount, operation_setting.USDExchangeRate, moneyStr))
 	params := map[string]string{
 		"pid":          operation_setting.EpayId,
 		"type":         req.PaymentMethod,
