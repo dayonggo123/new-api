@@ -8,3 +8,16 @@ docs
 .eslintcache
 .gocache
 /web/node_modules
+/data
+/logs
+/deliverables
+/.workbuddy
+/bin
+/electron
+/sdk
+/test_*
+/*.exe
+/*.tar.gz
+/*.tar
+new-api
+new-api-bin
