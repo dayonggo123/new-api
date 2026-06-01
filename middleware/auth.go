@@ -207,6 +207,51 @@ func TokenOrUserAuth() func(c *gin.Context) {
 	}
 }
 
+// SubscriptionAuth supports session, Access Token, or API Key auth.
+// Tries Access Token first (if New-Api-User is provided), then falls back to API Key.
+func SubscriptionAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		// 1. Try session auth first
+		session := sessions.Default(c)
+		if id := session.Get("id"); id != nil {
+			if status, ok := session.Get("status").(int); ok && status == common.UserStatusEnabled {
+				c.Set("id", id)
+				c.Next()
+				return
+			}
+		}
+
+		// 2. Try Access Token (when New-Api-User header is present)
+		accessToken := c.Request.Header.Get("Authorization")
+		apiUserIdStr := c.Request.Header.Get("New-Api-User")
+		if accessToken != "" && apiUserIdStr != "" {
+			user, err := model.ValidateAccessToken(accessToken)
+			if err == nil && user != nil && user.Username != "" {
+				apiUserId, parseErr := strconv.Atoi(apiUserIdStr)
+				if parseErr == nil && user.Id == apiUserId {
+					if user.Status == common.UserStatusDisabled {
+						c.JSON(http.StatusOK, gin.H{
+							"success": false,
+							"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
+						})
+						c.Abort()
+						return
+					}
+					c.Set("username", user.Username)
+					c.Set("role", user.Role)
+					c.Set("id", user.Id)
+					c.Set("status", user.Status)
+					c.Next()
+					return
+				}
+			}
+		}
+
+		// 3. Fall back to API Key auth
+		TokenAuth()(c)
+	}
+}
+
 // TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
 // 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
 // 即使令牌已过期、已耗尽或已禁用，也允许访问。
