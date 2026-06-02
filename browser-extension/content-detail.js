@@ -1,8 +1,13 @@
 // content-detail.js - 详情页脚本
 // 在 opennana.com 提示词详情页自动提取 prompt 内容
-
 (function () {
   'use strict';
+
+  // URL 安全检查：仅详情页（有子路径）才运行
+  const path = window.location.pathname.replace(/\/$/, '');
+  if (path === '/awesome-prompt-gallery' || !path.startsWith('/awesome-prompt-gallery/')) {
+    return;
+  }
 
   const PLATFORM = 'opennana';
   const EXTRACT_DELAY = 2000; // 等待页面渲染完成
@@ -106,6 +111,12 @@
 
   // 提取封面图
   function extractCoverImage() {
+    // 先找 video 元素
+    const video = document.querySelector('video');
+    if (video) {
+      const src = video.src || video.currentSrc || video.querySelector('source')?.src || '';
+      if (src) return src;
+    }
     const selectors = [
       'meta[property="og:image"]',
       'meta[name="twitter:image"]',
@@ -174,6 +185,12 @@
     return tags.slice(0, 10);
   }
 
+  // 从 URL 提取来源平台名
+  function extractSource(hostname) {
+    const match = hostname.replace(/^www\./, '').match(/^([^.]+)/);
+    return match ? match[1] : hostname;
+  }
+
   // 主提取流程
   async function extract() {
     console.log('[Prompt Collector] 开始提取详情页内容...');
@@ -185,11 +202,17 @@
     const mediaType = extractMediaType();
     const tags = extractTags();
 
+    // 提取视频链接
+    const video = document.querySelector('video');
+    const videoUrl = video ? (video.src || video.currentSrc || video.querySelector('source')?.src || '') : '';
+
     const data = {
       title,
       content,
       description: title,
-      cover_image_url: coverImageUrl,
+      cover_image_url: videoUrl ? '' : coverImageUrl,
+      video_url: videoUrl,
+      source: extractSource(window.location.hostname),
       model,
       media_type: mediaType,
       tags: JSON.stringify(tags),
@@ -200,17 +223,28 @@
 
     console.log('[Prompt Collector] 提取完成:', data);
 
-    // 发送给 background
+    // 同时写入两条通道：
+    // 1. 旧通道 EXTRACTED_KEY（popup 兼容）
+    // 2. 新通道 BATCH_KEY（sidepanel 批量管理）
     try {
       await chrome.runtime.sendMessage({
         action: 'saveExtractedData',
         data
       });
 
-      // 通知 popup 有新数据
-      chrome.runtime.sendMessage({ action: 'dataExtracted' });
+      // 追加到批量列表（sidepanel 使用）
+      await chrome.runtime.sendMessage({
+        action: 'appendBatchData',
+        data
+      });
 
-      // 可选：在页面角落显示提取成功的提示
+      // 通知 popup/sidepanel 有新数据
+      chrome.runtime.sendMessage({ action: 'dataExtracted' }).catch(() => {});
+
+      // 自动打开侧边栏
+      chrome.runtime.sendMessage({ action: 'openSidePanel' }).catch(() => {});
+
+      // 在页面角落显示提取成功的提示
       showExtractToast();
     } catch (err) {
       console.error('[Prompt Collector] 发送提取数据失败:', err);
@@ -220,7 +254,7 @@
   // 在页面显示提取成功提示
   function showExtractToast() {
     const toast = document.createElement('div');
-    toast.textContent = '✅ Prompt 已提取，点击扩展图标查看';
+    toast.textContent = '✅ Prompt 已提取，查看侧边栏或点击扩展图标';
     Object.assign(toast.style, {
       position: 'fixed',
       bottom: '20px',

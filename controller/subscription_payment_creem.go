@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"io"
 	"log"
+	"math"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/thanhpk/randstr"
 )
@@ -79,15 +81,30 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	reference := "sub-creem-ref-" + randstr.String(6)
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference+time.Now().String()+user.Username))
 
+	// Apply group discount automatically based on user's group ratio
+	userGroup, _ := model.GetUserGroup(userId, false)
+	groupRatio := ratio_setting.GetGroupRatio(userGroup)
+	originalAmount := plan.PriceAmount
+	discountAmount := 0.0
+	if groupRatio < 1 && groupRatio > 0 {
+		discountAmount = originalAmount * (1 - groupRatio)
+	}
+	finalAmount := originalAmount - discountAmount
+	if finalAmount < 0 {
+		finalAmount = 0
+	}
+
 	// create pending order first
 	order := &model.SubscriptionOrder{
-		UserId:        userId,
-		PlanId:        plan.Id,
-		Money:         plan.PriceAmount,
-		TradeNo:       referenceId,
-		PaymentMethod: PaymentMethodCreem,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		UserId:         userId,
+		PlanId:         plan.Id,
+		Money:          math.Round(finalAmount*100) / 100,
+		OriginalAmount: math.Round(originalAmount*100) / 100,
+		DiscountAmount: math.Round(discountAmount*100) / 100,
+		TradeNo:        referenceId,
+		PaymentMethod:  PaymentMethodCreem,
+		CreateTime:     time.Now().Unix(),
+		Status:         common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
 		c.JSON(200, gin.H{"message": "error", "data": "创建订单失败"})
@@ -107,7 +124,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	product := &CreemProduct{
 		ProductId: plan.CreemProductId,
 		Name:      plan.Title,
-		Price:     plan.PriceAmount,
+		Price:     finalAmount,
 		Currency:  currency,
 		Quota:     0,
 	}

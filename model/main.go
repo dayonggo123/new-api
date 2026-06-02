@@ -259,7 +259,7 @@ func migrateDB() error {
 		return err
 	}
 
-	err := DB.AutoMigrate(
+		err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
 		&User{},
@@ -282,6 +282,7 @@ func migrateDB() error {
 		&SubscriptionOrder{},
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
+		&SubscriptionDiscountCode{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PromptCategory{},

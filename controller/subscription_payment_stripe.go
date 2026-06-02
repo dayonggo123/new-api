@@ -2,7 +2,7 @@ package controller
 
 import (
 	"fmt"
-	"log"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
@@ -76,21 +77,40 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
+	// Apply group discount automatically based on user's group ratio
+	userGroup, _ := model.GetUserGroup(userId, false)
+	groupRatio := ratio_setting.GetGroupRatio(userGroup)
+	originalAmount := plan.PriceAmount
+	discountAmount := 0.0
+	if groupRatio < 1 && groupRatio > 0 {
+		discountAmount = originalAmount * (1 - groupRatio)
+	}
+	finalAmount := originalAmount - discountAmount
+	if finalAmount < 0 {
+		finalAmount = 0
+	}
+
+	// Note: Stripe subscription mode uses the configured price ID, which has a fixed price.
+	// Group discount for Stripe is recorded in the order but the actual Stripe checkout
+	// will still charge the original price. Consider using Stripe coupons for real discounts.
+	// For now, we record the discounted amount in the order for tracking purposes.
 	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId)
 	if err != nil {
-		log.Println("获取Stripe Checkout支付链接失败", err)
+		common.SysLog(fmt.Sprintf("获取Stripe Checkout支付链接失败: %v", err))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
 
 	order := &model.SubscriptionOrder{
-		UserId:        userId,
-		PlanId:        plan.Id,
-		Money:         plan.PriceAmount,
-		TradeNo:       referenceId,
-		PaymentMethod: PaymentMethodStripe,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		UserId:         userId,
+		PlanId:         plan.Id,
+		Money:          math.Round(finalAmount*100) / 100,
+		OriginalAmount: math.Round(originalAmount*100) / 100,
+		DiscountAmount: math.Round(discountAmount*100) / 100,
+		TradeNo:        referenceId,
+		PaymentMethod:  PaymentMethodStripe,
+		CreateTime:     time.Now().Unix(),
+		Status:         common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})

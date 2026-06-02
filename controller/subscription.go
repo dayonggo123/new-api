@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"strconv"
 	"strings"
 
@@ -14,28 +15,78 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan model.SubscriptionPlan `json:"plan"`
+	Plan             model.SubscriptionPlan `json:"plan"`
+	OriginalPrice    float64                `json:"original_price"`
+	DiscountedPrice  float64                `json:"discounted_price"`
+	GroupRatio       float64                `json:"group_ratio"`
+	DiscountPercent  float64                `json:"discount_percent"` // 0-100
 }
 
-type BillingPreferenceRequest struct {
-	BillingPreference string `json:"billing_preference"`
+func buildSubscriptionPlanDTOs(plans []model.SubscriptionPlan, userId int) []SubscriptionPlanDTO {
+	groupRatio := 1.0
+	if userId > 0 {
+		userGroup, _ := model.GetUserGroup(userId, false)
+		groupRatio = ratio_setting.GetGroupRatio(userGroup)
+	}
+
+	result := make([]SubscriptionPlanDTO, 0, len(plans))
+	for _, p := range plans {
+		discountedPrice := p.PriceAmount * groupRatio
+		if discountedPrice < 0 {
+			discountedPrice = 0
+		}
+		discountPercent := 0.0
+		if p.PriceAmount > 0 && groupRatio < 1 {
+			discountPercent = math.Round((1-groupRatio)*10000) / 100
+		}
+		result = append(result, SubscriptionPlanDTO{
+			Plan:            p,
+			OriginalPrice:   p.PriceAmount,
+			DiscountedPrice: math.Round(discountedPrice*100) / 100,
+			GroupRatio:      groupRatio,
+			DiscountPercent: discountPercent,
+		})
+	}
+	return result
 }
 
-// ---- User APIs ----
-
+// GetSubscriptionPlans returns all enabled plans with group-discounted prices.
 func GetSubscriptionPlans(c *gin.Context) {
 	var plans []model.SubscriptionPlan
 	if err := model.DB.Where("enabled = ?", true).Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	result := make([]SubscriptionPlanDTO, 0, len(plans))
-	for _, p := range plans {
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+
+	userId := 0
+	if id, exists := c.Get("id"); exists {
+		userId = id.(int)
 	}
+
+	result := buildSubscriptionPlanDTOs(plans, userId)
 	common.ApiSuccess(c, result)
+}
+
+// GetSubscriptionGroupDiscount returns the current user's group discount info.
+func GetSubscriptionGroupDiscount(c *gin.Context) {
+	userId := c.GetInt("id")
+	userGroup, _ := model.GetUserGroup(userId, false)
+	groupRatio := ratio_setting.GetGroupRatio(userGroup)
+
+	discountPercent := 0.0
+	if groupRatio < 1 {
+		discountPercent = math.Round((1-groupRatio)*10000) / 100
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"user_group":       userGroup,
+		"group_ratio":      groupRatio,
+		"discount_percent": discountPercent,
+	})
+}
+
+type BillingPreferenceRequest struct {
+	BillingPreference string `json:"billing_preference"`
 }
 
 func GetSubscriptionSelf(c *gin.Context) {

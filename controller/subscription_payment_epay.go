@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -20,6 +22,7 @@ import (
 type SubscriptionEpayPayRequest struct {
 	PlanId        int    `json:"plan_id"`
 	PaymentMethod string `json:"payment_method"`
+	DiscountCode  string `json:"discount_code"`
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -60,6 +63,19 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		}
 	}
 
+	// Apply group discount automatically based on user's group ratio
+	userGroup, _ := model.GetUserGroup(userId, false)
+	groupRatio := ratio_setting.GetGroupRatio(userGroup)
+	originalAmount := plan.PriceAmount
+	discountAmount := 0.0
+	if groupRatio < 1 && groupRatio > 0 {
+		discountAmount = originalAmount * (1 - groupRatio)
+	}
+	finalAmount := originalAmount - discountAmount
+	if finalAmount < 0 {
+		finalAmount = 0
+	}
+
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
 	if err != nil {
@@ -82,13 +98,15 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	order := &model.SubscriptionOrder{
-		UserId:        userId,
-		PlanId:        plan.Id,
-		Money:         plan.PriceAmount,
-		TradeNo:       tradeNo,
-		PaymentMethod: req.PaymentMethod,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		UserId:         userId,
+		PlanId:         plan.Id,
+		Money:          math.Round(finalAmount*100) / 100,
+		OriginalAmount: math.Round(originalAmount*100) / 100,
+		DiscountAmount: math.Round(discountAmount*100) / 100,
+		TradeNo:        tradeNo,
+		PaymentMethod:  req.PaymentMethod,
+		CreateTime:     time.Now().Unix(),
+		Status:         common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
 		common.ApiErrorMsg(c, "创建订单失败")
@@ -96,9 +114,9 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	// 套餐价格存的是 USD，易支付收人民币，需要乘以汇率
-	cnyAmount := plan.PriceAmount * operation_setting.USDExchangeRate
+	cnyAmount := finalAmount * operation_setting.USDExchangeRate
 	moneyStr := strconv.FormatFloat(cnyAmount, 'f', 2, 64)
-	common.SysLog(fmt.Sprintf("[Epay] plan=%s, original=%.2f USD, rate=%.2f, cny=%s", plan.Title, plan.PriceAmount, operation_setting.USDExchangeRate, moneyStr))
+	common.SysLog(fmt.Sprintf("[Epay] plan=%s, original=%.2f USD, group=%s, ratio=%.2f, final=%.2f, cny=%s", plan.Title, originalAmount, userGroup, groupRatio, finalAmount, moneyStr))
 
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,

@@ -205,6 +205,12 @@ type SubscriptionOrder struct {
 	CompleteTime  int64  `json:"complete_time"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
+
+	// Discount fields
+	DiscountCodeId  int     `json:"discount_code_id" gorm:"default:0"`
+	DiscountCode    string  `json:"discount_code" gorm:"type:varchar(64);default:''"`
+	DiscountAmount  float64 `json:"discount_amount" gorm:"type:decimal(10,6);default:0"`
+	OriginalAmount  float64 `json:"original_amount" gorm:"type:decimal(10,6);default:0"`
 }
 
 func (o *SubscriptionOrder) Insert() error {
@@ -551,6 +557,12 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 		}
 		if err := tx.Save(&order).Error; err != nil {
 			return err
+		}
+		// Increment discount code usage count
+		if strings.TrimSpace(order.DiscountCode) != "" {
+			_ = tx.Model(&SubscriptionDiscountCode{}).
+				Where("code = ?", order.DiscountCode).
+				UpdateColumn("used_count", gorm.Expr("used_count + 1")).Error
 		}
 		logUserId = order.UserId
 		logPlanTitle = plan.Title

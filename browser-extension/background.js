@@ -4,9 +4,28 @@
 const STORAGE_KEY = 'promptCollectorConfig';
 const EXTRACTED_KEY = 'promptCollectorExtracted';
 const BATCH_KEY = 'promptCollectorBatch';
+const FETCH_TIMEOUT_MS = 15000; // API 请求超时 15s
+
+// 带超时的 fetch
+async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, { ...options, signal: controller.signal });
+    return resp;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 // 消息路由
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // 参数校验
+  if (!message || typeof message !== 'object') {
+    sendResponse({ success: false, message: '无效消息' });
+    return;
+  }
+
   (async () => {
     try {
       switch (message.action) {
@@ -103,6 +122,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'fetchTokenFromTab': {
+          try {
+            // 查找管理后台标签页
+            const tabs = await chrome.tabs.query({ url: 'https://heharse.cloud/*' });
+            if (tabs.length === 0) {
+              sendResponse({ success: false, message: '未找到管理后台标签页，请先打开 https://heharse.cloud' });
+              return;
+            }
+            const tab = tabs[0];
+
+            // 注入脚本：在管理后台页面内直接调用 API 获取 access_token
+            const results = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: async () => {
+                try {
+                  const resp = await fetch('/api/user/token', {
+                    credentials: 'same-origin'
+                  });
+                  const json = await resp.json();
+                  if (json.success && json.data) {
+                    return { success: true, token: json.data };
+                  }
+                  // 如果没有 token，尝试先登录
+                  // 尝试从 localStorage 读取 user 信息
+                  const userStr = localStorage.getItem('user');
+                  if (userStr) {
+                    const user = JSON.parse(userStr);
+                    if (user.access_token) {
+                      return { success: true, token: user.access_token };
+                    }
+                  }
+                  return { success: false, message: json.message || '请确保已登录管理后台' };
+                } catch (e) {
+                  return { success: false, message: e.message };
+                }
+              }
+            });
+
+            const result = results?.[0]?.result;
+            if (result && result.success && result.token) {
+              sendResponse({ success: true, token: result.token, isAccessToken: true });
+            } else {
+              sendResponse({ success: false, message: result?.message || '获取失败（需先打开 https://heharse.cloud 并登录）' });
+            }
+          } catch (err) {
+            sendResponse({ success: false, message: err.message });
+          }
+          break;
+        }
+
         case 'getCollectedUrls': {
           const result = await chrome.storage.local.get(BATCH_KEY);
           const batch = result[BATCH_KEY] || [];
@@ -134,7 +203,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
 
-          const url = `${baseUrl}${message.path}`;
+          // 自动补全 /api 前缀（如果没有）
+          const apiBase = baseUrl + (baseUrl.includes('/api') ? '' : '/api');
+          const url = `${apiBase}${message.path}`;
           const options = {
             method: message.method || 'GET',
             headers: {
@@ -149,7 +220,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           console.log('[Background] API Request:', options.method, url);
-          const resp = await fetch(url, options);
+          const resp = await fetchWithTimeout(url, options);
           const text = await resp.text();
           let data;
           try {
@@ -172,21 +243,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             try {
               await chrome.tabs.remove(targetTabId);
             } catch (e) {
-              // Tab 可能已关闭
+              // Tab 可能已关闭，属正常情况
             }
           }
-          sendResponse({ success: true });
+          sendResponse({ success: true, tabClosed: !!targetTabId });
           break;
         }
 
         case 'openSidePanel': {
           try {
             const windowId = sender.tab?.windowId;
+            const tabId = sender.tab?.id;
             if (windowId) {
+              // 先打开侧边栏（必须在手势窗口内，前面不能有 await）
               await chrome.sidePanel.open({ windowId });
+              // 再异步启用（失败不影响打开）
+              if (tabId) {
+                chrome.sidePanel.setOptions({ tabId, path: 'sidepanel.html', enabled: true }).catch(() => {});
+              }
+            } else if (tabId) {
+              await chrome.sidePanel.open({ tabId });
             }
             sendResponse({ success: true });
           } catch (err) {
+            console.warn('[Background] 打开侧边栏失败:', err.message);
             sendResponse({ success: false, message: err.message });
           }
           break;
@@ -196,8 +276,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: false, message: '未知 action' });
       }
     } catch (err) {
-      console.error('Background error:', err);
-      sendResponse({ success: false, message: err.message });
+      if (err.name === 'AbortError') {
+        console.error('[Background] 请求超时:', message.action);
+        sendResponse({ success: false, message: '请求超时，请检查网络或 API 地址' });
+      } else {
+        console.error('[Background] error:', message.action, err);
+        sendResponse({ success: false, message: err.message || '未知错误' });
+      }
     }
   })();
 
@@ -205,6 +290,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // 安装时初始化
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('Prompt Collector installed');
+chrome.runtime.onInstalled.addListener((details) => {
+  console.log(`Prompt Collector v${chrome.runtime.getManifest().version} installed (reason: ${details.reason})`);
+
+  // 尝试设置侧边栏行为（容错，失败不影响核心功能）
+  try {
+    if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+      chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    }
+  } catch (e) {
+    console.warn('[Background] setPanelBehavior 跳过:', e?.message || '不可用');
+  }
 });

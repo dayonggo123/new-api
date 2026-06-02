@@ -27,7 +27,10 @@
         </div>
         <div class="field">
           <label>Admin JWT Token</label>
-          <input type="password" id="apiToken" placeholder="Bearer xxx...">
+          <div style="display:flex;gap:6px;">
+            <input type="password" id="apiToken" placeholder="Bearer xxx..." style="flex:1;">
+            <button id="fetchTokenBtn" type="button" style="padding:7px 9px;font-size:11px;font-weight:600;color:#fff;background:#6366f1;border:none;border-radius:7px;cursor:pointer;white-space:nowrap;">🔄 获取</button>
+          </div>
         </div>
         <div class="field">
           <label>用户 ID（New-API-User）</label>
@@ -50,6 +53,21 @@
         </div>
         <button class="btn btn-secondary" id="saveConfigBtn">保存配置</button>
         <div class="status" id="configStatus"></div>
+      </div>
+    </div>
+
+    <!-- Token 获取面板 -->
+    <div class="config-section">
+      <div class="config-toggle" id="tokenFetchToggle">
+        <span>🔑 从后台获取 Token</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="config-body" id="tokenFetchBody" style="display:none;">
+        <p style="font-size:12px;color:#64748b;margin-bottom:10px;line-height:1.5;">
+          确保已在浏览器中打开并登录了 <strong>https://heharse.cloud</strong> 管理后台
+        </p>
+        <button class="btn btn-primary" id="fetchTokenBtn2" style="width:100%;">🔄 一键获取 Token</button>
+        <div class="status" id="tokenFetchStatus"></div>
       </div>
     </div>
 
@@ -112,6 +130,12 @@
             <input type="text" id="editModel" placeholder="如: GPT-4o">
           </div>
           <div class="field half">
+            <label>来源平台</label>
+            <input type="text" id="editSource" placeholder="如: opennana">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field half">
             <label>媒体类型</label>
             <select id="editMediaType">
               <option value="image">图片</option>
@@ -130,6 +154,10 @@
         <div class="field">
           <label>封面图 URL</label>
           <input type="text" id="editCoverImage" placeholder="https://...">
+        </div>
+        <div class="field">
+          <label>视频 URL</label>
+          <input type="text" id="editVideoUrl" placeholder="https://...">
         </div>
         <div class="field">
           <label>来源链接</label>

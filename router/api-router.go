@@ -174,13 +174,14 @@ func SetApiRouter(router *gin.Engine) {
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.SubscriptionAuth())
 		{
-			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
-			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
+		subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
+		subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
+		subscriptionRoute.POST("/discount/validate", controller.ValidateSubscriptionDiscount)
 		subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
 		subscriptionRoute.POST("/yizhifu/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestYizhifuV1)
 		subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
-			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
-		}
+		subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+	}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
 		{
@@ -191,11 +192,18 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.POST("/bind", controller.AdminBindSubscription)
 
 			// User subscription management (admin)
-			subscriptionAdminRoute.GET("/users/:id/subscriptions", controller.AdminListUserSubscriptions)
-			subscriptionAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
-			subscriptionAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
-			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
-		}
+		subscriptionAdminRoute.GET("/users/:id/subscriptions", controller.AdminListUserSubscriptions)
+		subscriptionAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
+		subscriptionAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
+		subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
+
+		// Discount code management (admin)
+		subscriptionAdminRoute.GET("/discounts", controller.AdminListSubscriptionDiscounts)
+		subscriptionAdminRoute.POST("/discounts", controller.AdminCreateSubscriptionDiscount)
+		subscriptionAdminRoute.PUT("/discounts/:id", controller.AdminUpdateSubscriptionDiscount)
+		subscriptionAdminRoute.DELETE("/discounts/:id", controller.AdminDeleteSubscriptionDiscount)
+		subscriptionAdminRoute.PATCH("/discounts/:id/status", controller.AdminUpdateSubscriptionDiscountStatus)
+	}
 
 		// Subscription payment callbacks (no auth)
 		apiRouter.POST("/subscription/epay/notify", controller.SubscriptionEpayNotify)
@@ -342,14 +350,15 @@ func SetApiRouter(router *gin.Engine) {
 			promptRoute.GET("/", controller.GetAllPrompts)
 			promptRoute.GET("/:id", controller.GetPrompt)
 			promptRoute.POST("/", controller.AddPrompt)
+			promptRoute.POST("/check-exists", controller.CheckPromptsExist)
 			promptRoute.PUT("/", controller.UpdatePrompt)
 			promptRoute.DELETE("/:id", controller.DeletePrompt)
+		}
 		// Prompt Media Admin Routes
 		apiRouter.POST("/prompt-media", middleware.AdminAuth(), controller.UploadPromptMedia)
 		apiRouter.POST("/article-media", middleware.AdminAuth(), controller.UploadArticleMedia)
 		apiRouter.DELETE("/prompt-media/:id", middleware.AdminAuth(), controller.DeletePromptMedia)
 		apiRouter.DELETE("/article-media/:id", middleware.AdminAuth(), controller.DeleteArticleMedia)
-		}
 
 		// Preset Prompt Admin Routes
 		presetPromptRoute := apiRouter.Group("/preset-prompt")

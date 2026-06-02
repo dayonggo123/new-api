@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prompt Collector - 提示词采集器",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "从 opennana.com 等提示词平台一键采集提示词到 new-api 提示词库",
   "permissions": [
     "storage",
@@ -10,7 +10,8 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "https://opennana.com/*"
+    "https://opennana.com/*",
+    "https://heharse.cloud/*"
   ],
   "action": {
     "default_popup": "popup.html",

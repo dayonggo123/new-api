@@ -36,10 +36,12 @@
     editContent: document.getElementById('editContent'),
     editContentEn: document.getElementById('editContentEn'),
     editModel: document.getElementById('editModel'),
+    editSource: document.getElementById('editSource'),
     editMediaType: document.getElementById('editMediaType'),
     editTags: document.getElementById('editTags'),
     editCategoryId: document.getElementById('editCategoryId'),
     editCoverImage: document.getElementById('editCoverImage'),
+    editVideoUrl: document.getElementById('editVideoUrl'),
     editSourceUrl: document.getElementById('editSourceUrl'),
     saveEditBtn: document.getElementById('saveEditBtn'),
     cancelEditBtn: document.getElementById('cancelEditBtn'),
@@ -54,20 +56,7 @@
 
   // 初始化
   async function init() {
-    const configRes = await chrome.runtime.sendMessage({ action: 'getConfig' });
-    if (configRes.success) {
-      config = configRes.data || {};
-      els.apiBaseUrl.value = config.apiBaseUrl || '';
-      els.apiToken.value = config.apiToken || '';
-      if (els.userId) els.userId.value = config.userId || '';
-      els.defaultCategoryId.value = config.defaultCategoryId || '';
-      if (els.autoSubmit) els.autoSubmit.checked = !!config.autoSubmit;
-      if (els.categoryMapping) els.categoryMapping.value = config.categoryMapping || '';
-    }
-
-    await loadCategories();
-    await loadBatchData();
-
+    // === 第1步：同步绑定所有事件（无论后台是否就绪，点击必须立即响应）===
     els.configToggle.addEventListener('click', toggleConfig);
     els.saveConfigBtn.addEventListener('click', saveConfig);
     els.checkAll.addEventListener('change', onCheckAll);
@@ -78,6 +67,57 @@
     els.saveEditBtn.addEventListener('click', saveEdit);
     els.cancelEditBtn.addEventListener('click', closeEdit);
 
+    // Token 获取面板事件
+    const tokenToggle = document.getElementById('tokenFetchToggle');
+    const fetchBtn2 = document.getElementById('fetchTokenBtn2');
+    if (tokenToggle) {
+      tokenToggle.addEventListener('click', () => {
+        const body = document.getElementById('tokenFetchBody');
+        const arrow = tokenToggle.querySelector('.arrow');
+        if (!body) return;
+        const isHidden = body.style.display === 'none';
+        body.style.display = isHidden ? 'block' : 'none';
+        if (arrow) arrow.textContent = isHidden ? '▼' : '▶';
+      });
+    }
+    if (fetchBtn2) fetchBtn2.addEventListener('click', fetchToken2);
+
+    // === 第2步：异步加载数据（失败不影响交互）===
+    try {
+      // 安全发送消息（自动唤醒 service worker）
+      async function safeMsg(msg) {
+        for (let i = 0; i < 3; i++) {
+          try {
+            return await chrome.runtime.sendMessage(msg);
+          } catch (e) {
+            if (i < 2 && (e.message?.includes('connection') || e.message?.includes('Receiving'))) {
+              await new Promise(r => setTimeout(r, 400));
+              continue;
+            }
+            return null;
+          }
+        }
+        return null;
+      }
+
+      const configRes = await safeMsg({ action: 'getConfig' });
+      if (configRes && configRes.success) {
+        config = configRes.data || {};
+        els.apiBaseUrl.value = config.apiBaseUrl || '';
+        els.apiToken.value = config.apiToken || '';
+        if (els.userId) els.userId.value = config.userId || '';
+        els.defaultCategoryId.value = config.defaultCategoryId || '';
+        if (els.autoSubmit) els.autoSubmit.checked = !!config.autoSubmit;
+        if (els.categoryMapping) els.categoryMapping.value = config.categoryMapping || '';
+      }
+    } catch (e) {
+      console.debug('[Sidepanel] 初始化加载失败:', e.message);
+    }
+
+    await loadCategories();
+    await loadBatchData();
+
+    // 监听后台消息（新数据到达）
     chrome.runtime.onMessage.addListener((message) => {
       if (message.action === 'batchUpdated') {
         batchData = message.batch || [];
@@ -99,7 +139,9 @@
       if (res.success && res.data && res.data.success && Array.isArray(res.data.data)) {
         categoriesCache = res.data.data;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.debug('[Sidepanel] 加载分类列表失败:', e.message);
+    }
   }
 
   // 解析映射配置
@@ -139,10 +181,14 @@
 
   // 加载批量数据
   async function loadBatchData() {
-    const res = await chrome.runtime.sendMessage({ action: 'getBatchData' });
-    if (res.success) {
-      batchData = res.batch || [];
-      renderBatchList();
+    try {
+      const res = await chrome.runtime.sendMessage({ action: 'getBatchData' });
+      if (res && res.success) {
+        batchData = res.batch || [];
+        renderBatchList();
+      }
+    } catch (e) {
+      console.debug('[Sidepanel] 加载批量数据失败:', e.message);
     }
   }
 
@@ -317,10 +363,12 @@
       content_en: item.content_en || '',
       description: item.description || item.title || '',
       model: item.model || '',
+      source: item.source || '',
       media_type: item.media_type || 'image',
       tags: tagsStr,
       category_id: parseInt(item.category_id) || 0,
       cover_image_url: item.cover_image_url || '',
+      video_url: item.video_url || '',
       status: 1,
       sort_order: 0,
       is_premium: false,
@@ -383,10 +431,12 @@
     els.editContent.value = item.content || '';
     els.editContentEn.value = item.content_en || '';
     els.editModel.value = item.model || '';
+    els.editSource.value = item.source || '';
     els.editMediaType.value = item.media_type || 'image';
     els.editTags.value = parseTagsToArray(item.tags).join(', ');
     els.editCategoryId.value = item.category_id || '';
     els.editCoverImage.value = item.cover_image_url || '';
+    els.editVideoUrl.value = item.video_url || '';
     els.editSourceUrl.value = item.source_url || '';
     els.editPanel.style.display = 'block';
   }
@@ -408,10 +458,12 @@
       content: els.editContent.value.trim(),
       content_en: els.editContentEn.value.trim(),
       model: els.editModel.value.trim(),
+      source: els.editSource.value.trim(),
       media_type: els.editMediaType.value,
       tags: JSON.stringify(tagsArr),
       category_id: els.editCategoryId.value,
       cover_image_url: els.editCoverImage.value.trim(),
+      video_url: els.editVideoUrl.value.trim(),
       source_url: els.editSourceUrl.value.trim(),
     };
 
@@ -464,6 +516,83 @@
       await loadCategories();
     } else {
       showStatus(els.configStatus, '❌ 保存失败', 'error');
+    }
+  }
+
+  // 一键获取 Token
+  async function fetchToken() {
+    const btn = document.getElementById('fetchTokenBtn');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = '获取中...';
+    showStatus(els.configStatus, '⏳ 正在从管理后台获取 Token...', 'info');
+    try {
+      const res = await chrome.runtime.sendMessage({ action: 'fetchTokenFromTab' });
+      if (res.success && res.token) {
+        els.apiToken.value = res.isAccessToken ? `Bearer ${res.token}` : res.token;
+        showStatus(els.configStatus, '✅ Token 已获取，请保存配置', 'success');
+        if (res.isAccessToken && els.userId && !els.userId.value) {
+          els.userId.value = '1';
+        }
+      } else {
+        showStatus(els.configStatus, '❌ ' + (res.message || '获取失败'), 'error');
+      }
+    } catch (err) {
+      showStatus(els.configStatus, '❌ 获取失败: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔄 获取';
+    }
+  }
+
+  // 通用折叠面板切换
+  function togglePanel(bodyId, arrowEl) {
+    const body = document.getElementById(bodyId);
+    if (!body) return;
+    const isHidden = body.style.display === 'none';
+    body.style.display = isHidden ? 'block' : 'none';
+    if (arrowEl) arrowEl.textContent = isHidden ? '▼' : '▶';
+  }
+
+  // 从后台页面一键获取 Token
+  async function fetchToken2() {
+    const statusEl = document.getElementById('tokenFetchStatus');
+    const btn = document.getElementById('fetchTokenBtn2');
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.textContent = '获取中...';
+    showStatus(statusEl, '⏳ 正在从管理后台获取 Token...', 'info');
+
+    try {
+      // 先保存当前配置（确保 API URL 已存在）
+      await chrome.runtime.sendMessage({
+        action: 'saveConfig',
+        data: {
+          apiBaseUrl: els.apiBaseUrl.value.trim().replace(/\/$/, ''),
+          apiToken: els.apiToken.value.trim(),
+          userId: els.userId ? els.userId.value.trim() : '1',
+          defaultCategoryId: els.defaultCategoryId ? els.defaultCategoryId.value.trim() : '',
+          autoSubmit: els.autoSubmit ? els.autoSubmit.checked : false,
+          categoryMapping: els.categoryMapping ? els.categoryMapping.value.trim() : ''
+        }
+      });
+
+      const res = await chrome.runtime.sendMessage({ action: 'fetchTokenFromTab' });
+      if (res.success && res.token) {
+        els.apiToken.value = res.isAccessToken ? `Bearer ${res.token}` : res.token;
+        if (res.isAccessToken && els.userId && !els.userId.value) {
+          els.userId.value = '1';
+        }
+        showStatus(statusEl, '✅ Token 已获取，请保存配置', 'success');
+      } else {
+        showStatus(statusEl, '❌ ' + (res.message || '获取失败') + '（需先打开 https://heharse.cloud 并登录）', 'error');
+      }
+    } catch (err) {
+      showStatus(statusEl, '❌ 获取失败: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔄 一键获取 Token';
     }
   }
 

@@ -23,10 +23,12 @@
     fieldContentEn: document.getElementById('fieldContentEn'),
     fieldDescription: document.getElementById('fieldDescription'),
     fieldModel: document.getElementById('fieldModel'),
+    fieldSource: document.getElementById('fieldSource'),
     fieldMediaType: document.getElementById('fieldMediaType'),
     fieldTags: document.getElementById('fieldTags'),
     fieldCategoryId: document.getElementById('fieldCategoryId'),
     fieldCoverImage: document.getElementById('fieldCoverImage'),
+    fieldVideoUrl: document.getElementById('fieldVideoUrl'),
     fieldSourceUrl: document.getElementById('fieldSourceUrl'),
     submitBtn: document.getElementById('submitBtn'),
     clearBtn: document.getElementById('clearBtn'),
@@ -39,27 +41,45 @@
 
   // 初始化
   async function init() {
-    // 加载配置
-    const configRes = await chrome.runtime.sendMessage({ action: 'getConfig' });
-    if (configRes.success) {
-      config = configRes.data || {};
-      els.apiBaseUrl.value = config.apiBaseUrl || '';
-      els.apiToken.value = config.apiToken || '';
-      if (els.userId) els.userId.value = config.userId || '';
-      els.defaultCategoryId.value = config.defaultCategoryId || '';
-    }
-
-    // 预加载分类列表
-    await loadCategories();
-
-    // 加载提取的数据
-    await loadExtractedData();
-
-    // 绑定事件
+    // === 第1步：同步绑定事件 ===
     els.configToggle.addEventListener('click', toggleConfig);
     els.saveConfigBtn.addEventListener('click', saveConfig);
     els.submitBtn.addEventListener('click', submitPrompt);
     els.clearBtn.addEventListener('click', clearData);
+    const fetchBtn = document.getElementById('fetchTokenBtn');
+    if (fetchBtn) fetchBtn.addEventListener('click', fetchToken);
+
+    // === 第2步：异步加载数据 ===
+    try {
+      async function safeMsg(msg) {
+        for (let i = 0; i < 3; i++) {
+          try {
+            return await chrome.runtime.sendMessage(msg);
+          } catch (e) {
+            if (i < 2 && (e.message?.includes('connection') || e.message?.includes('Receiving'))) {
+              await new Promise(r => setTimeout(r, 400));
+              continue;
+            }
+            return null;
+          }
+        }
+        return null;
+      }
+
+      const configRes = await safeMsg({ action: 'getConfig' });
+      if (configRes && configRes.success) {
+        config = configRes.data || {};
+        els.apiBaseUrl.value = config.apiBaseUrl || '';
+        els.apiToken.value = config.apiToken || '';
+        if (els.userId) els.userId.value = config.userId || '';
+        els.defaultCategoryId.value = config.defaultCategoryId || '';
+      }
+    } catch (e) {
+      console.debug('[Popup] 初始化加载失败:', e.message);
+    }
+
+    await loadCategories();
+    await loadExtractedData();
 
     // 监听后台消息（新数据到达）
     chrome.runtime.onMessage.addListener((message) => {
@@ -132,6 +152,7 @@
     els.fieldContentEn.value = extractedData.content_en || '';
     els.fieldDescription.value = extractedData.description || '';
     els.fieldModel.value = extractedData.model || '';
+    els.fieldSource.value = extractedData.source || '';
     els.fieldMediaType.value = extractedData.media_type || 'image';
     els.fieldTags.value = parseTags(extractedData.tags);
 
@@ -140,6 +161,7 @@
     els.fieldCategoryId.value = matchedCategoryId || config.defaultCategoryId || '';
 
     els.fieldCoverImage.value = extractedData.cover_image_url || '';
+    els.fieldVideoUrl.value = extractedData.video_url || '';
     els.fieldSourceUrl.value = extractedData.source_url || '';
   }
 
@@ -222,10 +244,12 @@
       content_en: contentEn,
       description: els.fieldDescription.value.trim() || title,
       model: els.fieldModel.value.trim(),
+      source: els.fieldSource.value.trim(),
       media_type: els.fieldMediaType.value,
       tags: tagsStr,
       category_id: parseInt(els.fieldCategoryId.value) || 0,
       cover_image_url: els.fieldCoverImage.value.trim(),
+      video_url: els.fieldVideoUrl ? els.fieldVideoUrl.value.trim() : '',
       status: 1,
       sort_order: 0,
       is_premium: false,
@@ -288,6 +312,33 @@
         el.textContent = '';
         el.className = 'status';
       }, 3000);
+    }
+  }
+
+  // 一键获取 Token
+  async function fetchToken() {
+    const btn = document.getElementById('fetchTokenBtn');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = '获取中...';
+    showStatus(els.configStatus, '⏳ 正在从管理后台获取 Token...', 'info');
+    try {
+      const res = await chrome.runtime.sendMessage({ action: 'fetchTokenFromTab' });
+      if (res.success && res.token) {
+        els.apiToken.value = res.isAccessToken ? `Bearer ${res.token}` : res.token;
+        showStatus(els.configStatus, '✅ Token 已获取，请保存配置', 'success');
+        // 如果是 access_token，同时设置用户 ID
+        if (res.isAccessToken && els.userId && !els.userId.value) {
+          els.userId.value = '1';
+        }
+      } else {
+        showStatus(els.configStatus, '❌ ' + (res.message || '获取失败'), 'error');
+      }
+    } catch (err) {
+      showStatus(els.configStatus, '❌ 获取失败: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔄 获取';
     }
   }
 

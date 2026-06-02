@@ -206,6 +206,7 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.Description = prompt.Description
 	cleanPrompt.CoverImageUrl = prompt.CoverImageUrl
 	cleanPrompt.Author = prompt.Author
+	cleanPrompt.Source = prompt.Source
 	cleanPrompt.Model = prompt.Model
 	cleanPrompt.MediaType = prompt.MediaType
 	cleanPrompt.Variables = prompt.Variables
@@ -368,6 +369,37 @@ func GetPromptSEODetail(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    prompt,
+	})
+}
+
+// CheckPromptsExist 检查 source_url 是否已存在（用于扩展去重）
+func CheckPromptsExist(c *gin.Context) {
+	var req struct {
+		Urls []string `json:"urls"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(req.Urls) == 0 {
+		common.ApiSuccess(c, map[string]interface{}{"existing": []string{}})
+		return
+	}
+
+	// 限制一次最多查 100 个
+	if len(req.Urls) > 100 {
+		req.Urls = req.Urls[:100]
+	}
+
+	var existingUrls []string
+	model.DB.Model(&model.Prompt{}).
+		Where("source_url IN ?", req.Urls).
+		Pluck("source_url", &existingUrls)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    map[string]interface{}{"existing": existingUrls},
 	})
 }
 
