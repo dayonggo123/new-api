@@ -234,7 +234,10 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
-	cleanUser.RegisterChannel = "password"
+	cleanUser.RegisterChannel = user.RegisterChannel
+	if cleanUser.RegisterChannel == "" {
+		cleanUser.RegisterChannel = "password"
+	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		common.ApiError(c, err)
 		return
