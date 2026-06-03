@@ -346,6 +346,35 @@ export const getUsersColumns = ({
       },
     },
     {
+      title: t('注册渠道'),
+      dataIndex: 'register_channel',
+      width: 110,
+      render: (text) => {
+        if (!text) return <Tag size='small' color='white'>-</Tag>;
+        const colorMap = {
+          password: 'blue',
+          github: 'grey',
+          discord: 'purple',
+          wechat: 'green',
+          telegram: 'cyan',
+          linux_do: 'orange',
+        };
+        const labelMap = {
+          password: '邮箱',
+          github: 'GitHub',
+          discord: 'Discord',
+          wechat: '微信',
+          telegram: 'Telegram',
+          linux_do: 'Linux DO',
+        };
+        return (
+          <Tag color={colorMap[text] || 'red'} size='small'>
+            {labelMap[text] || text}
+          </Tag>
+        );
+      },
+    },
+    {
       title: t('邀请信息'),
       dataIndex: 'invite',
       render: (text, record, index) => renderInviteInfo(text, record, t),

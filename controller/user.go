@@ -234,6 +234,7 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
+	cleanUser.RegisterChannel = "password"
 	if err := cleanUser.Insert(inviterId); err != nil {
 		common.ApiError(c, err)
 		return
@@ -475,6 +476,7 @@ func GetSelf(c *gin.Context) {
 		"sidebar_modules":   userSetting.SidebarModules,
 		"permissions":       permissions,
 		"access_token":      user.AccessToken,
+		"register_channel":  user.RegisterChannel,
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -34,3 +34,7 @@ token_estimator_test.gotmp-scrape/
 status-monitor/node_modules/
 status-monitor/*.log
 status-monitor/status.json
+
+# Local workbuddy files
+.workbuddy/
+.git-credentials
