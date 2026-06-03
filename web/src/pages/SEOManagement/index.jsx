@@ -878,11 +878,33 @@ const SEOManagement = () => {
           if (!translateRes.data.success) continue;
           const result = translateRes.data.data?.[lang];
           if (!result) continue;
-          const newFaq = reassembleFaq(result);
+
+          // 重组 FAQ（内联实现，避免引用问题）
+          let faqStr = '';
+          const faqMap = {};
+          Object.keys(result).forEach((key) => {
+            const m = key.match(/^faq_(\d+)_(question|answer)$/);
+            if (m) {
+              const idx = parseInt(m[1]);
+              const field = m[2];
+              if (!faqMap[idx]) faqMap[idx] = {};
+              faqMap[idx][field] = result[key];
+            }
+          });
+          const indices = Object.keys(faqMap).map(Number).sort((a, b) => a - b);
+          if (indices.length > 0) {
+            faqStr = JSON.stringify(indices.map((idx) => faqMap[idx]));
+          } else if (result.faq) {
+            try {
+              const parsed = JSON.parse(result.faq);
+              if (Array.isArray(parsed) && parsed.length > 0) faqStr = result.faq;
+            } catch {}
+          }
+
           seoI18n[lang] = {
             seo_keywords: result.seo_keywords || '',
             intro: result.intro || '',
-            ...(newFaq ? { faq: newFaq } : {}),
+            ...(faqStr ? { faq: faqStr } : {}),
           };
         }
 
