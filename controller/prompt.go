@@ -205,6 +205,7 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.ContentEn = prompt.ContentEn
 	cleanPrompt.Description = prompt.Description
 	cleanPrompt.CoverImageUrl = prompt.CoverImageUrl
+	cleanPrompt.VideoUrl = prompt.VideoUrl
 	cleanPrompt.Author = prompt.Author
 	cleanPrompt.Source = prompt.Source
 	cleanPrompt.Model = prompt.Model
