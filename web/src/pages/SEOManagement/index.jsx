@@ -867,34 +867,18 @@ const SEOManagement = () => {
           continue;
         }
 
-        // 创建翻译队列
-        const queueRes = await API.post('/api/translate/queue', {
+        // 调同步翻译接口（和单条翻译一样的逻辑）
+        const translateRes = await API.post('/api/translate/batch', {
           items: validItems,
           source_lang: DEFAULT_LANG,
           target_langs: targetLangs,
         });
-        if (!queueRes.data.success) {
+        if (!translateRes.data.success) {
           failCount++;
           continue;
         }
-        const queueId = queueRes.data.data.queue_id;
-
-        // 轮询到完成
-        let results = null;
-        let attempts = 0;
-        const maxAttempts = 150;
-        while (attempts < maxAttempts) {
-          await new Promise((r) => setTimeout(r, 2000));
-          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
-          const queue = pollRes.data.data;
-          if (!queue) break;
-          if (queue.status === 'done') {
-            results = queue.results;
-            break;
-          } else if (queue.status === 'failed') break;
-          attempts++;
-        }
-        if (!results) {
+        const results = translateRes.data.data;
+        if (!results || Object.keys(results).length === 0) {
           failCount++;
           continue;
         }
