@@ -345,7 +345,7 @@
       content,
       content_en: contentEn,
       description: title,
-      cover_image_url: videoUrl ? '' : coverImageUrl,
+      cover_image_url: coverImageUrl,
       video_url: videoUrl,
       source: extractSource(new URL(sourceUrl).hostname),
       model,

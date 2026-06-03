@@ -111,11 +111,11 @@
 
   // 提取封面图
   function extractCoverImage() {
-    // 先找 video 元素
+    // 先找 video 元素的 poster 作为封面
     const video = document.querySelector('video');
     if (video) {
-      const src = video.src || video.currentSrc || video.querySelector('source')?.src || '';
-      if (src) return src;
+      const poster = video.getAttribute('poster');
+      if (poster) return poster;
     }
     const selectors = [
       'meta[property="og:image"]',
@@ -210,7 +210,7 @@
       title,
       content,
       description: title,
-      cover_image_url: videoUrl ? '' : coverImageUrl,
+      cover_image_url: coverImageUrl,
       video_url: videoUrl,
       source: extractSource(window.location.hostname),
       model,
