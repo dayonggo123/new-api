@@ -867,34 +867,29 @@ const SEOManagement = () => {
           continue;
         }
 
-        // 调同步翻译接口（和单条翻译一样的逻辑）
-        const translateRes = await API.post('/api/translate/batch', {
-          items: validItems,
-          source_lang: DEFAULT_LANG,
-          target_langs: targetLangs,
-        });
-        if (!translateRes.data.success) {
-          failCount++;
-          continue;
-        }
-        const results = translateRes.data.data;
-        if (!results || Object.keys(results).length === 0) {
-          failCount++;
-          continue;
+        // 按语言逐个翻译（AI 单批次处理不了太多语言）
+        const seoI18n = {};
+        for (const lang of targetLangs) {
+          const translateRes = await API.post('/api/translate/batch', {
+            items: validItems,
+            source_lang: DEFAULT_LANG,
+            target_langs: [lang],
+          });
+          if (!translateRes.data.success) continue;
+          const result = translateRes.data.data?.[lang];
+          if (!result) continue;
+          const newFaq = reassembleFaq(result);
+          seoI18n[lang] = {
+            seo_keywords: result.seo_keywords || '',
+            intro: result.intro || '',
+            ...(newFaq ? { faq: newFaq } : {}),
+          };
         }
 
-        // 保存翻译结果到 seo_i18n
-        const seoI18n = {};
-        Object.entries(results).forEach(([langCode, result]) => {
-          if (result) {
-            const newFaq = reassembleFaq(result);
-            seoI18n[langCode] = {
-              seo_keywords: result.seo_keywords || '',
-              intro: result.intro || '',
-              ...(newFaq ? { faq: newFaq } : {}),
-            };
-          }
-        });
+        if (Object.keys(seoI18n).length === 0) {
+          failCount++;
+          continue;
+        }
 
         const payload = {
           id: item.id,
