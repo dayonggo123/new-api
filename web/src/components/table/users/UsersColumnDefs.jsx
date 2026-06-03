@@ -32,6 +32,16 @@ import { IconMore } from '@douyinfe/semi-icons';
 import { renderGroup, renderNumber, renderQuota } from '../../../helpers';
 
 /**
+ * Format timestamp (seconds) to readable date string
+ */
+const formatTime = (ts) => {
+  if (!ts || ts === 0) return '-';
+  const d = new Date(ts * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/**
  * Render user role
  */
 const renderRole = (role, t) => {
@@ -373,6 +383,16 @@ export const getUsersColumns = ({
           </Tag>
         );
       },
+    },
+    {
+      title: t('注册时间'),
+      dataIndex: 'created_time',
+      width: 160,
+      render: (text) => (
+        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>
+          {formatTime(text)}
+        </span>
+      ),
     },
     {
       title: t('邀请信息'),
