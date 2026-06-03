@@ -44,6 +44,16 @@ const renderStatus = (status, t) => {
 };
 
 /**
+ * Format timestamp (seconds) to readable date string
+ */
+const formatTime = (ts) => {
+  if (!ts || ts === 0) return '-';
+  const d = new Date(ts * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/**
  * Get prompts table column definitions
  */
 export const getPromptsColumns = ({
@@ -108,6 +118,16 @@ export const getPromptsColumns = ({
       title: t('使用次数'),
       dataIndex: 'usage_count',
       width: 100,
+    },
+    {
+      title: t('更新时间'),
+      dataIndex: 'updated_time',
+      width: 160,
+      render: (text) => (
+        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>
+          {formatTime(text)}
+        </span>
+      ),
     },
     {
       title: '',
