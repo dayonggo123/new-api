@@ -609,6 +609,7 @@ const SEOManagement = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [batchTranslating, setBatchTranslating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const [batchAuditing, setBatchAuditing] = useState(false);
 
   const loadData = useCallback(
     async (page = activePage, size = pageSize, search = keyword) => {
@@ -766,6 +767,64 @@ const SEOManagement = () => {
       showError(error.message);
     }
     setAuditing((prev) => ({ ...prev, [id]: false }));
+  };
+
+  const handleBatchAudit = async () => {
+    if (selectedRowKeys.length === 0) {
+      showError(t('请先选择要审计的提示词'));
+      return;
+    }
+    setBatchAuditing(true);
+    try {
+      const ids = selectedRowKeys.slice(0, 50);
+      const res = await API.post('/api/prompt/seo/audit-batch', { ids });
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(message || `${t('已启动')} ${ids.length} ${t('个提示词的批量审计')}`);
+        setTimeout(() => {
+          loadData(activePage, pageSize, keyword);
+          loadStats();
+        }, 3000);
+      } else {
+        showError(message || t('批量审计失败'));
+      }
+    } catch (error) {
+      showError(error.message);
+    }
+    setBatchAuditing(false);
+    setSelectedRowKeys([]);
+  };
+
+  const handleAuditAll = async () => {
+    try {
+      // 获取所有启用提示词的 ID（最多取全部数据）
+      const res = await API.get(`/api/prompt/seo/list?p=1&page_size=10000`);
+      const { success, data } = res.data;
+      if (!success || !data || !data.items || data.items.length === 0) {
+        showError(t('暂无数据可审计'));
+        return;
+      }
+      const allIds = data.items.map((i) => i.id).slice(0, 50);
+      if (allIds.length === 0) {
+        showError(t('暂无数据可审计'));
+        return;
+      }
+      setBatchAuditing(true);
+      const auditRes = await API.post('/api/prompt/seo/audit-batch', { ids: allIds });
+      if (auditRes.data.success) {
+        showSuccess(`${t('已启动')} ${allIds.length} ${t('个提示词的批量审计')}`);
+        setTimeout(() => {
+          loadData(activePage, pageSize, keyword);
+          loadStats();
+        }, 3000);
+      } else {
+        showError(auditRes.data.message || t('批量审计失败'));
+      }
+    } catch (error) {
+      showError(error.message);
+    }
+    setBatchAuditing(false);
+    setSelectedRowKeys([]);
   };
 
   const handleBatchTranslate = async () => {
@@ -1014,6 +1073,15 @@ const SEOManagement = () => {
                 />
               }
             />
+            <Button
+              type='tertiary'
+              size='small'
+              icon={<IconBolt />}
+              loading={batchAuditing}
+              onClick={handleAuditAll}
+            >
+              审计全部
+            </Button>
           </div>
           {selectedRowKeys.length > 0 && (
             <div className="flex items-center gap-2" style={{ padding: '6px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
@@ -1026,6 +1094,15 @@ const SEOManagement = () => {
                 onClick={handleBatchTranslate}
               >
                 批量自动翻译 SEO
+              </Button>
+              <Button
+                type="danger"
+                size="small"
+                icon={<IconSearch />}
+                loading={batchAuditing}
+                onClick={handleBatchAudit}
+              >
+                批量审计
               </Button>
               {batchTranslating && (
                 <Text size="small" type="tertiary">
