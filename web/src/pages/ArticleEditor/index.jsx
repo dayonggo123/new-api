@@ -65,8 +65,21 @@ const ArticleEditor = () => {
   const [saving, setSaving] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
   const [mediaType, setMediaType] = useState('image');
+  const [categories, setCategories] = useState([]);
   const formApiRef = useRef(null);
   const contentTextareaRef = useRef(null);
+
+  // Load categories
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await API.get('/api/admin/article-categories');
+        if (res.data.success) {
+          setCategories(res.data.data || []);
+        }
+      } catch (err) {}
+    })();
+  }, []);
 
   // Load article for edit mode
   useEffect(() => {
@@ -98,29 +111,32 @@ const ArticleEditor = () => {
 
   // Insert markdown at cursor
   const getContentTextarea = () => {
-    // Find the content field's textarea by data attribute or class
-    return contentTextareaRef.current || document.querySelector('#article-editor-container textarea');
+    return contentTextareaRef.current || document.querySelector('#content-editor-wrapper textarea');
   };
 
   const insertMarkdown = (prefix, suffix = '', placeholder = '') => {
     const textarea = getContentTextarea();
     if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = textarea.value.substring(start, end);
-    const before = textarea.value.substring(0, start);
-    const after = textarea.value.substring(end);
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    const currentValue = formApiRef.current?.getValue('content') || textarea.value || '';
+    const selected = currentValue.substring(start, end);
+    const before = currentValue.substring(0, start);
+    const after = currentValue.substring(end);
     const inner = selected || placeholder;
     const newText = before + prefix + inner + suffix + after;
     formApiRef.current?.setValue('content', newText);
-    // Restore cursor position
+    setPreviewContent(newText);
+    // Restore cursor position after re-render
     setTimeout(() => {
-      textarea.focus();
+      const newTextarea = getContentTextarea();
+      if (!newTextarea) return;
+      newTextarea.focus();
       const cursorPos = start + prefix.length;
       if (!selected) {
-        textarea.setSelectionRange(cursorPos, cursorPos + placeholder.length);
+        newTextarea.setSelectionRange(cursorPos, cursorPos + placeholder.length);
       } else {
-        textarea.setSelectionRange(cursorPos, cursorPos + selected.length);
+        newTextarea.setSelectionRange(cursorPos, cursorPos + selected.length);
       }
     }, 0);
   };
@@ -152,9 +168,35 @@ const ArticleEditor = () => {
   };
 
   const handleInsertVideo = () => {
-    const url = prompt(t('请输入视频 URL'));
-    if (!url?.trim()) return;
-    insertMarkdown(`\n<video controls src="${url.trim()}"></video>\n`, '', '');
+    const useUpload = window.confirm(t('上传本地视频？点击「取消」可输入视频URL'));
+    if (useUpload) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'video/*';
+      input.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('media_type', 'video');
+        try {
+          const res = await API.post('/api/article-media', formData);
+          if (res.data.url) {
+            insertMarkdown(`\n<video controls src="${res.data.url}"></video>\n`, '', '');
+          } else {
+            showError(t('上传失败'));
+          }
+        } catch (err) {
+          showError(err.message || t('上传失败'));
+        }
+      };
+      input.click();
+    } else {
+      const url = prompt(t('请输入视频 URL'));
+      if (url?.trim()) {
+        insertMarkdown(`\n<video controls src="${url.trim()}"></video>\n`, '', '');
+      }
+    }
   };
 
   // Submit
@@ -203,7 +245,7 @@ const ArticleEditor = () => {
 
   return (
     <Spin spinning={loading}>
-      <div id="article-editor-container" style={{ maxWidth: 1400, margin: '0 auto', padding: '24px' }}>
+      <div id="article-editor-container" style={{ maxWidth: 1400, margin: '0 auto', padding: '84px 24px 24px' }}>
         {/* Header */}
         <div className='flex items-center justify-between mb-4'>
           <Space>
@@ -237,7 +279,7 @@ const ArticleEditor = () => {
                     <Form.Input field='slug' label={t('Slug')} placeholder={t('URL 友好标识，留空自动生成')} />
                   </Col>
                   <Col span={12}>
-                    <Form.Select field='category_id' label={t('分类')} />
+                    <Form.Select field='category_id' label={t('分类')} optionList={categories.map((c) => ({ label: c.name, value: c.id }))} />
                   </Col>
                   <Col span={8}>
                     <Form.Input field='author' label={t('作者')} placeholder={t('作者名称')} />
@@ -314,9 +356,11 @@ const ArticleEditor = () => {
                         )
                       )}
                     </div>
-                    <Form.TextArea field='content' placeholder={t('支持 Markdown 格式、图片、视频等')} rules={[{ required: true, message: t('内容不能为空') }]}
-                      style={{ fontFamily: 'monospace', minHeight: 500 }} rows={22}
-                    />
+                    <div id="content-editor-wrapper">
+                      <Form.TextArea field='content' placeholder={t('支持 Markdown 格式、图片、视频等')} rules={[{ required: true, message: t('内容不能为空') }]}
+                        style={{ fontFamily: 'monospace', minHeight: 500 }} rows={22}
+                      />
+                    </div>
                   </div>
                   <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, overflow: 'auto', maxHeight: 640 }}>
                     <Text type='tertiary' size='small' className='mb-2 block'>{t('实时预览')}</Text>

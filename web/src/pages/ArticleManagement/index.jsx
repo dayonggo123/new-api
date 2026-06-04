@@ -670,30 +670,33 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
   const insertMarkdown = (prefix, suffix = '', placeholder = '') => {
     let textarea = contentTextareaRef.current;
     if (!textarea) {
-      // Fallback: find textarea via selector (getFieldDomRef is not a standard Semi API)
       try {
-        const sidesheet = document.querySelector('.semi-sidesheet-inner');
-        textarea = sidesheet?.querySelector?.('textarea');
+        const wrapper = document.querySelector('#sidesheet-content-editor-wrapper');
+        textarea = wrapper?.querySelector?.('textarea');
         if (textarea) contentTextareaRef.current = textarea;
       } catch (e) {}
     }
     if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = textarea.value.substring(start, end);
-    const before = textarea.value.substring(0, start);
-    const after = textarea.value.substring(end);
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    const currentValue = formApiRef.current?.getValue('content') || textarea.value || '';
+    const selected = currentValue.substring(start, end);
+    const before = currentValue.substring(0, start);
+    const after = currentValue.substring(end);
     const inner = selected || placeholder;
     const newText = before + prefix + inner + suffix + after;
     formApiRef.current?.setValue('content', newText);
-    // Restore cursor position
+    setPreviewContent(newText);
+    // Restore cursor position after re-render
     setTimeout(() => {
-      textarea.focus();
+      const newTextarea = contentTextareaRef.current || document.querySelector('#sidesheet-content-editor-wrapper textarea');
+      if (!newTextarea) return;
+      newTextarea.focus();
       const cursorPos = start + prefix.length;
       if (!selected) {
-        textarea.setSelectionRange(cursorPos, cursorPos + placeholder.length);
+        newTextarea.setSelectionRange(cursorPos, cursorPos + placeholder.length);
       } else {
-        textarea.setSelectionRange(cursorPos, cursorPos + selected.length);
+        newTextarea.setSelectionRange(cursorPos, cursorPos + selected.length);
       }
     }, 0);
   };
@@ -724,9 +727,35 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
   };
 
   const handleInsertVideo = () => {
-    const url = prompt(t('请输入视频 URL（支持 mp4/webm 或 YouTube/B站等嵌入链接）'));
-    if (!url?.trim()) return;
-    insertMarkdown(`\n<video controls src="${url.trim()}"></video>\n`, '', '');
+    const useUpload = window.confirm(t('上传本地视频？点击「取消」可输入视频URL'));
+    if (useUpload) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'video/*';
+      input.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('media_type', 'video');
+        try {
+          const res = await API.post('/api/article-media', formData);
+          if (res.data.url) {
+            insertMarkdown(`\n<video controls src="${res.data.url}"></video>\n`, '', '');
+          } else {
+            showError(t('上传失败'));
+          }
+        } catch (err) {
+          showError(err.message || t('上传失败'));
+        }
+      };
+      input.click();
+    } else {
+      const url = prompt(t('请输入视频 URL（支持 mp4/webm 或 YouTube/B站等嵌入链接）'));
+      if (url?.trim()) {
+        insertMarkdown(`\n<video controls src="${url.trim()}"></video>\n`, '', '');
+      }
+    }
   };
 
   const updateI18nField = (langCode, field, value) => {
@@ -963,14 +992,16 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                         <Button size='small' type='tertiary' icon={<IconImage />} onClick={handleUploadContentImage} title={t('插入图片')} />
                         <Button size='small' type='tertiary' icon={<IconVideo />} onClick={handleInsertVideo} title={t('插入视频')} />
                       </div>
-                      <Form.TextArea
-                        field='content'
-                        label={t('正文内容')}
-                        placeholder={t('支持 Markdown 格式、图片、视频等')}
-                        style={{ fontFamily: 'monospace', minHeight: 460 }}
-                        rows={18}
-                        rules={[{ required: true, message: t('内容不能为空') }]}
-                      />
+                      <div id="sidesheet-content-editor-wrapper">
+                        <Form.TextArea
+                          field='content'
+                          label={t('正文内容')}
+                          placeholder={t('支持 Markdown 格式、图片、视频等')}
+                          style={{ fontFamily: 'monospace', minHeight: 460 }}
+                          rows={18}
+                          rules={[{ required: true, message: t('内容不能为空') }]}
+                        />
+                      </div>
                     </div>
                     <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, overflow: 'auto', maxHeight: 580 }}>
                       <Text type='tertiary' size='small' className='mb-2 block'>{t('实时预览')}</Text>
