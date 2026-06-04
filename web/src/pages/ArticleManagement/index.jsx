@@ -731,7 +731,7 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
   const sidesheetEditorConfig = {
     placeholder: t('请输入正文内容，支持富文本格式、图片、视频等'),
     autoFocus: false,
-    scroll: false,
+    scroll: true,
     MENU_CONF: {
       uploadImage: {
         customUpload: async (file, insertFn) => {
@@ -1006,7 +1006,7 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                           onCreated={handleEditorCreated}
                           onChange={handleEditorChange}
                           mode="default"
-                          style={{ flex: 1, overflowY: 'hidden' }}
+                          style={{ flex: 1, overflowY: 'auto' }}
                         />
                       </div>
                       <Form.Input field='content' noLabel style={{ display: 'none' }} />

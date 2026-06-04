@@ -91,7 +91,7 @@ const ArticleEditor = () => {
   const editorConfig = {
     placeholder: t('请输入正文内容，支持富文本格式、图片、视频等'),
     autoFocus: false,
-    scroll: false,
+    scroll: true,
     MENU_CONF: {
       uploadImage: {
         customUpload: async (file, insertFn) => {
@@ -350,7 +350,7 @@ const ArticleEditor = () => {
                         onCreated={handleEditorCreated}
                         onChange={handleEditorChange}
                         mode="default"
-                        style={{ flex: 1, overflowY: 'hidden' }}
+                        style={{ flex: 1, overflowY: 'auto' }}
                       />
                     </div>
                     {/* Hidden form field to hold content for validation */}
