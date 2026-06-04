@@ -321,16 +321,13 @@ const ArticleEditor = () => {
                       <Form.Switch field='is_featured' label={t('精选')} checkedText={t('是')} uncheckedText={t('否')} />
                     </div>
                   </Col>
-                  <Col span={24}>
-                    <Form.TextArea field='summary' label={t('摘要')} placeholder={t('文章摘要')} rows={3} />
-                  </Col>
                 </Row>
               </Card>
 
               {/* Content — wangEditor */}
               <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
                 <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', height: 560 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', height: 600 }}>
                     <Toolbar
                       editor={editor}
                       mode="default"
@@ -348,6 +345,15 @@ const ArticleEditor = () => {
                   {/* Hidden form field to hold content for validation */}
                   <Form.Input field='content' noLabel style={{ display: 'none' }} />
                 </div>
+              </Card>
+
+              {/* Summary */}
+              <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
+                <Row gutter={12}>
+                  <Col span={24}>
+                    <Form.TextArea field='summary' label={t('摘要')} placeholder={t('文章摘要')} rows={3} />
+                  </Col>
+                </Row>
               </Card>
             </div>
           )}
