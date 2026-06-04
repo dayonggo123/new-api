@@ -7,6 +7,7 @@ import { API, showError } from '../../helpers';
 import SEO from '../../components/seo/SEO';
 import { WebPageSchema, ArticleSchema } from '../../components/seo/SchemaOrg';
 import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
+import HtmlRenderer from '../../components/common/HtmlRenderer';
 
 const { Title, Text } = Typography;
 
@@ -45,6 +46,17 @@ function parseFAQ(faqStr) {
   } catch {
     return [];
   }
+}
+
+/** 检测内容是否为 HTML 格式（wangEditor 输出） */
+function isHtmlContent(content) {
+  if (!content || typeof content !== 'string') return false;
+  const trimmed = content.trim();
+  // wangEditor 输出通常以 <p> 或 <div> 开头
+  if (trimmed.startsWith('<p>') || trimmed.startsWith('<div>')) return true;
+  // 包含大量 HTML 标签也认为是 HTML
+  const htmlTagPattern = /<(p|div|span|h[1-6]|ul|ol|li|blockquote|table|tr|td|th|img|video|br)[\s>]/i;
+  return htmlTagPattern.test(trimmed);
 }
 
 function applyLanguage(article, lang) {
@@ -289,7 +301,10 @@ export default function ArticleDetail() {
 
           {/* Content */}
           <div style={{ marginBottom: 32 }}>
-            <MarkdownRenderer content={currentArticle.content || ''} />
+            {isHtmlContent(currentArticle.content)
+              ? <HtmlRenderer content={currentArticle.content} />
+              : <MarkdownRenderer content={currentArticle.content || ''} />
+            }
           </div>
 
           {/* FAQ */}

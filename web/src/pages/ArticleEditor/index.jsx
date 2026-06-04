@@ -29,31 +29,49 @@ import {
   Space,
   Spin,
   Typography,
-  Select,
   Upload,
-  Toast,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
   IconArrowLeft,
   IconUpload,
-  IconBold,
-  IconItalic,
-  IconList,
-  IconLink,
-  IconCode,
-  IconMinus,
-  IconImage,
-  IconVideo,
-  IconQuote,
-  IconH2,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API, showError, showSuccess } from '../../helpers';
-import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
+import HtmlRenderer from '../../components/common/HtmlRenderer';
+
+// wangEditor
+import '@wangeditor/editor/dist/css/style.css';
+import { Editor, Toolbar } from '@wangeditor/editor-for-react';
 
 const { Text, Title } = Typography;
+
+/** 微信风格的工具栏配置 */
+const toolbarConfig = {
+  toolbarKeys: [
+    'headerSelect',
+    '|',
+    'bold', 'italic', 'underline', 'through',
+    'color', 'bgColor', 'fontSize', 'fontFamily',
+    '|',
+    'justifyLeft', 'justifyCenter', 'justifyRight', 'justifyJustify',
+    'indent', 'delIndent',
+    '|',
+    'bulletedList', 'numberedList',
+    '|',
+    'quote', 'codeBlock', 'divider',
+    '|',
+    'insertLink', 'insertImage', 'uploadImage',
+    'insertVideo', 'uploadVideo',
+    '|',
+    'insertTable',
+    '|',
+    'undo', 'redo',
+    '|',
+    'fullScreen',
+  ],
+};
 
 const ArticleEditor = () => {
   const { t } = useTranslation();
@@ -66,8 +84,70 @@ const ArticleEditor = () => {
   const [previewContent, setPreviewContent] = useState('');
   const [mediaType, setMediaType] = useState('image');
   const [categories, setCategories] = useState([]);
+  const [editor, setEditor] = useState(null);
   const formApiRef = useRef(null);
-  const contentTextareaRef = useRef(null);
+
+  // wangEditor 配置
+  const editorConfig = {
+    placeholder: t('请输入正文内容，支持富文本格式、图片、视频等'),
+    autoFocus: false,
+    scroll: false,
+    MENU_CONF: {
+      uploadImage: {
+        customUpload: async (file, insertFn) => {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('media_type', 'content_image');
+          try {
+            const res = await API.post('/api/article-media', formData);
+            if (res.data.url) {
+              insertFn(res.data.url, file.name || '', res.data.url);
+            } else {
+              showError(t('图片上传失败'));
+            }
+          } catch (err) {
+            showError(err.message || t('图片上传失败'));
+          }
+        },
+      },
+      uploadVideo: {
+        customUpload: async (file, insertFn) => {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('media_type', 'video');
+          try {
+            const res = await API.post('/api/article-media', formData);
+            if (res.data.url) {
+              insertFn(res.data.url);
+            } else {
+              showError(t('视频上传失败'));
+            }
+          } catch (err) {
+            showError(err.message || t('视频上传失败'));
+          }
+        },
+      },
+    },
+  };
+
+  // Destroy editor on unmount
+  useEffect(() => {
+    return () => {
+      if (editor == null) return;
+      editor.destroy();
+      setEditor(null);
+    };
+  }, [editor]);
+
+  // Load content into editor when both editor and previewContent are ready
+  useEffect(() => {
+    if (editor && previewContent) {
+      const current = editor.getHtml();
+      if (current === '<p><br></p>' || current === '') {
+        editor.setHtml(previewContent);
+      }
+    }
+  }, [editor, previewContent]);
 
   // Load categories
   useEffect(() => {
@@ -109,94 +189,18 @@ const ArticleEditor = () => {
     })();
   }, [id]);
 
-  // Insert markdown at cursor
-  const getContentTextarea = () => {
-    return contentTextareaRef.current || document.querySelector('#content-editor-wrapper textarea');
-  };
-
-  const insertMarkdown = (prefix, suffix = '', placeholder = '') => {
-    const textarea = getContentTextarea();
-    if (!textarea) return;
-    const start = textarea.selectionStart || 0;
-    const end = textarea.selectionEnd || 0;
-    const currentValue = formApiRef.current?.getValue('content') || textarea.value || '';
-    const selected = currentValue.substring(start, end);
-    const before = currentValue.substring(0, start);
-    const after = currentValue.substring(end);
-    const inner = selected || placeholder;
-    const newText = before + prefix + inner + suffix + after;
-    formApiRef.current?.setValue('content', newText);
-    setPreviewContent(newText);
-    // Restore cursor position after re-render
-    setTimeout(() => {
-      const newTextarea = getContentTextarea();
-      if (!newTextarea) return;
-      newTextarea.focus();
-      const cursorPos = start + prefix.length;
-      if (!selected) {
-        newTextarea.setSelectionRange(cursorPos, cursorPos + placeholder.length);
-      } else {
-        newTextarea.setSelectionRange(cursorPos, cursorPos + selected.length);
-      }
-    }, 0);
-  };
-
-  // Upload and insert content image
-  const handleUploadContentImage = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('media_type', 'cover_image');
-      try {
-        const res = await API.post('/api/article-media', formData);
-        if (res.data.url) {
-          const alt = prompt(t('请输入图片描述'), file.name.split('.')[0]) || '';
-          insertMarkdown(`![${alt}](${res.data.url})`);
-        } else {
-          showError(t('上传失败'));
-        }
-      } catch (err) {
-        showError(err.message || t('上传失败'));
-      }
-    };
-    input.click();
-  };
-
-  const handleInsertVideo = () => {
-    const useUpload = window.confirm(t('上传本地视频？点击「取消」可输入视频URL'));
-    if (useUpload) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'video/*';
-      input.onchange = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('media_type', 'video');
-        try {
-          const res = await API.post('/api/article-media', formData);
-          if (res.data.url) {
-            insertMarkdown(`\n<video controls src="${res.data.url}"></video>\n`, '', '');
-          } else {
-            showError(t('上传失败'));
-          }
-        } catch (err) {
-          showError(err.message || t('上传失败'));
-        }
-      };
-      input.click();
-    } else {
-      const url = prompt(t('请输入视频 URL'));
-      if (url?.trim()) {
-        insertMarkdown(`\n<video controls src="${url.trim()}"></video>\n`, '', '');
-      }
+  // When editor is ready, load content for edit mode
+  const handleEditorCreated = (editorInstance) => {
+    setEditor(editorInstance);
+    if (isEdit && previewContent) {
+      editorInstance.setHtml(previewContent);
     }
+  };
+
+  const handleEditorChange = (editorInstance) => {
+    const html = editorInstance.getHtml();
+    formApiRef.current?.setValue('content', html);
+    setPreviewContent(html);
   };
 
   // Submit
@@ -228,21 +232,6 @@ const ArticleEditor = () => {
     setSaving(false);
   };
 
-  const toolbarBtns = [
-    { icon: <IconBold />, title: t('加粗'), action: () => insertMarkdown('**', '**', t('加粗文本')) },
-    { icon: <IconItalic />, title: t('斜体'), action: () => insertMarkdown('*', '*', t('斜体文本')) },
-    { icon: <IconH2 />, title: t('H2 标题'), action: () => insertMarkdown('## ', '', t('标题文本')) },
-    { icon: <IconLink />, title: t('链接'), action: () => insertMarkdown('[', '](url)', t('链接文本')) },
-    { icon: <IconList />, title: t('无序列表'), action: () => insertMarkdown('- ', '', t('列表项')) },
-    { icon: <IconQuote />, title: t('引用'), action: () => insertMarkdown('> ', '', t('引用文本')) },
-    { icon: <IconCode />, title: t('行内代码'), action: () => insertMarkdown('`', '`', t('代码')) },
-    { icon: <IconCode />, title: t('代码块'), action: () => insertMarkdown('```\n', '\n```', t('在此输入代码')) },
-    { icon: <IconMinus />, title: t('分割线'), action: () => insertMarkdown('\n---\n', '', '') },
-    { type: 'divider' },
-    { icon: <IconImage />, title: t('插入图片'), action: handleUploadContentImage },
-    { icon: <IconVideo />, title: t('插入视频'), action: handleInsertVideo },
-  ];
-
   return (
     <Spin spinning={loading}>
       <div id="article-editor-container" style={{ maxWidth: 1400, margin: '0 auto', padding: '84px 24px 24px' }}>
@@ -263,7 +252,6 @@ const ArticleEditor = () => {
         {/* Form */}
         <Form
           getFormApi={(api) => { formApiRef.current = api; }}
-          onValueChange={(values) => { setPreviewContent(values.content || ''); }}
           onSubmit={submit}
           style={{ width: '100%' }}
         >
@@ -341,30 +329,38 @@ const ArticleEditor = () => {
                 </Row>
               </Card>
 
-              {/* Content */}
+              {/* Content — wangEditor */}
               <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
                 <div style={{ display: 'flex', gap: 16 }}>
-                  <div style={{ flex: 1 }}>
-                    <Text type='tertiary' size='small' className='mb-2 block'>{t('正文内容')}</Text>
-                    {/* Toolbar */}
-                    <div style={{ marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4, padding: '6px 8px', background: 'var(--semi-color-fill-0)', borderRadius: 6, border: '1px solid var(--semi-color-border)' }}>
-                      {toolbarBtns.map((btn, i) =>
-                        btn.type === 'divider' ? (
-                          <div key={i} style={{ width: 1, height: 24, background: 'var(--semi-color-border)', margin: '0 4px' }} />
-                        ) : (
-                          <Button key={i} size='small' type='tertiary' icon={btn.icon} onClick={btn.action} title={btn.title} />
-                        )
-                      )}
-                    </div>
-                    <div id="content-editor-wrapper">
-                      <Form.TextArea field='content' placeholder={t('支持 Markdown 格式、图片、视频等')} rules={[{ required: true, message: t('内容不能为空') }]}
-                        style={{ fontFamily: 'monospace', minHeight: 500 }} rows={22}
+                  {/* Editor */}
+                  <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
+                    <Text type='tertiary' size='small' style={{ display: 'block', padding: '8px 12px', borderBottom: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)' }}>
+                      {t('正文内容')}
+                    </Text>
+                    <div style={{ display: 'flex', flexDirection: 'column', height: 560 }}>
+                      <Toolbar
+                        editor={editor}
+                        defaultConfig={toolbarConfig}
+                        mode="default"
+                        style={{ borderBottom: '1px solid var(--semi-color-border)' }}
+                      />
+                      <Editor
+                        defaultConfig={editorConfig}
+                        defaultHtml={isEdit ? previewContent : '<p></p>'}
+                        onCreated={handleEditorCreated}
+                        onChange={handleEditorChange}
+                        mode="default"
+                        style={{ flex: 1, overflowY: 'hidden' }}
                       />
                     </div>
+                    {/* Hidden form field to hold content for validation */}
+                    <Form.Input field='content' noLabel style={{ display: 'none' }} />
                   </div>
+
+                  {/* Preview */}
                   <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, overflow: 'auto', maxHeight: 640 }}>
                     <Text type='tertiary' size='small' className='mb-2 block'>{t('实时预览')}</Text>
-                    <MarkdownRenderer content={previewContent || ''} />
+                    <HtmlRenderer content={previewContent || '<p></p>'} />
                   </div>
                 </div>
               </Card>
