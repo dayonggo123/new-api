@@ -57,6 +57,7 @@ const OPTION_KEYS = [
   'group_ratio_setting.group_special_usable_group',
   'AutoGroups',
   'DefaultUseAutoGroup',
+  'ModelGroupRatio',
 ];
 
 function parseJSONSafe(str, fallback) {
@@ -81,6 +82,7 @@ export default function GroupRatioSettings(props) {
     'group_ratio_setting.group_special_usable_group': '',
     AutoGroups: '',
     DefaultUseAutoGroup: false,
+    ModelGroupRatio: '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -364,6 +366,30 @@ export default function GroupRatioSettings(props) {
                   ...prev,
                   'group_ratio_setting.group_special_usable_group': value,
                 }))
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('模型级分组倍率覆盖')}
+              placeholder={t('为一个 JSON 文本')}
+              extraText={t(
+                '键为模型名称，值为分组名到倍率的映射。当指定模型被调用时，优先使用此处配置的分组倍率，未配置的分组回退到全局分组倍率。例如：{"gpt-4o": {"vip": 0.3, "svip": 0.1}}，表示 gpt-4o 模型在 vip 分组下倍率为 0.3，svip 分组下倍率为 0.1',
+              )}
+              field={'ModelGroupRatio'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs((prev) => ({ ...prev, ModelGroupRatio: value }))
               }
             />
           </Col>

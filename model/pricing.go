@@ -33,6 +33,8 @@ type Pricing struct {
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	// 模型级分组倍率覆盖：分组名 -> 倍率（供前端价格表使用）
+	GroupPrices map[string]float64 `json:"group_prices,omitempty"`
 }
 
 type PricingVendor struct {
@@ -318,6 +320,11 @@ func updatePricing() {
 		if ratio_setting.ContainsAudioCompletionRatio(model) {
 			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
+		}
+		// 填充模型级分组倍率覆盖
+		modelGroupRatios := ratio_setting.GetModelGroupRatioCopy()
+		if groupRatios, ok := modelGroupRatios[model]; ok && len(groupRatios) > 0 {
+			pricing.GroupPrices = groupRatios
 		}
 		pricingMap = append(pricingMap, pricing)
 	}

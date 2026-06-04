@@ -624,17 +624,19 @@ export const calculateModelPrice = ({
 }) => {
   // 1. 选择实际使用的分组
   let usedGroup = selectedGroup;
-  let usedGroupRatio = groupRatio[selectedGroup];
+  // 优先使用模型级分组倍率覆盖，不存在则回退到全局分组倍率
+  const modelGroupPrices = record.group_prices || {};
+  let usedGroupRatio = modelGroupPrices[selectedGroup] ?? groupRatio[selectedGroup];
 
   if (selectedGroup === 'all' || usedGroupRatio === undefined) {
-    // 在模型可用分组中选择倍率最小的分组，若无则使用 1
+    // 在模型可用分组中选择倍率最小的分组，优先使用模型级覆盖
     let minRatio = Number.POSITIVE_INFINITY;
     if (
       Array.isArray(record.enable_groups) &&
       record.enable_groups.length > 0
     ) {
       record.enable_groups.forEach((g) => {
-        const r = groupRatio[g];
+        const r = modelGroupPrices[g] ?? groupRatio[g];
         if (r !== undefined && r < minRatio) {
           minRatio = r;
           usedGroup = g;
