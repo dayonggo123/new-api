@@ -15,12 +15,28 @@
     md = md.replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, (_, code) => {
       return '\n```\n' + decodeHtml(code.trim()) + '\n```\n\n';
     });
-    md = md.replace(/<img[^>]+src=["']([^"']+)["'][^>]*/gi, (_, src) => {
-      const altMatch = _.match(/alt=["']([^"']*)["']/i);
-      return '\n![' + (altMatch ? altMatch[1] : 'image') + '](' + src.split('?')[0] + ')\n';
+    // Images: handle src and data-src (wechat lazy loading)
+    md = md.replace(/<(?:img|amp-img)[^>]+(?:data-src|src)=["']([^"']+(?:png|jpg|jpeg|gif|webp)[^"']*)["'][^>]*>/gi, function(match, src) {
+      var altMatch = match.match(/alt=["']([^"']*)["']/i);
+      var cleanSrc = src.split('?')[0];
+      return '\n![' + (altMatch ? altMatch[1] : 'image') + '](' + cleanSrc + ')\n';
     });
-    md = md.replace(/<video[^>]+src=["']([^"']+)["'][^>]*>/gi, (_, src) => '\n<video controls src="' + src + '"></video>\n');
+    // Video: handle multiple patterns (src, data-src, source children)
+    md = md.replace(/<video[^>]*>[\s\S]*?<\/video>/gi, function(match) {
+      // Try src first, then data-src (wechat lazy loading)
+      var src = match.match(/src=["']([^"']+)["']/);
+      if (!src) src = match.match(/data-src=["']([^"']+)["']/);
+      if (!src) {
+        // Try source child element
+        var source = match.match(/<source[^>]+src=["']([^"']+)["']/);
+        if (source) src = source;
+      }
+      if (src) return '\n<video controls src="' + src[1] + '"></video>\n';
+      return '';
+    });
     md = md.replace(/<iframe[^>]+src=["']([^"']+)["'][^>]*>/gi, (_, src) => '\n<iframe src="' + src + '"></iframe>\n');
+    // Wechat data-src video (inline style player)
+    md = md.replace(/<(div|span)[^>]+data-src=["']([^"']+\.(mp4|webm))["'][^>]*>/gi, (_, tag, videoSrc) => '\n<video controls src="' + videoSrc + '"></video>\n');
     md = md.replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
       const t = text.replace(/<[^>]+>/g, '').trim();
       return t ? '[' + t + '](' + href + ')' : href;
