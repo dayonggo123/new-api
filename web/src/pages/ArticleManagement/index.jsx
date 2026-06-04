@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Tabs,
   Button,
@@ -1205,6 +1206,7 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
 
 const ArticleManagement = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('articles');
 
   // Articles state
@@ -1465,7 +1467,7 @@ const ArticleManagement = () => {
     {
       title: t('操作'),
       fixed: 'right',
-      width: 150,
+      width: 220,
       render: (_, record) => (
         <Space>
           <Button type='tertiary' size='small' icon={<IconEdit />} onClick={() => {
@@ -1473,6 +1475,9 @@ const ArticleManagement = () => {
             setShowEdit(true);
           }}>
             {t('编辑')}
+          </Button>
+          <Button type='primary' size='small' onClick={() => navigate(`/console/article/editor/${record.id}`)}>
+            {t('全屏编辑')}
           </Button>
           <Popconfirm title={t('确定删除此文章吗？')} content={t('此操作不可撤销')} onConfirm={() => handleDeleteArticle(record.id)}>
             <Button type='danger' theme='light' size='small'>
@@ -1580,10 +1585,7 @@ const ArticleManagement = () => {
                 <Text className='text-lg font-medium'>{t('文章列表')}</Text>
               </div>
               <Space>
-                <Button type='primary' size='small' icon={<IconPlus />} onClick={() => {
-                  setEditingArticle(null);
-                  setShowEdit(true);
-                }}>
+                <Button type='primary' size='small' icon={<IconPlus />} onClick={() => navigate('/console/article/editor')}>
                   {t('新增文章')}
                 </Button>
                 <Button type='secondary' size='small' icon={<IconEdit />} onClick={() => {

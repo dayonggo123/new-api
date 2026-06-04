@@ -42,6 +42,7 @@ import ArticleDetail from './pages/ArticleDetail';
 import SEOManagement from './pages/SEOManagement';
 import SEOTrends from './pages/SEOTrends';
 import ArticleManagement from './pages/ArticleManagement';
+import ArticleEditor from './pages/ArticleEditor';
 import EcommerceWizardManagement from './pages/EcommerceWizardManagement';
 import ImageStudio from './pages/ImageStudio';
 import NotificationManagement from './pages/NotificationManagement';
@@ -201,6 +202,14 @@ function App() {
           element={
             <AdminRoute>
               <ArticleManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/article/editor/:id?'
+          element={
+            <AdminRoute>
+              <ArticleEditor />
             </AdminRoute>
           }
         />
