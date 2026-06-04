@@ -995,7 +995,6 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                       <div style={{ display: 'flex', flexDirection: 'column', height: 520 }}>
                         <Toolbar
                           editor={editor}
-                          defaultConfig={wangToolbarConfig}
                           mode="default"
                           style={{ borderBottom: '1px solid var(--semi-color-border)' }}
                         />

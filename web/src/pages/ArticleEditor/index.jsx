@@ -339,7 +339,6 @@ const ArticleEditor = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', height: 560 }}>
                       <Toolbar
                         editor={editor}
-                        defaultConfig={toolbarConfig}
                         mode="default"
                         style={{ borderBottom: '1px solid var(--semi-color-border)' }}
                       />
