@@ -39,7 +39,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API, showError, showSuccess } from '../../helpers';
-import HtmlRenderer from '../../components/common/HtmlRenderer';
 
 // wangEditor
 import '@wangeditor/editor/dist/css/style.css';
@@ -330,36 +329,24 @@ const ArticleEditor = () => {
 
               {/* Content — wangEditor */}
               <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  {/* Editor */}
-                  <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
-                    <Text type='tertiary' size='small' style={{ display: 'block', padding: '8px 12px', borderBottom: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)' }}>
-                      {t('正文内容')}
-                    </Text>
-                    <div style={{ display: 'flex', flexDirection: 'column', height: 560 }}>
-                      <Toolbar
-                        editor={editor}
-                        mode="default"
-                        style={{ borderBottom: '1px solid var(--semi-color-border)' }}
-                      />
-                      <Editor
-                        defaultConfig={editorConfig}
-                        defaultHtml={isEdit ? previewContent : '<p></p>'}
-                        onCreated={handleEditorCreated}
-                        onChange={handleEditorChange}
-                        mode="default"
-                        style={{ flex: 1, overflowY: 'auto' }}
-                      />
-                    </div>
-                    {/* Hidden form field to hold content for validation */}
-                    <Form.Input field='content' noLabel style={{ display: 'none' }} />
+                <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', height: 560 }}>
+                    <Toolbar
+                      editor={editor}
+                      mode="default"
+                      style={{ borderBottom: '1px solid var(--semi-color-border)' }}
+                    />
+                    <Editor
+                      defaultConfig={editorConfig}
+                      defaultHtml={isEdit ? previewContent : '<p></p>'}
+                      onCreated={handleEditorCreated}
+                      onChange={handleEditorChange}
+                      mode="default"
+                      style={{ flex: 1, overflowY: 'auto' }}
+                    />
                   </div>
-
-                  {/* Preview */}
-                  <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, overflow: 'auto', maxHeight: 640 }}>
-                    <Text type='tertiary' size='small' className='mb-2 block'>{t('实时预览')}</Text>
-                    <HtmlRenderer content={previewContent || '<p></p>'} />
-                  </div>
+                  {/* Hidden form field to hold content for validation */}
+                  <Form.Input field='content' noLabel style={{ display: 'none' }} />
                 </div>
               </Card>
             </div>

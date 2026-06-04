@@ -68,8 +68,6 @@ import { API, showError, showSuccess } from '../../helpers';
 import ArticleSEOManagement from '../ArticleSEOManagement';
 import { ITEMS_PER_PAGE } from '../../constants';
 import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
-import HtmlRenderer from '../../components/common/HtmlRenderer';
-
 // wangEditor
 import '@wangeditor/editor/dist/css/style.css';
 import { Editor, Toolbar } from '@wangeditor/editor-for-react';
@@ -986,35 +984,23 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
               {/* Content Tab */}
               <div style={{ display: activeTab === 'content' ? 'block' : 'none' }}>
                 <Card className='!rounded-2xl shadow-sm border-0'>
-                  <div style={{ display: 'flex', gap: 16 }}>
-                    {/* Editor */}
-                    <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
-                      <Text type='tertiary' size='small' style={{ display: 'block', padding: '8px 12px', borderBottom: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)' }}>
-                        {t('正文内容')}
-                      </Text>
-                      <div style={{ display: 'flex', flexDirection: 'column', height: 520 }}>
-                        <Toolbar
-                          editor={editor}
-                          mode="default"
-                          style={{ borderBottom: '1px solid var(--semi-color-border)' }}
-                        />
-                        <Editor
-                          defaultConfig={sidesheetEditorConfig}
-                          defaultHtml={previewContent || '<p></p>'}
-                          onCreated={handleEditorCreated}
-                          onChange={handleEditorChange}
-                          mode="default"
-                          style={{ flex: 1, overflowY: 'auto' }}
-                        />
-                      </div>
-                      <Form.Input field='content' noLabel style={{ display: 'none' }} />
+                  <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', height: 520 }}>
+                      <Toolbar
+                        editor={editor}
+                        mode="default"
+                        style={{ borderBottom: '1px solid var(--semi-color-border)' }}
+                      />
+                      <Editor
+                        defaultConfig={sidesheetEditorConfig}
+                        defaultHtml={previewContent || '<p></p>'}
+                        onCreated={handleEditorCreated}
+                        onChange={handleEditorChange}
+                        mode="default"
+                        style={{ flex: 1, overflowY: 'auto' }}
+                      />
                     </div>
-
-                    {/* Preview */}
-                    <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, overflow: 'auto', maxHeight: 580 }}>
-                      <Text type='tertiary' size='small' className='mb-2 block'>{t('实时预览')}</Text>
-                      <HtmlRenderer content={previewContent || '<p></p>'} />
-                    </div>
+                    <Form.Input field='content' noLabel style={{ display: 'none' }} />
                   </div>
                 </Card>
               </div>
