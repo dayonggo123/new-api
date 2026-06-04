@@ -668,16 +668,14 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
 
   // Insert markdown syntax at cursor position in the content textarea
   const insertMarkdown = (prefix, suffix = '', placeholder = '') => {
-    // Get textarea DOM element from Form field
     let textarea = contentTextareaRef.current;
     if (!textarea) {
+      // Fallback: find textarea via selector (getFieldDomRef is not a standard Semi API)
       try {
-        const domRef = formApiRef.current?.getFieldDomRef?.('content');
-        if (domRef) {
-          textarea = domRef.querySelector?.('textarea');
-          if (textarea) contentTextareaRef.current = textarea;
-        }
-      } catch (e) { /* ignore */ }
+        const sidesheet = document.querySelector('.semi-sidesheet-inner');
+        textarea = sidesheet?.querySelector?.('textarea');
+        if (textarea) contentTextareaRef.current = textarea;
+      } catch (e) {}
     }
     if (!textarea) return;
     const start = textarea.selectionStart;
@@ -687,18 +685,17 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
     const after = textarea.value.substring(end);
     const inner = selected || placeholder;
     const newText = before + prefix + inner + suffix + after;
-    textarea.value = newText;
     formApiRef.current?.setValue('content', newText);
     // Restore cursor position
-    const cursorPos = start + prefix.length;
-    if (!selected) {
-      textarea.selectionStart = cursorPos;
-      textarea.selectionEnd = cursorPos + placeholder.length;
-    } else {
-      textarea.selectionStart = cursorPos;
-      textarea.selectionEnd = cursorPos + selected.length;
-    }
-    textarea.focus();
+    setTimeout(() => {
+      textarea.focus();
+      const cursorPos = start + prefix.length;
+      if (!selected) {
+        textarea.setSelectionRange(cursorPos, cursorPos + placeholder.length);
+      } else {
+        textarea.setSelectionRange(cursorPos, cursorPos + selected.length);
+      }
+    }, 0);
   };
 
   const handleUploadContentImage = () => {

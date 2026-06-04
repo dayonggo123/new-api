@@ -97,17 +97,13 @@ const ArticleEditor = () => {
   }, [id]);
 
   // Insert markdown at cursor
+  const getContentTextarea = () => {
+    // Find the content field's textarea by data attribute or class
+    return contentTextareaRef.current || document.querySelector('#article-editor-container textarea');
+  };
+
   const insertMarkdown = (prefix, suffix = '', placeholder = '') => {
-    let textarea = contentTextareaRef.current;
-    if (!textarea) {
-      try {
-        const domRef = formApiRef.current?.getFieldDomRef?.('content');
-        if (domRef) {
-          textarea = domRef.querySelector?.('textarea');
-          if (textarea) contentTextareaRef.current = textarea;
-        }
-      } catch (e) {}
-    }
+    const textarea = getContentTextarea();
     if (!textarea) return;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
@@ -116,17 +112,17 @@ const ArticleEditor = () => {
     const after = textarea.value.substring(end);
     const inner = selected || placeholder;
     const newText = before + prefix + inner + suffix + after;
-    textarea.value = newText;
     formApiRef.current?.setValue('content', newText);
-    const cursorPos = start + prefix.length;
-    if (!selected) {
-      textarea.selectionStart = cursorPos;
-      textarea.selectionEnd = cursorPos + placeholder.length;
-    } else {
-      textarea.selectionStart = cursorPos;
-      textarea.selectionEnd = cursorPos + selected.length;
-    }
-    textarea.focus();
+    // Restore cursor position
+    setTimeout(() => {
+      textarea.focus();
+      const cursorPos = start + prefix.length;
+      if (!selected) {
+        textarea.setSelectionRange(cursorPos, cursorPos + placeholder.length);
+      } else {
+        textarea.setSelectionRange(cursorPos, cursorPos + selected.length);
+      }
+    }, 0);
   };
 
   // Upload and insert content image
@@ -207,7 +203,7 @@ const ArticleEditor = () => {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px' }}>
+      <div id="article-editor-container" style={{ maxWidth: 1400, margin: '0 auto', padding: '24px' }}>
         {/* Header */}
         <div className='flex items-center justify-between mb-4'>
           <Space>
