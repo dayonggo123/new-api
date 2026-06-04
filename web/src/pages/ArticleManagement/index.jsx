@@ -51,6 +51,16 @@ import {
   IconSearch,
   IconRefresh,
   IconUpload,
+  IconBold,
+  IconItalic,
+  IconList,
+  IconLink,
+  IconCode,
+  IconMinus,
+  IconImage,
+  IconVideo,
+  IconQuote,
+  IconH2,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -231,6 +241,7 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
   const [seoAuditHistory, setSeoAuditHistory] = useState([]);
   const formApiRef = useRef(null);
   const pollRef = useRef(null);
+  const contentTextareaRef = useRef(null);
   const isEdit = article?.id !== undefined;
 
   const categoryOptions = categories.map((c) => ({ label: c.name, value: c.id }));
@@ -654,6 +665,72 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
     setImageGenModalVisible(false);
   };
 
+  // Insert markdown syntax at cursor position in the content textarea
+  const insertMarkdown = (prefix, suffix = '', placeholder = '') => {
+    // Get textarea DOM element from Form field
+    let textarea = contentTextareaRef.current;
+    if (!textarea) {
+      try {
+        const domRef = formApiRef.current?.getFieldDomRef?.('content');
+        if (domRef) {
+          textarea = domRef.querySelector?.('textarea');
+          if (textarea) contentTextareaRef.current = textarea;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = textarea.value.substring(start, end);
+    const before = textarea.value.substring(0, start);
+    const after = textarea.value.substring(end);
+    const inner = selected || placeholder;
+    const newText = before + prefix + inner + suffix + after;
+    textarea.value = newText;
+    formApiRef.current?.setValue('content', newText);
+    // Restore cursor position
+    const cursorPos = start + prefix.length;
+    if (!selected) {
+      textarea.selectionStart = cursorPos;
+      textarea.selectionEnd = cursorPos + placeholder.length;
+    } else {
+      textarea.selectionStart = cursorPos;
+      textarea.selectionEnd = cursorPos + selected.length;
+    }
+    textarea.focus();
+  };
+
+  const handleUploadContentImage = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('media_type', 'cover_image');
+      try {
+        const res = await API.post('/api/article-media', formData);
+        if (res.data.url) {
+          const alt = prompt(t('请输入图片描述（alt 文本）'), file.name.split('.')[0]) || '';
+          insertMarkdown(`![${alt}](${res.data.url})`);
+        } else {
+          showError(t('上传失败'));
+        }
+      } catch (err) {
+        showError(err.message || t('上传失败'));
+      }
+    };
+    input.click();
+  };
+
+  const handleInsertVideo = () => {
+    const url = prompt(t('请输入视频 URL（支持 mp4/webm 或 YouTube/B站等嵌入链接）'));
+    if (!url?.trim()) return;
+    insertMarkdown(`\n<video controls src="${url.trim()}"></video>\n`, '', '');
+  };
+
   const updateI18nField = (langCode, field, value) => {
     setI18nData((prev) => ({
       ...prev,
@@ -873,16 +950,31 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
                 <Card className='!rounded-2xl shadow-sm border-0'>
                   <div style={{ display: 'flex', gap: 16 }}>
                     <div style={{ flex: 1 }}>
+                      {/* Markdown Toolbar */}
+                      <div style={{ marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4, padding: '6px 8px', background: 'var(--semi-color-fill-0)', borderRadius: 6, border: '1px solid var(--semi-color-border)' }}>
+                        <Button size='small' type='tertiary' icon={<IconBold />} onClick={() => insertMarkdown('**', '**', t('加粗文本'))} title={t('加粗')} />
+                        <Button size='small' type='tertiary' icon={<IconItalic />} onClick={() => insertMarkdown('*', '*', t('斜体文本'))} title={t('斜体')} />
+                        <Button size='small' type='tertiary' icon={<IconH2 />} onClick={() => insertMarkdown('## ', '', t('标题文本'))} title={t('H2 标题')} />
+                        <Button size='small' type='tertiary' icon={<IconLink />} onClick={() => insertMarkdown('[', '](url)', t('链接文本'))} title={t('链接')} />
+                        <Button size='small' type='tertiary' icon={<IconList />} onClick={() => insertMarkdown('- ', '', t('列表项'))} title={t('无序列表')} />
+                        <Button size='small' type='tertiary' icon={<IconQuote />} onClick={() => insertMarkdown('> ', '', t('引用文本'))} title={t('引用')} />
+                        <Button size='small' type='tertiary' icon={<IconCode />} onClick={() => insertMarkdown('`', '`', t('代码'))} title={t('行内代码')} />
+                        <Button size='small' type='tertiary' icon={<IconCode />} onClick={() => insertMarkdown('```\n', '\n```', t('在此输入代码'))} title={t('代码块')} />
+                        <Button size='small' type='tertiary' icon={<IconMinus />} onClick={() => insertMarkdown('\n---\n', '', '')} title={t('分割线')} />
+                        <div style={{ width: 1, height: 24, background: 'var(--semi-color-border)', margin: '0 4px' }} />
+                        <Button size='small' type='tertiary' icon={<IconImage />} onClick={handleUploadContentImage} title={t('插入图片')} />
+                        <Button size='small' type='tertiary' icon={<IconVideo />} onClick={handleInsertVideo} title={t('插入视频')} />
+                      </div>
                       <Form.TextArea
                         field='content'
-                        label={t('正文内容 (Markdown)')}
-                        placeholder={t('支持 Markdown 格式')}
-                        style={{ fontFamily: 'monospace', minHeight: 500 }}
-                        rows={20}
+                        label={t('正文内容')}
+                        placeholder={t('支持 Markdown 格式、图片、视频等')}
+                        style={{ fontFamily: 'monospace', minHeight: 460 }}
+                        rows={18}
                         rules={[{ required: true, message: t('内容不能为空') }]}
                       />
                     </div>
-                    <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, overflow: 'auto', maxHeight: 540 }}>
+                    <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, overflow: 'auto', maxHeight: 580 }}>
                       <Text type='tertiary' size='small' className='mb-2 block'>{t('实时预览')}</Text>
                       <MarkdownRenderer content={previewContent || ''} />
                     </div>
