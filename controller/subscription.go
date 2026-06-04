@@ -23,27 +23,27 @@ type SubscriptionPlanDTO struct {
 }
 
 func buildSubscriptionPlanDTOs(plans []model.SubscriptionPlan, userId int) []SubscriptionPlanDTO {
-	groupRatio := 1.0
-	if userId > 0 {
-		userGroup, _ := model.GetUserGroup(userId, false)
-		groupRatio = ratio_setting.GetGroupRatio(userGroup)
-	}
-
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
-		discountedPrice := p.PriceAmount * groupRatio
+		// 套餐对应的分组倍率（基于 UpgradeGroup，与后台「分组相关设置」保持一致）
+		planGroupRatio := ratio_setting.GetGroupRatio(p.UpgradeGroup)
+		if planGroupRatio <= 0 {
+			planGroupRatio = 1.0
+		}
+
+		discountedPrice := p.PriceAmount * planGroupRatio
 		if discountedPrice < 0 {
 			discountedPrice = 0
 		}
 		discountPercent := 0.0
-		if p.PriceAmount > 0 && groupRatio < 1 {
-			discountPercent = math.Round((1-groupRatio)*10000) / 100
+		if p.PriceAmount > 0 && planGroupRatio < 1 {
+			discountPercent = math.Round((1-planGroupRatio)*10000) / 100
 		}
 		result = append(result, SubscriptionPlanDTO{
 			Plan:            p,
 			OriginalPrice:   p.PriceAmount,
 			DiscountedPrice: math.Round(discountedPrice*100) / 100,
-			GroupRatio:      groupRatio,
+			GroupRatio:      planGroupRatio,
 			DiscountPercent: discountPercent,
 		})
 	}
@@ -145,12 +145,7 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	result := make([]SubscriptionPlanDTO, 0, len(plans))
-	for _, p := range plans {
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
-	}
+	result := buildSubscriptionPlanDTOs(plans, 0)
 	common.ApiSuccess(c, result)
 }
 
