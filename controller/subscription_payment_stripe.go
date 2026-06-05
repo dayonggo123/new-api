@@ -145,7 +145,7 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		if "" != email {
 			params.CustomerEmail = stripe.String(email)
 		}
-		params.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
+		// 订阅模式下 Stripe 自动创建 customer，不需要也不能传 CustomerCreation
 	} else {
 		params.Customer = stripe.String(customerId)
 	}
