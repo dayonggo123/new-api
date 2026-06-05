@@ -99,13 +99,18 @@ export default function ArticleDetail() {
     if (urlLang && SEO_LANGS.some((l) => l.code === urlLang)) {
       setActiveLang(urlLang);
     }
+  }, [id, searchParams]);
+
+  useEffect(() => {
     loadArticle();
-  }, [id]);
+  }, [id, activeLang]);
 
   const loadArticle = async () => {
     setLoading(true);
     try {
-      const res = await API.get(`/api/public/articles/${id}`);
+      const params = new URLSearchParams();
+      if (activeLang && activeLang !== 'zh') params.append('lang', activeLang);
+      const res = await API.get(`/api/public/articles/${id}?${params.toString()}`);
       const { success, data, message } = res.data;
       if (success) {
         setArticle(data);

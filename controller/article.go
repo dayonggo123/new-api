@@ -127,6 +127,7 @@ func GetArticles(c *gin.Context) {
 	keyword := c.Query("keyword")
 	categoryId, _ := strconv.Atoi(c.Query("category_id"))
 	status, _ := strconv.Atoi(c.Query("status"))
+	lang := c.Query("lang")
 
 	articles, total, err := model.SearchArticles(keyword, categoryId, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
@@ -135,6 +136,11 @@ func GetArticles(c *gin.Context) {
 	}
 
 	items := model.AttachArticleCategoryInfo(articles)
+	if lang != "" {
+		for _, item := range items {
+			item.ApplyLanguage(lang)
+		}
+	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(items)
 	common.ApiSuccess(c, pageInfo)
@@ -150,6 +156,10 @@ func GetArticle(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	lang := c.Query("lang")
+	if lang != "" {
+		article.ApplyLanguage(lang)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -263,6 +273,7 @@ func GetPublicArticles(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
 	categoryId, _ := strconv.Atoi(c.Query("category_id"))
+	lang := c.Query("lang")
 
 	articles, total, err := model.GetPublicArticles(categoryId, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
@@ -271,6 +282,11 @@ func GetPublicArticles(c *gin.Context) {
 	}
 
 	items := model.AttachArticleCategoryInfo(articles)
+	if lang != "" {
+		for _, item := range items {
+			item.ApplyLanguage(lang)
+		}
+	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(items)
 	common.ApiSuccess(c, pageInfo)
@@ -289,6 +305,10 @@ func GetPublicArticle(c *gin.Context) {
 	}
 	// 异步增加浏览量
 	go model.IncrementArticleViewCount(id)
+	lang := c.Query("lang")
+	if lang != "" {
+		article.ApplyLanguage(lang)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -309,6 +329,10 @@ func GetPublicArticleBySlug(c *gin.Context) {
 	}
 	// 异步增加浏览量
 	go model.IncrementArticleViewCount(article.Id)
+	lang := c.Query("lang")
+	if lang != "" {
+		article.ApplyLanguage(lang)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

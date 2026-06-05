@@ -27,7 +27,7 @@ function parseTags(tagsStr) {
 }
 
 export default function ArticleGallery() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
   const [articles, setArticles] = useState([]);
@@ -58,6 +58,8 @@ export default function ArticleGallery() {
       params.append('page_size', pageSize);
       if (keyword) params.append('keyword', keyword);
       if (activeCategory > 0) params.append('category_id', activeCategory);
+      const lang = i18n.language?.split('-')[0];
+      if (lang && lang !== 'zh') params.append('lang', lang);
 
       const res = await API.get(`/api/public/articles?${params.toString()}`);
       if (res.data.success) {
@@ -70,7 +72,7 @@ export default function ArticleGallery() {
       showError(error?.message || error);
     }
     setLoading(false);
-  }, [keyword, activeCategory, page, pageSize]);
+  }, [keyword, activeCategory, page, pageSize, i18n.language]);
 
   useEffect(() => {
     loadCategories();
