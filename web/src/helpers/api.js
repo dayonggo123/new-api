@@ -242,9 +242,18 @@ export const processGroupsData = (data, userGroup) => {
 
 export async function getOAuthState() {
   let path = '/api/oauth/state';
+  const params = new URLSearchParams();
   let affCode = localStorage.getItem('aff');
   if (affCode && affCode.length > 0) {
-    path += `?aff=${affCode}`;
+    params.append('aff', affCode);
+  }
+  let registerSource = localStorage.getItem('register_source');
+  if (registerSource && registerSource.length > 0) {
+    params.append('register_source', registerSource);
+  }
+  const query = params.toString();
+  if (query) {
+    path += `?${query}`;
   }
   const res = await API.get(path);
   const { success, message, data } = res.data;

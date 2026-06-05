@@ -28,6 +28,10 @@ func GenerateOAuthCode(c *gin.Context) {
 	if affCode != "" {
 		session.Set("aff", affCode)
 	}
+	registerSource := c.Query("register_source")
+	if registerSource != "" {
+		session.Set("register_source", registerSource)
+	}
 	session.Set("oauth_state", state)
 	err := session.Save()
 	if err != nil {
@@ -263,6 +267,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 	user.RegisterChannel = strings.ToLower(provider.GetName())
+	if rs := session.Get("register_source"); rs != nil {
+		user.RegisterSource = rs.(string)
+	}
 
 	// Handle affiliate code
 	affCode := session.Get("aff")

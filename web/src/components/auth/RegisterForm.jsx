@@ -119,6 +119,13 @@ const RegisterForm = () => {
     localStorage.setItem('aff', affCode);
   }
 
+  let registerSource = new URLSearchParams(window.location.search).get('source');
+  if (!registerSource) {
+    registerSource = localStorage.getItem('register_source') || '';
+  } else {
+    localStorage.setItem('register_source', registerSource);
+  }
+
   const status = useMemo(() => {
     if (statusState?.status) return statusState.status;
     const savedStatus = localStorage.getItem('status');
@@ -235,6 +242,7 @@ const RegisterForm = () => {
           affCode = localStorage.getItem('aff');
         }
         inputs.aff_code = affCode;
+        inputs.register_source = registerSource;
         const res = await API.post(
           `/api/user/register?turnstile=${turnstileToken}`,
           inputs,

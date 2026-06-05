@@ -238,6 +238,10 @@ func Register(c *gin.Context) {
 	if cleanUser.RegisterChannel == "" {
 		cleanUser.RegisterChannel = "password"
 	}
+	cleanUser.RegisterSource = user.RegisterSource
+	if cleanUser.RegisterSource == "" {
+		cleanUser.RegisterSource = c.GetHeader("X-Register-Source")
+	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		common.ApiError(c, err)
 		return
@@ -480,6 +484,7 @@ func GetSelf(c *gin.Context) {
 		"permissions":       permissions,
 		"access_token":      user.AccessToken,
 		"register_channel":  user.RegisterChannel,
+		"register_source":   user.RegisterSource,
 	}
 
 	c.JSON(http.StatusOK, gin.H{

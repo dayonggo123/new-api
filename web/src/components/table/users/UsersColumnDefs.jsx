@@ -385,6 +385,19 @@ export const getUsersColumns = ({
       },
     },
     {
+      title: t('注册来源'),
+      dataIndex: 'register_source',
+      width: 120,
+      render: (text) => {
+        if (!text) return <Tag size='small' color='white'>-</Tag>;
+        return (
+          <Tag color='violet' size='small'>
+            {text}
+          </Tag>
+        );
+      },
+    },
+    {
       title: t('注册时间'),
       dataIndex: 'created_time',
       width: 160,

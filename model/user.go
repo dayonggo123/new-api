@@ -52,6 +52,7 @@ type User struct {
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	RegisterChannel  string         `json:"register_channel" gorm:"type:varchar(32);default:''"` // 注册渠道: password / github / discord / wechat / telegram / oidc / linux_do / custom_oauth
+	RegisterSource   string         `json:"register_source" gorm:"type:varchar(64);default:''"`  // 注册来源: 如 harse.tv, web 等
 }
 
 func (user *User) ToBaseUser() *UserBase {
