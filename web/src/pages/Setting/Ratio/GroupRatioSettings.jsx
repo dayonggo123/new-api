@@ -57,7 +57,7 @@ const OPTION_KEYS = [
   'group_ratio_setting.group_special_usable_group',
   'AutoGroups',
   'DefaultUseAutoGroup',
-  'ModelGroupRatio',
+  'group_ratio_setting.model_group_ratio',
 ];
 
 function parseJSONSafe(str, fallback) {
@@ -82,7 +82,7 @@ export default function GroupRatioSettings(props) {
     'group_ratio_setting.group_special_usable_group': '',
     AutoGroups: '',
     DefaultUseAutoGroup: false,
-    ModelGroupRatio: '',
+    'group_ratio_setting.model_group_ratio': '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -378,7 +378,7 @@ export default function GroupRatioSettings(props) {
               extraText={t(
                 '键为模型名称，值为分组名到倍率的映射。当指定模型被调用时，优先使用此处配置的分组倍率，未配置的分组回退到全局分组倍率。例如：{"gpt-4o": {"vip": 0.3, "svip": 0.1}}，表示 gpt-4o 模型在 vip 分组下倍率为 0.3，svip 分组下倍率为 0.1',
               )}
-              field={'ModelGroupRatio'}
+              field={'group_ratio_setting.model_group_ratio'}
               autosize={{ minRows: 6, maxRows: 12 }}
               trigger='blur'
               stopValidateWithError
@@ -389,7 +389,10 @@ export default function GroupRatioSettings(props) {
                 },
               ]}
               onChange={(value) =>
-                setInputs((prev) => ({ ...prev, ModelGroupRatio: value }))
+                setInputs((prev) => ({
+                  ...prev,
+                  'group_ratio_setting.model_group_ratio': value,
+                }))
               }
             />
           </Col>

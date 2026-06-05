@@ -47,6 +47,7 @@ const RatioSetting = () => {
     ExposeRatioEnabled: false,
     UserUsableGroups: '',
     'group_ratio_setting.group_special_usable_group': '',
+    'group_ratio_setting.model_group_ratio': '',
   });
 
   const [loading, setLoading] = useState(false);
