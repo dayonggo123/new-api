@@ -140,6 +140,17 @@ func GetEnabledPresetPrompts() ([]*PresetPrompt, error) {
 	return prompts, err
 }
 
+// GetEnabledPresetPromptsUpdatedSince 获取自指定时间后有更新的启用提示词
+func GetEnabledPresetPromptsUpdatedSince(since int64) ([]*PresetPrompt, error) {
+	var prompts []*PresetPrompt
+	tx := DB.Where("status = ?", 1)
+	if since > 0 {
+		tx = tx.Where("updated_time > ?", since)
+	}
+	err := tx.Order("updated_time desc, id desc").Find(&prompts).Error
+	return prompts, err
+}
+
 func GetPresetPromptCategories() ([]string, error) {
 	var categories []string
 	err := DB.Model(&PresetPrompt{}).Where("category != ?", "").Distinct("category").Pluck("category", &categories).Error

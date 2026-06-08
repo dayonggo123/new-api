@@ -480,6 +480,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		// Preset Prompt Public Routes (optional auth for auto language detection)
 		apiRouter.GET("/public/preset-prompts", middleware.TryUserAuth(), controller.GetPublicPresetPrompts)
+		apiRouter.GET("/public/preset-prompts/updates", middleware.TryUserAuth(), controller.GetPublicPresetPromptUpdates)
 
 		// App Release Public Routes (no auth required)
 		apiRouter.GET("/public/releases/latest", controller.GetLatestAppRelease)
