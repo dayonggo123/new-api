@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Button,
   Card,
@@ -13,7 +13,6 @@ import {
   Empty,
   Switch,
   InputNumber,
-  TextArea,
   Tabs,
 } from '@douyinfe/semi-ui';
 import {
@@ -21,6 +20,7 @@ import {
   IconRefresh,
   IconDelete,
   IconEdit,
+  IconLanguage,
 } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../helpers';
 
@@ -37,20 +37,30 @@ const actionTypeOptions = [
 
 const supportedLangs = [
   { code: 'zh', label: '中文' },
+  { code: 'zh-TW', label: '繁體中文' },
   { code: 'en', label: 'English' },
   { code: 'ja', label: '日本語' },
   { code: 'fr', label: 'Français' },
   { code: 'ru', label: 'Русский' },
   { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'es', label: 'Español' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'ko', label: '한국어' },
+  { code: 'pt', label: 'Português' },
+  { code: 'it', label: 'Italiano' },
 ];
+
+const DEFAULT_LANG = 'zh';
 
 export default function BannerManagement() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [formApi, setFormApi] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const pollRef = useRef(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -72,6 +82,16 @@ export default function BannerManagement() {
     loadData();
   }, [loadData]);
 
+  // 清理轮询
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, []);
+
   const handleOpenModal = (record = null) => {
     setEditingItem(record);
     setModalVisible(true);
@@ -80,6 +100,10 @@ export default function BannerManagement() {
   const handleCloseModal = () => {
     setModalVisible(false);
     setEditingItem(null);
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
     formApi?.reset();
   };
 
@@ -153,6 +177,90 @@ export default function BannerManagement() {
     }
   };
 
+  // 自动翻译
+  const handleAutoTranslate = async () => {
+    if (!formApi) return;
+    const values = formApi.getValues();
+
+    const sourceText = values[`content_${DEFAULT_LANG}_text`];
+    const sourceCta = values[`content_${DEFAULT_LANG}_cta`];
+    if (!sourceText || !sourceText.trim()) {
+      showError('请先填写中文内容');
+      return;
+    }
+
+    const items = [];
+    if (sourceText.trim()) {
+      items.push({ key: 'text', text: sourceText.trim() });
+    }
+    if (sourceCta && sourceCta.trim()) {
+      items.push({ key: 'cta', text: sourceCta.trim() });
+    }
+
+    const targetLangs = supportedLangs
+      .filter((l) => l.code !== DEFAULT_LANG)
+      .map((l) => l.code);
+
+    setTranslating(true);
+    try {
+      const res = await API.post('/api/translate/queue', {
+        items,
+        source_lang: DEFAULT_LANG,
+        target_langs: targetLangs,
+      });
+      if (!res.data.success) {
+        showError(res.data.message || '翻译失败');
+        setTranslating(false);
+        return;
+      }
+      const queueId = res.data.data.queue_id;
+      pollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await API.get(`/api/translate/queue/${queueId}`);
+          const queue = pollRes.data.data;
+          if (!queue) return;
+
+          if (queue.results) {
+            Object.entries(queue.results).forEach(([langCode, langResult]) => {
+              if (langResult && formApi) {
+                const updates = {};
+                if (langResult.text) {
+                  updates[`content_${langCode}_text`] = langResult.text;
+                }
+                if (langResult.cta) {
+                  updates[`content_${langCode}_cta`] = langResult.cta;
+                }
+                if (Object.keys(updates).length > 0) {
+                  formApi.setValues(updates);
+                }
+              }
+            });
+          }
+
+          if (queue.status === 'done') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showSuccess('自动翻译完成');
+            setTranslating(false);
+          } else if (queue.status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            showError(queue.error || '翻译失败');
+            setTranslating(false);
+          }
+        } catch (err) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          showError(err.message || '翻译服务不可用');
+          setTranslating(false);
+        }
+      }, 2000);
+    } catch (err) {
+      showError(err.message || '翻译服务不可用');
+      setTranslating(false);
+    }
+  };
+
   // Modal 打开后设置表单值
   useEffect(() => {
     if (!modalVisible || !formApi) return;
@@ -164,7 +272,6 @@ export default function BannerManagement() {
         end_at: editingItem.end_at || 0,
         max_dismiss_hours: editingItem.max_dismiss_hours || 24,
       };
-      // 解析 content JSON
       let contentObj = {};
       try {
         contentObj = typeof editingItem.content === 'string'
@@ -183,15 +290,17 @@ export default function BannerManagement() {
       formApi.setValues(values);
     } else {
       formApi.reset();
-      formApi.setValues({
+      const defaults = {
         priority: 0,
         enabled: true,
         start_at: 0,
         end_at: 0,
         max_dismiss_hours: 24,
-        content_zh_action_type: 'noop',
-        content_en_action_type: 'noop',
-      });
+      };
+      for (const lang of supportedLangs) {
+        defaults[`content_${lang.code}_action_type`] = 'noop';
+      }
+      formApi.setValues(defaults);
     }
   }, [modalVisible, formApi, editingItem]);
 
@@ -307,7 +416,7 @@ export default function BannerManagement() {
         visible={modalVisible}
         onCancel={handleCloseModal}
         footer={null}
-        width={720}
+        width={760}
       >
         <Form
           getFormApi={(api) => setFormApi(api)}
@@ -352,11 +461,21 @@ export default function BannerManagement() {
             initValue={true}
           />
 
-          <div style={{ marginTop: 16, marginBottom: 8 }}>
-            <Text strong>多语言内容配置</Text>
-            <Text type='tertiary' size='small' style={{ display: 'block', marginTop: 4 }}>
-              请至少填写一种语言的内容。text 为必填，cta 为按钮文案，action_type 为点击行为，action_payload 为附加参数。
-            </Text>
+          <div style={{ marginTop: 16, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <Text strong>多语言内容配置</Text>
+              <Text type='tertiary' size='small' style={{ display: 'block', marginTop: 4 }}>
+                请至少填写一种语言的内容。text 为必填，cta 为按钮文案，action_type 为点击行为，action_payload 为附加参数。
+              </Text>
+            </div>
+            <Button
+              icon={<IconLanguage />}
+              type='tertiary'
+              loading={translating}
+              onClick={handleAutoTranslate}
+            >
+              自动翻译
+            </Button>
           </div>
 
           <Tabs type='line'>
