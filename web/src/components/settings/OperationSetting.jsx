@@ -41,6 +41,10 @@ const OperationSetting = () => {
     QuotaForInviter: 0,
     QuotaForInvitee: 0,
     'quota_setting.enable_free_model_pre_consume': true,
+    EnableNewUserVIP: false,
+    NewUserVIPPlanId: '',
+    EnableNewUserQuotaBonus: false,
+    NewUserQuotaBonusAmount: 0.3,
 
     /* 通用设置 */
     TopUpLink: '',

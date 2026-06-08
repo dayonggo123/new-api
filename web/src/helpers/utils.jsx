@@ -317,17 +317,21 @@ export function setPromptShown(id) {
  */
 export function compareObjects(oldObject, newObject) {
   const changedProperties = [];
+  const allKeys = new Set([
+    ...Object.keys(oldObject),
+    ...Object.keys(newObject),
+  ]);
 
-  // 比较两个对象的属性
-  for (const key in oldObject) {
-    if (oldObject.hasOwnProperty(key) && newObject.hasOwnProperty(key)) {
-      if (oldObject[key] !== newObject[key]) {
-        changedProperties.push({
-          key: key,
-          oldValue: oldObject[key],
-          newValue: newObject[key],
-        });
-      }
+  for (const key of allKeys) {
+    const hasOld = oldObject.hasOwnProperty(key);
+    const hasNew = newObject.hasOwnProperty(key);
+
+    if (!hasOld || !hasNew || oldObject[key] !== newObject[key]) {
+      changedProperties.push({
+        key: key,
+        oldValue: oldObject[key],
+        newValue: newObject[key],
+      });
     }
   }
 

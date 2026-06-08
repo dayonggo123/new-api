@@ -196,6 +196,13 @@ func sessionCompleted(event stripe.Event) {
 		"event_type":   string(event.Type),
 	}
 	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload)); err == nil {
+		// 订阅订单成功，同步更新用户的 stripe_customer
+		var subOrder model.SubscriptionOrder
+		if findErr := model.DB.Where("trade_no = ?", referenceId).First(&subOrder).Error; findErr == nil && subOrder.UserId > 0 {
+			if updErr := model.DB.Model(&model.User{}).Where("id = ?", subOrder.UserId).Update("stripe_customer", customerId).Error; updErr != nil {
+				log.Printf("更新用户 stripe_customer 失败: %v, userId=%d\n", updErr, subOrder.UserId)
+			}
+		}
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
 		log.Println("complete subscription order failed:", err.Error(), referenceId)
@@ -309,6 +316,33 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 
 	result, err := session.New(params)
 	if err != nil {
+		// 如果使用了已有的 customerId 但报错（比如换了新 Stripe 账户，旧 customerId 失效），
+		// 则回退到不使用 customer，改用 email 让 Stripe 创建新 customer
+		if customerId != "" {
+			log.Printf("Stripe Checkout 使用已有 customer 失败: %v，尝试回退创建新 customer\n", err)
+			fallbackParams := &stripe.CheckoutSessionParams{
+				ClientReferenceID:   stripe.String(referenceId),
+				SuccessURL:          stripe.String(successURL),
+				CancelURL:           stripe.String(cancelURL),
+				LineItems: []*stripe.CheckoutSessionLineItemParams{
+					{
+						Price:    stripe.String(setting.StripePriceId),
+						Quantity: stripe.Int64(amount),
+					},
+				},
+				Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
+				AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
+			}
+			if email != "" {
+				fallbackParams.CustomerEmail = stripe.String(email)
+			}
+			fallbackParams.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
+			result, err = session.New(fallbackParams)
+			if err != nil {
+				return "", err
+			}
+			return result.URL, nil
+		}
 		return "", err
 	}
 

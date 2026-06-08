@@ -10,7 +10,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
@@ -77,18 +76,9 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
-	// Apply group discount automatically based on user's group ratio
-	userGroup, _ := model.GetUserGroup(userId, false)
-	groupRatio := ratio_setting.GetGroupRatio(userGroup)
+	// 订阅价格直接使用套餐配置价格，不根据用户当前分组的模型调用倍率进行折扣
 	originalAmount := plan.PriceAmount
-	discountAmount := 0.0
-	if groupRatio < 1 && groupRatio > 0 {
-		discountAmount = originalAmount * (1 - groupRatio)
-	}
-	finalAmount := originalAmount - discountAmount
-	if finalAmount < 0 {
-		finalAmount = 0
-	}
+	finalAmount := originalAmount
 
 	// Note: Stripe subscription mode uses the configured price ID, which has a fixed price.
 	// Group discount for Stripe is recorded in the order but the actual Stripe checkout
@@ -106,7 +96,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		PlanId:         plan.Id,
 		Money:          math.Round(finalAmount*100) / 100,
 		OriginalAmount: math.Round(originalAmount*100) / 100,
-		DiscountAmount: math.Round(discountAmount*100) / 100,
+		DiscountAmount: 0,
 		TradeNo:        referenceId,
 		PaymentMethod:  PaymentMethodStripe,
 		CreateTime:     time.Now().Unix(),
@@ -152,6 +142,31 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 
 	result, err := session.New(params)
 	if err != nil {
+		// 如果使用了已有的 customerId 但报错（比如换了新 Stripe 账户，旧 customerId 失效），
+		// 则回退到不使用 customer，改用 email 让 Stripe 创建新 customer
+		if customerId != "" {
+			common.SysLog(fmt.Sprintf("Stripe Subscription 使用已有 customer 失败: %v，尝试回退创建新 customer", err))
+			fallbackParams := &stripe.CheckoutSessionParams{
+				ClientReferenceID: stripe.String(referenceId),
+				SuccessURL:        stripe.String(system_setting.ServerAddress + "/console/topup"),
+				CancelURL:         stripe.String(system_setting.ServerAddress + "/console/topup"),
+				LineItems: []*stripe.CheckoutSessionLineItemParams{
+					{
+						Price:    stripe.String(priceId),
+						Quantity: stripe.Int64(1),
+					},
+				},
+				Mode: stripe.String(string(stripe.CheckoutSessionModeSubscription)),
+			}
+			if email != "" {
+				fallbackParams.CustomerEmail = stripe.String(email)
+			}
+			result, err = session.New(fallbackParams)
+			if err != nil {
+				return "", err
+			}
+			return result.URL, nil
+		}
 		return "", err
 	}
 	return result.URL, nil

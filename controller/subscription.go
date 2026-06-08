@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"math"
 	"strconv"
 	"strings"
 
@@ -31,20 +30,14 @@ func buildSubscriptionPlanDTOs(plans []model.SubscriptionPlan, userId int) []Sub
 			planGroupRatio = 1.0
 		}
 
-		discountedPrice := p.PriceAmount * planGroupRatio
-		if discountedPrice < 0 {
-			discountedPrice = 0
-		}
-		discountPercent := 0.0
-		if p.PriceAmount > 0 && planGroupRatio < 1 {
-			discountPercent = math.Round((1-planGroupRatio)*10000) / 100
-		}
+		// GroupRatio 仅用于展示该套餐升级目标分组的模型调用倍率，
+		// 订阅价格本身不受分组倍率影响，始终使用套餐配置的原始价格
 		result = append(result, SubscriptionPlanDTO{
 			Plan:            p,
 			OriginalPrice:   p.PriceAmount,
-			DiscountedPrice: math.Round(discountedPrice*100) / 100,
+			DiscountedPrice: p.PriceAmount,
 			GroupRatio:      planGroupRatio,
-			DiscountPercent: discountPercent,
+			DiscountPercent: 0,
 		})
 	}
 	return result
@@ -67,21 +60,17 @@ func GetSubscriptionPlans(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
-// GetSubscriptionGroupDiscount returns the current user's group discount info.
+// GetSubscriptionGroupDiscount returns the current user's group info.
+// Note: group_ratio is the model-call price ratio, NOT a subscription discount.
 func GetSubscriptionGroupDiscount(c *gin.Context) {
 	userId := c.GetInt("id")
 	userGroup, _ := model.GetUserGroup(userId, false)
 	groupRatio := ratio_setting.GetGroupRatio(userGroup)
 
-	discountPercent := 0.0
-	if groupRatio < 1 {
-		discountPercent = math.Round((1-groupRatio)*10000) / 100
-	}
-
 	common.ApiSuccess(c, gin.H{
 		"user_group":       userGroup,
 		"group_ratio":      groupRatio,
-		"discount_percent": discountPercent,
+		"discount_percent": 0,
 	})
 }
 

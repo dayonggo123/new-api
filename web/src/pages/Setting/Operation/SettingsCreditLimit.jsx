@@ -86,7 +86,16 @@ export default function SettingsCreditLimit(props) {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        let value = props.options[key];
+        // 对 Switch 组件需要的布尔字段进行类型转换
+        if (
+          key === 'EnableNewUserVIP' ||
+          key === 'EnableNewUserQuotaBonus' ||
+          key === 'quota_setting.enable_free_model_pre_consume'
+        ) {
+          value = value === true || value === 'true';
+        }
+        currentInputs[key] = value;
       }
     }
     setInputs(currentInputs);
@@ -228,7 +237,10 @@ export default function SettingsCreditLimit(props) {
                     onChange={(value) =>
                       setInputs({
                         ...inputs,
-                        NewUserVIPPlanId: String(value),
+                        NewUserVIPPlanId:
+                          value === undefined || value === null
+                            ? ''
+                            : String(value),
                       })
                     }
                   />

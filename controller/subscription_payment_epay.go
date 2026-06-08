@@ -13,7 +13,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -63,18 +62,9 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		}
 	}
 
-	// Apply group discount automatically based on user's group ratio
-	userGroup, _ := model.GetUserGroup(userId, false)
-	groupRatio := ratio_setting.GetGroupRatio(userGroup)
+	// 订阅价格直接使用套餐配置价格，不根据用户当前分组的模型调用倍率进行折扣
 	originalAmount := plan.PriceAmount
-	discountAmount := 0.0
-	if groupRatio < 1 && groupRatio > 0 {
-		discountAmount = originalAmount * (1 - groupRatio)
-	}
-	finalAmount := originalAmount - discountAmount
-	if finalAmount < 0 {
-		finalAmount = 0
-	}
+	finalAmount := originalAmount
 
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
@@ -102,7 +92,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		PlanId:         plan.Id,
 		Money:          math.Round(finalAmount*100) / 100,
 		OriginalAmount: math.Round(originalAmount*100) / 100,
-		DiscountAmount: math.Round(discountAmount*100) / 100,
+		DiscountAmount: 0,
 		TradeNo:        tradeNo,
 		PaymentMethod:  req.PaymentMethod,
 		CreateTime:     time.Now().Unix(),
@@ -116,7 +106,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	// 套餐价格存的是 USD，易支付收人民币，需要乘以汇率
 	cnyAmount := finalAmount * operation_setting.USDExchangeRate
 	moneyStr := strconv.FormatFloat(cnyAmount, 'f', 2, 64)
-	common.SysLog(fmt.Sprintf("[Epay] plan=%s, original=%.2f USD, group=%s, ratio=%.2f, final=%.2f, cny=%s", plan.Title, originalAmount, userGroup, groupRatio, finalAmount, moneyStr))
+	common.SysLog(fmt.Sprintf("[Epay] plan=%s, original=%.2f USD, final=%.2f, cny=%s", plan.Title, originalAmount, finalAmount, moneyStr))
 
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,

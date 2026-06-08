@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/thanhpk/randstr"
 )
@@ -81,18 +80,9 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	reference := "sub-creem-ref-" + randstr.String(6)
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference+time.Now().String()+user.Username))
 
-	// Apply group discount automatically based on user's group ratio
-	userGroup, _ := model.GetUserGroup(userId, false)
-	groupRatio := ratio_setting.GetGroupRatio(userGroup)
+	// 订阅价格直接使用套餐配置价格，不根据用户当前分组的模型调用倍率进行折扣
 	originalAmount := plan.PriceAmount
-	discountAmount := 0.0
-	if groupRatio < 1 && groupRatio > 0 {
-		discountAmount = originalAmount * (1 - groupRatio)
-	}
-	finalAmount := originalAmount - discountAmount
-	if finalAmount < 0 {
-		finalAmount = 0
-	}
+	finalAmount := originalAmount
 
 	// create pending order first
 	order := &model.SubscriptionOrder{
@@ -100,7 +90,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		PlanId:         plan.Id,
 		Money:          math.Round(finalAmount*100) / 100,
 		OriginalAmount: math.Round(originalAmount*100) / 100,
-		DiscountAmount: math.Round(discountAmount*100) / 100,
+		DiscountAmount: 0,
 		TradeNo:        referenceId,
 		PaymentMethod:  PaymentMethodCreem,
 		CreateTime:     time.Now().Unix(),
