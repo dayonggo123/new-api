@@ -168,6 +168,17 @@ func SetApiRouter(router *gin.Engine) {
 			popupAdminRoute.DELETE("/:id", controller.AdminDeletePopup)
 		}
 
+		// Marketing Banners
+		apiRouter.GET("/marketing/banners", middleware.UserAuth(), controller.GetMarketingBanners)
+		bannerAdminRoute := apiRouter.Group("/admin/marketing/banners")
+		bannerAdminRoute.Use(middleware.AdminAuth())
+		{
+			bannerAdminRoute.GET("/", controller.AdminListBanners)
+			bannerAdminRoute.POST("/", controller.AdminCreateBanner)
+			bannerAdminRoute.PUT("/", controller.AdminUpdateBanner)
+			bannerAdminRoute.DELETE("/:id", controller.AdminDeleteBanner)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		// Plans list is publicly accessible (like pricing)
 		apiRouter.GET("/subscription/plans", middleware.TryUserAuth(), controller.GetSubscriptionPlans)

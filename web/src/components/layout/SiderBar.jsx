@@ -166,6 +166,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       { text: t('电商图向导'), itemKey: 'ecommerce_wizard', to: '/ecommerce-wizard', tooltip: { content: t('管理电商图向导的模特呈现方式和案例库配置') } },
       { text: t('消息管理'), itemKey: 'notification', to: '/notification', tooltip: { content: t('向用户发送系统通知和公告消息') } },
       { text: t('弹窗管理'), itemKey: 'popup', to: '/popup', tooltip: { content: t('管理首页 Daily Popup 弹窗内容') } },
+      { text: t('Banner 管理'), itemKey: 'banner', to: '/banner', tooltip: { content: t('管理 App 顶部全局横幅运营 Banner') } },
       { text: t('安装包管理'), itemKey: 'app_release', to: '/app-release', tooltip: { content: t('管理桌面应用安装包版本，支持多平台上传和下载') } },
       { text: t('用户管理'), itemKey: 'user', to: '/user', tooltip: { content: t('查看和管理注册用户，包括额度、权限、分组') } },
     ].filter((item) => {
