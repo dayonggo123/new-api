@@ -41,6 +41,7 @@ export default function SettingsCreditLimit(props) {
     'quota_setting.enable_free_model_pre_consume': true,
     EnableNewUserVIP: false,
     NewUserVIPPlanId: '',
+    NewUserVIPDurationDays: 30,
     EnableNewUserQuotaBonus: false,
     NewUserQuotaBonusAmount: 0.3,
   });
@@ -241,6 +242,25 @@ export default function SettingsCreditLimit(props) {
                           value === undefined || value === null
                             ? ''
                             : String(value),
+                      })
+                    }
+                  />
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.InputNumber
+                    label={t('赠送VIP时长（天）')}
+                    field={'NewUserVIPDurationDays'}
+                    step={1}
+                    min={1}
+                    extraText={t('赠送 VIP 的有效天数，如 7 天、30 天')}
+                    disabled={!inputs.EnableNewUserVIP}
+                    onChange={(value) =>
+                      setInputs({
+                        ...inputs,
+                        NewUserVIPDurationDays:
+                          value === undefined || value === null
+                            ? 30
+                            : parseInt(value, 10),
                       })
                     }
                   />

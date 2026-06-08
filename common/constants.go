@@ -108,6 +108,7 @@ var QuotaForInvitee = 0
 // 新用户注册营销活动
 var EnableNewUserVIP = false
 var NewUserVIPPlanId = 0
+var NewUserVIPDurationDays = 30
 var EnableNewUserQuotaBonus = false
 var NewUserQuotaBonusAmount = 0.3
 

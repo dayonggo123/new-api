@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -350,11 +351,18 @@ func grantNewUserRewards(userId int) {
 		if err != nil {
 			common.SysLog(fmt.Sprintf("新用户营销活动: 获取套餐失败 id=%d, err=%v", common.NewUserVIPPlanId, err))
 		} else {
-			_, err = CreateUserSubscriptionFromPlanTx(nil, userId, plan, "new_user_bonus")
+			sub, err := CreateUserSubscriptionFromPlanTx(nil, userId, plan, "new_user_bonus")
 			if err != nil {
 				common.SysLog(fmt.Sprintf("新用户营销活动: 创建订阅失败 userId=%d, planId=%d, err=%v", userId, plan.Id, err))
 			} else {
-				RecordLog(userId, LogTypeSystem, fmt.Sprintf("新用户注册营销活动: 赠送 %s 会员", plan.Title))
+				// 如果配置了自定义赠送天数，覆盖订阅的到期时间
+				if common.NewUserVIPDurationDays > 0 {
+					newEndTime := time.Now().AddDate(0, 0, common.NewUserVIPDurationDays).Unix()
+					if updErr := DB.Model(&UserSubscription{}).Where("id = ?", sub.Id).Update("end_time", newEndTime).Error; updErr != nil {
+						common.SysLog(fmt.Sprintf("新用户营销活动: 更新到期时间失败 userId=%d, err=%v", userId, updErr))
+					}
+				}
+				RecordLog(userId, LogTypeSystem, fmt.Sprintf("新用户注册营销活动: 赠送 %s 会员 (%d 天)", plan.Title, common.NewUserVIPDurationDays))
 			}
 		}
 	}

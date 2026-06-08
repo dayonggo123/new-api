@@ -43,6 +43,7 @@ const OperationSetting = () => {
     'quota_setting.enable_free_model_pre_consume': true,
     EnableNewUserVIP: false,
     NewUserVIPPlanId: '',
+    NewUserVIPDurationDays: 30,
     EnableNewUserQuotaBonus: false,
     NewUserQuotaBonusAmount: 0.3,
 

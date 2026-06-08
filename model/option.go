@@ -125,6 +125,7 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["EnableNewUserVIP"] = strconv.FormatBool(common.EnableNewUserVIP)
 	common.OptionMap["NewUserVIPPlanId"] = strconv.Itoa(common.NewUserVIPPlanId)
+	common.OptionMap["NewUserVIPDurationDays"] = strconv.Itoa(common.NewUserVIPDurationDays)
 	common.OptionMap["EnableNewUserQuotaBonus"] = strconv.FormatBool(common.EnableNewUserQuotaBonus)
 	common.OptionMap["NewUserQuotaBonusAmount"] = strconv.FormatFloat(common.NewUserQuotaBonusAmount, 'f', -1, 64)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
@@ -453,6 +454,11 @@ func updateOptionMap(key string, value string) (err error) {
 		common.EnableNewUserVIP = value == "true"
 	case "NewUserVIPPlanId":
 		common.NewUserVIPPlanId, _ = strconv.Atoi(value)
+	case "NewUserVIPDurationDays":
+		common.NewUserVIPDurationDays, _ = strconv.Atoi(value)
+		if common.NewUserVIPDurationDays <= 0 {
+			common.NewUserVIPDurationDays = 30
+		}
 	case "EnableNewUserQuotaBonus":
 		common.EnableNewUserQuotaBonus = value == "true"
 	case "NewUserQuotaBonusAmount":
