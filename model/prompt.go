@@ -29,7 +29,7 @@ type Prompt struct {
 	Variables     string         `json:"variables" gorm:"type:text"` // JSON array of variable definitions
 	Tags          string         `json:"tags" gorm:"type:text"`      // JSON array of tag strings
 	SortOrder     int            `json:"sort_order" gorm:"default:0"`
-	Status        int            `json:"status" gorm:"default:1"` // 1=enabled, 2=disabled
+	Status        int            `json:"status" gorm:"default:1;index"` // 1=enabled, 2=disabled
 	UsageCount    int            `json:"usage_count" gorm:"default:0"`
 	SeoKeywords   string         `json:"seo_keywords" gorm:"type:text"` // AI 生成的 SEO 关键词
 	Intro         string         `json:"intro" gorm:"type:text"`        // AI 生成的介绍文案
@@ -152,42 +152,37 @@ func GetPromptById(id int) (*PromptWithCategory, error) {
 	return result[0], nil
 }
 
+// GetPublicPrompts 获取公开的提示词列表（优化版：限制字段、无事务）
 func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (prompts []*PromptWithCategory, total int64, err error) {
-	tx := DB.Begin()
-	if tx.Error != nil {
-		return nil, 0, tx.Error
+	// 列表页只需要这些字段，避免加载大文本字段（content, variables, tags 等）
+	selectFields := []string{
+		"id", "category_id", "title", "description",
+		"cover_image_url", "video_url", "author", "source", "model",
+		"media_type", "is_premium", "unlock_cost",
+		"sort_order", "status", "usage_count",
+		"created_time", "updated_time",
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
 
-	var rawPrompts []*Prompt
-	query := tx.Model(&Prompt{}).Where("status = ?", 1)
+	query := DB.Model(&Prompt{}).Select(selectFields).Where("status = ?", 1)
 	if categoryId > 0 {
 		query = query.Where("category_id = ?", categoryId)
 	}
 	if keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("title LIKE ? OR content LIKE ?", like, like)
+		// 只搜索 title，避免对 TEXT 类型的 content 做 LIKE（无索引时全表扫描）
+		query = query.Where("title LIKE ?", "%"+keyword+"%")
 	}
 
 	err = query.Count(&total).Error
 	if err != nil {
-		tx.Rollback()
 		return nil, 0, err
 	}
 
+	var rawPrompts []*Prompt
 	err = query.Order("sort_order asc, usage_count desc, id desc").Limit(num).Offset(startIdx).Find(&rawPrompts).Error
 	if err != nil {
-		tx.Rollback()
 		return nil, 0, err
 	}
 
-	if err = tx.Commit().Error; err != nil {
-		return nil, 0, err
-	}
 	return attachCategoryInfo(rawPrompts), total, nil
 }
 
@@ -271,7 +266,10 @@ func attachCategoryInfo(prompts []*Prompt) []*PromptWithCategory {
 
 	// Batch fetch categories
 	var categories []*PromptCategory
-	DB.Where("id IN ?", getCategoryIds(categoryIds)).Find(&categories)
+	if err := DB.Where("id IN ?", getCategoryIds(categoryIds)).Find(&categories).Error; err != nil {
+		// 如果分类查询失败，仍然返回结果（category_name 为空）
+		common.SysLog("attachCategoryInfo query categories failed: " + err.Error())
+	}
 
 	categoryMap := make(map[int]string)
 	for _, c := range categories {
