@@ -39,6 +39,10 @@ export default function SettingsCreditLimit(props) {
     QuotaForInviter: '',
     QuotaForInvitee: '',
     'quota_setting.enable_free_model_pre_consume': true,
+    EnableNewUserVIP: false,
+    NewUserVIPPlanId: '',
+    EnableNewUserQuotaBonus: false,
+    NewUserQuotaBonusAmount: 0.3,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -192,6 +196,75 @@ export default function SettingsCreditLimit(props) {
                 />
               </Col>
             </Row>
+
+            <Form.Section text={t('新用户注册营销活动')}>
+              <div style={{ marginBottom: 16, padding: 12, background: '#f0fff4', borderRadius: 8, borderLeft: '4px solid #22c55e' }}>
+                <Text type='secondary' style={{ fontSize: 13, lineHeight: 1.6 }}>
+                  <strong>功能介绍：</strong>新用户注册时自动赠送 VIP 会员和额外额度，用于营销活动拉新。<br/>
+                  <strong>注意：</strong>赠送的 VIP 需要先在「订阅管理」中创建好套餐，然后填写套餐 ID；额度按美金金额自动换算为 Token。
+                </Text>
+              </div>
+              <Row gutter={16}>
+                <Col xs={24} sm={12}>
+                  <Form.Switch
+                    label={t('启用新用户送VIP')}
+                    field={'EnableNewUserVIP'}
+                    onChange={(value) =>
+                      setInputs({
+                        ...inputs,
+                        EnableNewUserVIP: value,
+                      })
+                    }
+                  />
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.InputNumber
+                    label={t('赠送VIP套餐ID')}
+                    field={'NewUserVIPPlanId'}
+                    step={1}
+                    min={0}
+                    extraText={t('填写订阅管理中VIP套餐的ID，0表示不赠送')}
+                    disabled={!inputs.EnableNewUserVIP}
+                    onChange={(value) =>
+                      setInputs({
+                        ...inputs,
+                        NewUserVIPPlanId: String(value),
+                      })
+                    }
+                  />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col xs={24} sm={12}>
+                  <Form.Switch
+                    label={t('启用新用户送额度')}
+                    field={'EnableNewUserQuotaBonus'}
+                    onChange={(value) =>
+                      setInputs({
+                        ...inputs,
+                        EnableNewUserQuotaBonus: value,
+                      })
+                    }
+                  />
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.InputNumber
+                    label={t('赠送额度（美金）')}
+                    field={'NewUserQuotaBonusAmount'}
+                    step={0.1}
+                    min={0}
+                    suffix={'USD'}
+                    disabled={!inputs.EnableNewUserQuotaBonus}
+                    onChange={(value) =>
+                      setInputs({
+                        ...inputs,
+                        NewUserQuotaBonusAmount: String(value),
+                      })
+                    }
+                  />
+                </Col>
+              </Row>
+            </Form.Section>
 
             <Row>
               <Button size='default' onClick={onSubmit}>

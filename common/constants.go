@@ -104,6 +104,13 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+
+// 新用户注册营销活动
+var EnableNewUserVIP = false
+var NewUserVIPPlanId = 0
+var EnableNewUserQuotaBonus = false
+var NewUserQuotaBonusAmount = 0.3
+
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false

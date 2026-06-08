@@ -442,7 +442,7 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
 	if tx == nil {
-		return nil, errors.New("tx is nil")
+		tx = DB
 	}
 	if plan == nil || plan.Id == 0 {
 		return nil, errors.New("invalid plan")

@@ -342,6 +342,36 @@ func inviteUser(inviterId int) (err error) {
 	return DB.Save(user).Error
 }
 
+// grantNewUserRewards 新用户注册营销活动：赠送 VIP 会员 + 额外额度
+func grantNewUserRewards(userId int) {
+	// 赠送 VIP 订阅
+	if common.EnableNewUserVIP && common.NewUserVIPPlanId > 0 {
+		plan, err := GetSubscriptionPlanById(common.NewUserVIPPlanId)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("新用户营销活动: 获取套餐失败 id=%d, err=%v", common.NewUserVIPPlanId, err))
+		} else {
+			_, err = CreateUserSubscriptionFromPlanTx(nil, userId, plan, "new_user_bonus")
+			if err != nil {
+				common.SysLog(fmt.Sprintf("新用户营销活动: 创建订阅失败 userId=%d, planId=%d, err=%v", userId, plan.Id, err))
+			} else {
+				RecordLog(userId, LogTypeSystem, fmt.Sprintf("新用户注册营销活动: 赠送 %s 会员", plan.Title))
+			}
+		}
+	}
+	// 赠送额外额度
+	if common.EnableNewUserQuotaBonus && common.NewUserQuotaBonusAmount > 0 {
+		bonusQuota := int(common.NewUserQuotaBonusAmount * common.QuotaPerUnit)
+		if bonusQuota > 0 {
+			err := IncreaseUserQuota(userId, bonusQuota, true)
+			if err != nil {
+				common.SysLog(fmt.Sprintf("新用户营销活动: 赠送额度失败 userId=%d, amount=%.2f, err=%v", userId, common.NewUserQuotaBonusAmount, err))
+			} else {
+				RecordLog(userId, LogTypeSystem, fmt.Sprintf("新用户注册营销活动: 赠送 %.2f 美金额度 (%s)", common.NewUserQuotaBonusAmount, logger.LogQuota(bonusQuota)))
+			}
+		}
+	}
+}
+
 func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {
@@ -433,6 +463,8 @@ func (user *User) Insert(inviterId int) error {
 			_ = inviteUser(inviterId)
 		}
 	}
+	// 新用户注册营销活动：赠送 VIP + 额度
+	grantNewUserRewards(user.Id)
 	return nil
 }
 
