@@ -231,9 +231,9 @@ func UpdateArticle(c *gin.Context) {
 	cleanArticle.SeoKeywords = article.SeoKeywords
 	cleanArticle.I18n = article.I18n
 	cleanArticle.SeoI18n = article.SeoI18n
-	// 如果提交了多语言内容，标记为已翻译并清空错误
-	if article.I18n != "" {
-		cleanArticle.IsTranslated = true
+	// 只有所有目标语言都翻译完整，才标记为已翻译
+	cleanArticle.IsTranslated = isArticleTranslationComplete(article.I18n)
+	if cleanArticle.IsTranslated {
 		cleanArticle.TranslationError = ""
 	}
 	cleanArticle.UpdatedTime = common.GetTimestamp()
@@ -262,6 +262,22 @@ func DeleteArticle(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
+}
+
+// isArticleTranslationComplete 检查 Article 的 i18n 是否包含所有目标语言
+func isArticleTranslationComplete(i18n string) bool {
+	targetLangs := []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
+	var articleI18n map[string]model.ArticleContent18n
+	if i18n != "" {
+		_ = common.Unmarshal([]byte(i18n), &articleI18n)
+	}
+	for _, lang := range targetLangs {
+		data, ok := articleI18n[lang]
+		if !ok || data.Title == "" || data.Content == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // generateArticleSEO 异步调用 AI 生成文章 SEO 元数据

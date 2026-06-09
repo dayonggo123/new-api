@@ -218,9 +218,9 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.Status = prompt.Status
 	cleanPrompt.I18n = prompt.I18n
 	cleanPrompt.TitleI18n = prompt.TitleI18n
-	// 如果提交了多语言内容，标记为已翻译并清空错误
-	if prompt.I18n != "" || prompt.TitleI18n != "" {
-		cleanPrompt.IsTranslated = true
+	// 只有所有目标语言都翻译完整，才标记为已翻译
+	cleanPrompt.IsTranslated = isPromptTranslationComplete(prompt.TitleI18n, prompt.I18n, prompt.ContentEn)
+	if cleanPrompt.IsTranslated {
 		cleanPrompt.TranslationError = ""
 	}
 	cleanPrompt.UpdatedTime = common.GetTimestamp()
@@ -249,6 +249,29 @@ func DeletePrompt(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
+}
+
+// isPromptTranslationComplete 检查 Prompt 的 title_i18n + i18n 是否包含所有目标语言
+func isPromptTranslationComplete(titleI18n, i18n, contentEn string) bool {
+	targetLangs := []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
+	var titleMap, contentMap map[string]string
+	if titleI18n != "" {
+		_ = common.Unmarshal([]byte(titleI18n), &titleMap)
+	}
+	if i18n != "" {
+		_ = common.Unmarshal([]byte(i18n), &contentMap)
+	}
+	for _, lang := range targetLangs {
+		hasTitle := titleMap[lang] != ""
+		hasContent := contentMap[lang] != ""
+		if lang == "en" && contentEn != "" {
+			hasContent = true
+		}
+		if !hasTitle || !hasContent {
+			return false
+		}
+	}
+	return true
 }
 
 // ==================== Public API (no auth required) ====================
