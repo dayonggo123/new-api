@@ -223,6 +223,34 @@ func SearchArticles(keyword string, categoryId int, status int, startIdx int, nu
 	return articles, total, nil
 }
 
+// ArticleSitemapItem 文章站点地图条目（精简字段，高性能）
+type ArticleSitemapItem struct {
+	Id          int    `json:"id"`
+	Slug        string `json:"slug"`
+	UpdatedTime int64  `json:"updated_time"`
+	CreatedTime int64  `json:"created_time"`
+}
+
+// GetPublicArticlesForSitemap 获取公开文章站点地图数据（只返回 SEO 需要的字段）
+func GetPublicArticlesForSitemap(startIdx int, num int) (items []*ArticleSitemapItem, total int64, err error) {
+	query := DB.Model(&Article{}).
+		Select("id", "slug", "updated_time", "created_time").
+		Where("status = ?", 1)
+
+	err = query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Order("updated_time desc, id desc").
+		Limit(num).Offset(startIdx).
+		Find(&items).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
 // GetPublicArticles 获取公开文章列表
 func GetPublicArticles(categoryId int, keyword string, startIdx int, num int) (articles []*Article, total int64, err error) {
 	tx := DB.Begin()

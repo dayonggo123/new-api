@@ -186,6 +186,34 @@ func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (pr
 	return attachCategoryInfo(rawPrompts), total, nil
 }
 
+// PromptSitemapItem 提示词站点地图条目（精简字段，高性能）
+type PromptSitemapItem struct {
+	Id          int    `json:"id"`
+	Title       string `json:"title"`
+	UpdatedTime int64  `json:"updated_time"`
+	CreatedTime int64  `json:"created_time"`
+}
+
+// GetPublicPromptsForSitemap 获取公开提示词站点地图数据（只返回 SEO 需要的字段）
+func GetPublicPromptsForSitemap(startIdx int, num int) (items []*PromptSitemapItem, total int64, err error) {
+	query := DB.Model(&Prompt{}).
+		Select("id", "title", "updated_time", "created_time").
+		Where("status = ?", 1)
+
+	err = query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Order("updated_time desc, id desc").
+		Limit(num).Offset(startIdx).
+		Find(&items).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
 func GetPublicPromptById(id int) (*PromptWithCategory, error) {
 	if id == 0 {
 		return nil, errors.New("id is empty")

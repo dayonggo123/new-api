@@ -467,6 +467,7 @@ func SetApiRouter(router *gin.Engine) {
 			apiRouter.DELETE("/admin/users/:id/tags/:tag_id", middleware.AdminAuth(), controller.AdminRemoveUserTag)
 		// Prompt Library Public Routes (no auth required)
 		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
+		apiRouter.GET("/public/prompts/sitemap", controller.GetPublicPromptsSitemap)
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
 		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
 		apiRouter.GET("/public/prompt-media/:id", controller.GetPromptMedia)
@@ -474,6 +475,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		// Article Public Routes (no auth required)
 		apiRouter.GET("/public/articles", controller.GetPublicArticles)
+		apiRouter.GET("/public/articles/sitemap", controller.GetPublicArticlesSitemap)
 		apiRouter.GET("/public/articles/:id", controller.GetPublicArticle)
 		apiRouter.GET("/public/articles/slug/:slug", controller.GetPublicArticleBySlug)
 		apiRouter.GET("/public/article-categories", controller.GetPublicArticleCategories)

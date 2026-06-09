@@ -340,6 +340,36 @@ func GetPublicArticleBySlug(c *gin.Context) {
 	})
 }
 
+// GetPublicArticlesSitemap 公开接口：获取文章站点地图数据（SEO 专用，轻量、高性能）
+func GetPublicArticlesSitemap(c *gin.Context) {
+	page, _ := strconv.Atoi(c.Query("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	if pageSize < 1 {
+		pageSize = 500
+	}
+	if pageSize > 5000 {
+		pageSize = 5000
+	}
+	startIdx := (page - 1) * pageSize
+
+	items, total, err := model.GetPublicArticlesForSitemap(startIdx, pageSize)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"items":      items,
+		"total":      total,
+		"page":       page,
+		"page_size":  pageSize,
+		"total_page": (int(total) + pageSize - 1) / pageSize,
+	})
+}
+
 func GetPublicArticleCategories(c *gin.Context) {
 	categories, err := model.GetEnabledArticleCategories()
 	if err != nil {
