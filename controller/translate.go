@@ -158,11 +158,13 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 
 	response := callTranslateAI(cfg, systemPrompt, userPrompt)
 	if response == "" {
+		common.SysLog(fmt.Sprintf("AI translate empty response: [%s->%s]", sourceLang, targetLang))
 		for _, item := range items {
 			result[item.Key] = item.Text
 		}
 		return result
 	}
+	common.SysLog(fmt.Sprintf("AI translate raw response: [%s->%s] len=%d sample=%q", sourceLang, targetLang, len(response), truncateForLog(response, 200)))
 
 	// 去掉可能的 markdown 代码块
 	response = strings.TrimSpace(response)
@@ -471,6 +473,8 @@ func executeTranslateQueue(queue *TranslateQueue, items []TranslateItem, sourceL
 		return
 	}
 
+	failedLangs := []string{}
+
 	for i, lang := range targetLangs {
 		queueMutex.Lock()
 		queue.Progress.Current = i + 1
@@ -483,23 +487,40 @@ func executeTranslateQueue(queue *TranslateQueue, items []TranslateItem, sourceL
 			queueMutex.Lock()
 			queue.Results[lang] = translations
 			queueMutex.Unlock()
-			common.SysLog(fmt.Sprintf("[TranslateQueue] %s %s done keys=%v", queue.ID, lang, len(translations)))
+			common.SysLog(fmt.Sprintf("[TranslateQueue] %s %s done keys=%v sample=%q", queue.ID, lang, len(translations), truncateForLog(translations["content"], 60)))
 		} else {
 			queueMutex.Lock()
-			queue.Status = "failed"
-			queue.Error = fmt.Sprintf("translation failed for %s", getLangName(lang))
+			failedLangs = append(failedLangs, lang)
 			queueMutex.Unlock()
-			common.SysLog(fmt.Sprintf("[TranslateQueue] %s %s failed", queue.ID, lang))
-			return
+			common.SysLog(fmt.Sprintf("[TranslateQueue] %s %s failed (empty result), continuing...", queue.ID, lang))
+			continue
 		}
 
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	queueMutex.Lock()
-	queue.Status = "done"
-	queueMutex.Unlock()
-	common.SysLog(fmt.Sprintf("[TranslateQueue] %s completed", queue.ID))
+	defer queueMutex.Unlock()
+	if len(failedLangs) > 0 {
+		if len(queue.Results) == 0 {
+			queue.Status = "failed"
+			queue.Error = fmt.Sprintf("all translations failed: %v", failedLangs)
+		} else {
+			queue.Status = "done"
+			queue.Error = fmt.Sprintf("partial failure: %v", failedLangs)
+		}
+	} else {
+		queue.Status = "done"
+	}
+	common.SysLog(fmt.Sprintf("[TranslateQueue] %s completed status=%s results=%d failed=%v", queue.ID, queue.Status, len(queue.Results), failedLangs))
+}
+
+// truncateForLog 用于日志输出时截断长文本
+func truncateForLog(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 func init() {
