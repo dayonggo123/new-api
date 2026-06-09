@@ -267,6 +267,7 @@ const EditPromptModal = (props) => {
     }
     setTranslating(true);
     const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
+    const failedLangs = [];
     try {
       const res = await API.post('/api/translate/queue', {
         items: [{ key: 'content', text: currentContent.trim() }],
@@ -287,6 +288,11 @@ const EditPromptModal = (props) => {
           if (queue.results) {
             Object.entries(queue.results).forEach(([langCode, result]) => {
               if (result && result.content) {
+                // 检测翻译质量：跳过与原文相同的结果
+                if (result.content.trim() === currentContent.trim()) {
+                  failedLangs.push(langCode);
+                  return;
+                }
                 setI18nData((prev) => ({ ...prev, [langCode]: result.content }));
                 if (langCode === 'en') {
                   formApiRef.current?.setValue('content_en', result.content);
@@ -297,7 +303,12 @@ const EditPromptModal = (props) => {
           if (queue.status === 'done') {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
-            showSuccess(t('自动翻译完成'));
+            if (failedLangs.length > 0) {
+              const langLabels = failedLangs.map((code) => LANGUAGES.find((l) => l.code === code)?.label || code).join(', ');
+              showError(t('以下语言翻译失败（结果与原文相同），请检查翻译 AI 配置：') + langLabels);
+            } else {
+              showSuccess(t('自动翻译完成'));
+            }
             setTranslating(false);
           } else if (queue.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -333,6 +344,12 @@ const EditPromptModal = (props) => {
       });
       if (res.data.success && res.data.data && res.data.data[targetLang]?.content) {
         const translated = res.data.data[targetLang].content;
+        // 检测翻译质量：如果结果和原文相同，说明翻译失败
+        if (translated.trim() === currentContent.trim()) {
+          showError(t('翻译结果与原文相同，请检查翻译 AI 配置（模型是否支持多语言、API Key 是否有效）'));
+          setTranslating(false);
+          return;
+        }
         setI18nData((prev) => ({ ...prev, [targetLang]: translated }));
         if (targetLang === 'en') {
           formApiRef.current?.setValue('content_en', translated);
