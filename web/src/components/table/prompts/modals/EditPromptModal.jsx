@@ -40,6 +40,7 @@ import {
   Col,
   Upload,
   TextArea,
+  Input,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -74,6 +75,7 @@ const EditPromptModal = (props) => {
   const [translating, setTranslating] = useState(false);
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState({});
+  const [titleI18nData, setTitleI18nData] = useState({});
   const [mediaType, setMediaType] = useState('image');
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
@@ -229,6 +231,9 @@ const EditPromptModal = (props) => {
         let parsed = {};
         try { if (data.i18n) parsed = JSON.parse(data.i18n); } catch (e) {}
         setI18nData(parsed);
+        let parsedTitle = {};
+        try { if (data.title_i18n) parsedTitle = JSON.parse(data.title_i18n); } catch (e) {}
+        setTitleI18nData(parsedTitle);
         setActiveLang(DEFAULT_LANG);
         formApiRef.current?.setValues({ ...getInitValues(), ...values });
       } else {
@@ -261,6 +266,7 @@ const EditPromptModal = (props) => {
 
   const handleAutoTranslate = async () => {
     const currentContent = formApiRef.current?.getValue('content');
+    const currentTitle = formApiRef.current?.getValue('title');
     if (!currentContent || currentContent.trim() === '') {
       showError(t('请先填写内容'));
       return;
@@ -269,8 +275,12 @@ const EditPromptModal = (props) => {
     const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
     const failedLangs = [];
     try {
+      const items = [{ key: 'content', text: currentContent.trim() }];
+      if (currentTitle && currentTitle.trim() !== '') {
+        items.push({ key: 'title', text: currentTitle.trim() });
+      }
       const res = await API.post('/api/translate/queue', {
-        items: [{ key: 'content', text: currentContent.trim() }],
+        items,
         source_lang: DEFAULT_LANG,
         target_langs: targetLangs,
       });
@@ -297,6 +307,9 @@ const EditPromptModal = (props) => {
                 if (langCode === 'en') {
                   formApiRef.current?.setValue('content_en', result.content);
                 }
+              }
+              if (result && result.title) {
+                setTitleI18nData((prev) => ({ ...prev, [langCode]: result.title }));
               }
             });
           }
@@ -331,19 +344,25 @@ const EditPromptModal = (props) => {
 
   const handleRetranslate = async (targetLang) => {
     const currentContent = formApiRef.current?.getValue('content');
+    const currentTitle = formApiRef.current?.getValue('title');
     if (!currentContent || currentContent.trim() === '') {
       showError(t('请先填写内容'));
       return;
     }
     setTranslating(true);
     try {
+      const items = [{ key: 'content', text: currentContent.trim() }];
+      if (currentTitle && currentTitle.trim() !== '') {
+        items.push({ key: 'title', text: currentTitle.trim() });
+      }
       const res = await API.post('/api/translate/batch', {
-        items: [{ key: 'content', text: currentContent.trim() }],
+        items,
         source_lang: DEFAULT_LANG,
         target_langs: [targetLang],
       });
-      if (res.data.success && res.data.data && res.data.data[targetLang]?.content) {
-        const translated = res.data.data[targetLang].content;
+      const langResult = res.data.data?.[targetLang];
+      if (res.data.success && langResult && langResult.content) {
+        const translated = langResult.content;
         // 检测翻译质量：如果结果和原文相同，说明翻译失败
         if (translated.trim() === currentContent.trim()) {
           showError(t('翻译结果与原文相同，请检查翻译 AI 配置（模型是否支持多语言、API Key 是否有效）'));
@@ -353,6 +372,9 @@ const EditPromptModal = (props) => {
         setI18nData((prev) => ({ ...prev, [targetLang]: translated }));
         if (targetLang === 'en') {
           formApiRef.current?.setValue('content_en', translated);
+        }
+        if (langResult.title) {
+          setTitleI18nData((prev) => ({ ...prev, [targetLang]: langResult.title }));
         }
         showSuccess(t('翻译完成'));
       } else {
@@ -399,6 +421,11 @@ const EditPromptModal = (props) => {
     delete i18nForSave.en; // 英文存 content_en
     delete i18nForSave.zh; // 中文存 content
     localInputs.i18n = JSON.stringify(i18nForSave);
+
+    // 多语言标题：中文存 title，其他存 title_i18n
+    const titleI18nForSave = { ...titleI18nData };
+    delete titleI18nForSave.zh;
+    localInputs.title_i18n = JSON.stringify(titleI18nForSave);
 
     let res;
     try {
@@ -659,6 +686,17 @@ const EditPromptModal = (props) => {
                             {t('自动翻译全部语言')}
                           </Button>
                         </div>
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
+                            {t('标题')} (English)
+                          </label>
+                          <Input
+                            value={titleI18nData['en'] || ''}
+                            onChange={(v) => setTitleI18nData((prev) => ({ ...prev, en: v }))}
+                            placeholder={t('请输入英文标题')}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
                         <Form.TextArea
                           field='content_en'
                           label={t('内容（英文）')}
@@ -681,6 +719,17 @@ const EditPromptModal = (props) => {
                             >
                               {t('重新翻译')}
                             </Button>
+                          </div>
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>
+                              {t('标题')} ({lang.label})
+                            </label>
+                            <Input
+                              value={titleI18nData[lang.code] || ''}
+                              onChange={(v) => setTitleI18nData((prev) => ({ ...prev, [lang.code]: v }))}
+                              placeholder={t('请输入翻译后的标题')}
+                              style={{ width: '100%' }}
+                            />
                           </div>
                           <div style={{ marginBottom: 12 }}>
                             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>

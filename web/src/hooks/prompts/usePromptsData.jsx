@@ -261,8 +261,12 @@ export const usePromptsData = () => {
         if (!results) continue;
 
         const i18n = {};
+        const titleI18n = {};
         Object.entries(results).forEach(([langCode, result]) => {
-          if (result) i18n[langCode] = result;
+          if (result) {
+            if (result.content) i18n[langCode] = result.content;
+            if (result.title) titleI18n[langCode] = result.title;
+          }
         });
 
         const payload = {
@@ -280,6 +284,7 @@ export const usePromptsData = () => {
           sort_order: item.sort_order || 0,
           status: item.status,
           i18n: JSON.stringify(i18n),
+          title_i18n: JSON.stringify(titleI18n),
           id: item.id,
         };
         await API.put('/api/prompt', payload);

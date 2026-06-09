@@ -215,6 +215,7 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.SortOrder = prompt.SortOrder
 	cleanPrompt.Status = prompt.Status
 	cleanPrompt.I18n = prompt.I18n
+	cleanPrompt.TitleI18n = prompt.TitleI18n
 	cleanPrompt.UpdatedTime = common.GetTimestamp()
 	err = cleanPrompt.Update()
 	if err != nil {
