@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTranslation } from 'react-i18next';
@@ -192,6 +192,11 @@ export const usePromptsData = () => {
   const [batchTranslating, setBatchTranslating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
 
+  // Batch SEO translate state
+  const [batchSEOTranslating, setBatchSEOTranslating] = useState(false);
+  const [batchSEOProgress, setBatchSEOProgress] = useState({ current: 0, total: 0 });
+  const seoPollIntervalRef = useRef(null);
+
   // Row selection configuration
   const rowSelection = {
     selectedRowKeys,
@@ -285,6 +290,90 @@ export const usePromptsData = () => {
     refresh();
   };
 
+  // Batch SEO translate handler (async backend task)
+  const handleBatchSEOTranslate = async () => {
+    if (selectedRowKeys.length === 0) {
+      showError(t('请先选择要翻译的提示词'));
+      return;
+    }
+    if (selectedRowKeys.length > 50) {
+      showError(t('单次最多选择 50 个提示词'));
+      return;
+    }
+    // Clear any existing poll interval
+    if (seoPollIntervalRef.current) {
+      clearInterval(seoPollIntervalRef.current);
+      seoPollIntervalRef.current = null;
+    }
+
+    setBatchSEOTranslating(true);
+    setBatchSEOProgress({ current: 0, total: selectedRowKeys.length });
+    const targetLangs = ['en', 'fr', 'ru', 'ja', 'vi', 'ko', 'es', 'de', 'it', 'pt', 'ar'];
+
+    try {
+      const res = await API.post('/api/prompt/seo/batch-translate', {
+        ids: selectedRowKeys,
+        target_langs: targetLangs,
+      });
+      if (!res.data.success) {
+        showError(res.data.message || t('启动批量 SEO 翻译失败'));
+        setBatchSEOTranslating(false);
+        return;
+      }
+      const taskId = res.data.data.task_id;
+      showSuccess(res.data.data.message || t('已启动批量 SEO 翻译任务'));
+
+      seoPollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await API.get(`/api/prompt/seo/batch-translate/${taskId}`);
+          const task = statusRes.data.data;
+          if (!task) {
+            clearInterval(seoPollIntervalRef.current);
+            seoPollIntervalRef.current = null;
+            setBatchSEOTranslating(false);
+            return;
+          }
+
+          setBatchSEOProgress({
+            current: task.completed || 0,
+            total: task.total || selectedRowKeys.length,
+          });
+
+          if (task.status === 'completed' || task.status === 'failed') {
+            clearInterval(seoPollIntervalRef.current);
+            seoPollIntervalRef.current = null;
+            setBatchSEOTranslating(false);
+            setSelectedRowKeys([]);
+            setSelectedKeys([]);
+
+            const successCount = (task.completed || 0) - (task.failed || 0);
+            const failCount = task.failed || 0;
+            if (failCount > 0) {
+              showSuccess(t('批量 SEO 翻译完成：') + successCount + t(' 成功，') + failCount + t(' 失败'));
+            } else {
+              showSuccess(t('批量 SEO 翻译全部完成'));
+            }
+            refresh();
+          }
+        } catch (err) {
+          console.error('SEO batch translate poll error:', err);
+        }
+      }, 2000);
+    } catch (err) {
+      showError(err.message || t('启动批量 SEO 翻译失败'));
+      setBatchSEOTranslating(false);
+    }
+  };
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (seoPollIntervalRef.current) {
+        clearInterval(seoPollIntervalRef.current);
+      }
+    };
+  }, []);
+
   // Close edit modal
   const closeEdit = () => {
     setShowEdit(false);
@@ -319,6 +408,9 @@ export const usePromptsData = () => {
     batchTranslating,
     batchProgress,
     handleBatchTranslate,
+    batchSEOTranslating,
+    batchSEOProgress,
+    handleBatchSEOTranslate,
     categories,
 
     // Edit state
