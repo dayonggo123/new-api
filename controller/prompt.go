@@ -218,6 +218,10 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.Status = prompt.Status
 	cleanPrompt.I18n = prompt.I18n
 	cleanPrompt.TitleI18n = prompt.TitleI18n
+	// 如果提交了多语言内容，标记为已翻译
+	if prompt.I18n != "" || prompt.TitleI18n != "" {
+		cleanPrompt.IsTranslated = true
+	}
 	cleanPrompt.UpdatedTime = common.GetTimestamp()
 	err = cleanPrompt.Update()
 	if err != nil {
