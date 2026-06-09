@@ -125,11 +125,12 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 			failUpdates := map[string]interface{}{
 				"is_translated":     false,
 				"translation_error": task.Error,
+				"updated_time":      common.GetTimestamp(),
 			}
 			if task.Type == "prompt" {
-				model.DB.Model(&model.Prompt{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error").Updates(failUpdates)
+				model.DB.Model(&model.Prompt{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error", "updated_time").Updates(failUpdates)
 			} else {
-				model.DB.Model(&model.Article{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error").Updates(failUpdates)
+				model.DB.Model(&model.Article{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error", "updated_time").Updates(failUpdates)
 			}
 		}
 	}()
@@ -609,9 +610,11 @@ func pollAndAutoTranslate() {
 	}
 
 	const batchSize = 20
+	cooldown := time.Now().Add(-30 * time.Minute).Unix()
 
-	// 扫描未翻译的 Prompts
+	// 1. 扫描从未翻译过的 Prompts
 	var promptIDs []int
+	var retryPromptIDs []int
 	err := model.DB.Model(&model.Prompt{}).
 		Select("id").
 		Where("is_translated = ? AND (translation_error = ? OR translation_error IS NULL)", false, "").
@@ -621,16 +624,32 @@ func pollAndAutoTranslate() {
 	if err != nil {
 		common.SysLog("AutoTranslate poller query prompts error: " + err.Error())
 	}
+
+	// 2. 再扫描翻译失败且冷却时间已过的 Prompts（自动重试）
+	if len(promptIDs) < batchSize {
+		err = model.DB.Model(&model.Prompt{}).
+			Select("id").
+			Where("is_translated = ? AND translation_error != ? AND updated_time < ?", false, "", cooldown).
+			Limit(batchSize - len(promptIDs)).
+			Order("updated_time asc").
+			Pluck("id", &retryPromptIDs).Error
+		if err != nil {
+			common.SysLog("AutoTranslate poller query retry prompts error: " + err.Error())
+		}
+		promptIDs = append(promptIDs, retryPromptIDs...)
+	}
+
 	for _, id := range promptIDs {
 		StartAutoTranslate("prompt", id)
 		time.Sleep(2 * time.Second) // 间隔避免并发过高
 	}
 	if len(promptIDs) > 0 {
-		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d prompts", len(promptIDs)))
+		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d prompts (%d retry)", len(promptIDs), len(promptIDs)-len(retryPromptIDs)))
 	}
 
-	// 扫描未翻译的 Articles
+	// 3. 扫描从未翻译过的 Articles
 	var articleIDs []int
+	var retryArticleIDs []int
 	err = model.DB.Model(&model.Article{}).
 		Select("id").
 		Where("is_translated = ? AND (translation_error = ? OR translation_error IS NULL)", false, "").
@@ -640,12 +659,27 @@ func pollAndAutoTranslate() {
 	if err != nil {
 		common.SysLog("AutoTranslate poller query articles error: " + err.Error())
 	}
+
+	// 4. 再扫描翻译失败且冷却时间已过的 Articles（自动重试）
+	if len(articleIDs) < batchSize {
+		err = model.DB.Model(&model.Article{}).
+			Select("id").
+			Where("is_translated = ? AND translation_error != ? AND updated_time < ?", false, "", cooldown).
+			Limit(batchSize - len(articleIDs)).
+			Order("updated_time asc").
+			Pluck("id", &retryArticleIDs).Error
+		if err != nil {
+			common.SysLog("AutoTranslate poller query retry articles error: " + err.Error())
+		}
+		articleIDs = append(articleIDs, retryArticleIDs...)
+	}
+
 	for _, id := range articleIDs {
 		StartAutoTranslate("article", id)
 		time.Sleep(2 * time.Second)
 	}
 	if len(articleIDs) > 0 {
-		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d articles", len(articleIDs)))
+		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d articles (%d retry)", len(articleIDs), len(articleIDs)-len(retryArticleIDs)))
 	}
 }
 
