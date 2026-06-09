@@ -73,6 +73,7 @@ const EditPromptModal = (props) => {
   const isEdit = props.editingPrompt.id !== undefined;
   const [loading, setLoading] = useState(isEdit);
   const [translating, setTranslating] = useState(false);
+  const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0 });
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState({});
   const [titleI18nData, setTitleI18nData] = useState({});
@@ -273,6 +274,7 @@ const EditPromptModal = (props) => {
     }
     setTranslating(true);
     const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
+    setTranslateProgress({ current: 0, total: targetLangs.length });
     const failedLangs = [];
     try {
       const items = [{ key: 'content', text: currentContent.trim() }];
@@ -295,6 +297,13 @@ const EditPromptModal = (props) => {
           const pollRes = await API.get(`/api/translate/queue/${queueId}`);
           const queue = pollRes.data.data;
           if (!queue) return;
+          // 更新翻译进度
+          if (queue.progress) {
+            setTranslateProgress({
+              current: queue.progress.current || 0,
+              total: queue.progress.total || targetLangs.length,
+            });
+          }
           if (queue.results) {
             Object.entries(queue.results).forEach(([langCode, result]) => {
               if (result && result.content) {
@@ -316,6 +325,7 @@ const EditPromptModal = (props) => {
           if (queue.status === 'done') {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
+            setTranslateProgress({ current: 0, total: 0 });
             if (failedLangs.length > 0) {
               const langLabels = failedLangs.map((code) => LANGUAGES.find((l) => l.code === code)?.label || code).join(', ');
               showError(t('以下语言翻译失败（结果与原文相同），请检查翻译 AI 配置：') + langLabels);
@@ -326,12 +336,14 @@ const EditPromptModal = (props) => {
           } else if (queue.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
+            setTranslateProgress({ current: 0, total: 0 });
             showError(queue.error || t('翻译失败'));
             setTranslating(false);
           }
         } catch (err) {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
+          setTranslateProgress({ current: 0, total: 0 });
           showError(err.message || t('翻译服务不可用'));
           setTranslating(false);
         }
@@ -683,7 +695,9 @@ const EditPromptModal = (props) => {
                             loading={translating}
                             onClick={handleAutoTranslate}
                           >
-                            {t('自动翻译全部语言')}
+                            {translateProgress.total > 0
+                              ? `${t('自动翻译全部语言')} (${translateProgress.current}/${translateProgress.total})`
+                              : t('自动翻译全部语言')}
                           </Button>
                         </div>
                         <div style={{ marginBottom: 12 }}>

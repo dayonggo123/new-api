@@ -258,6 +258,7 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
   const [i18nData, setI18nData] = useState(emptyI18n());
   const [translating, setTranslating] = useState(false);
+  const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0 });
   const [previewContent, setPreviewContent] = useState('');
   const [imageGenModalVisible, setImageGenModalVisible] = useState(false);
   const [imageGenLoading, setImageGenLoading] = useState(false);
@@ -406,6 +407,7 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
     }
     const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
     setTranslating(true);
+    setTranslateProgress({ current: 0, total: targetLangs.length });
     try {
       const res = await API.post('/api/translate/queue', {
         items,
@@ -423,6 +425,13 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
           const pollRes = await API.get(`/api/translate/queue/${queueId}`);
           const queue = pollRes.data.data;
           if (!queue) return;
+          // 更新翻译进度
+          if (queue.progress) {
+            setTranslateProgress({
+              current: queue.progress.current || 0,
+              total: queue.progress.total || targetLangs.length,
+            });
+          }
           if (queue.results) {
             Object.entries(queue.results).forEach(([langCode, langResult]) => {
               if (langResult) {
@@ -444,17 +453,20 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
           if (queue.status === 'done') {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
+            setTranslateProgress({ current: 0, total: 0 });
             showSuccess('自动翻译完成');
             setTranslating(false);
           } else if (queue.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
+            setTranslateProgress({ current: 0, total: 0 });
             showError(queue.error || '翻译失败');
             setTranslating(false);
           }
         } catch (err) {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
+          setTranslateProgress({ current: 0, total: 0 });
           showError(err.message || '翻译服务不可用');
           setTranslating(false);
         }
@@ -823,7 +835,9 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
           </Space>
           {activeTab === 'i18n' && (
             <Button icon={<IconLanguage />} type='tertiary' size='small' loading={translating} onClick={handleAutoTranslate}>
-              {t('自动翻译')}
+              {translateProgress.total > 0
+                ? `${t('自动翻译')} (${translateProgress.current}/${translateProgress.total})`
+                : t('自动翻译')}
             </Button>
           )}
         </div>
