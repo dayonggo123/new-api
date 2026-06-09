@@ -2,6 +2,8 @@ package model
 
 import (
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
@@ -18,6 +20,7 @@ type Prompt struct {
 	Id            int            `json:"id"`
 	CategoryId    int            `json:"category_id" gorm:"index"`
 	Title         string         `json:"title" gorm:"index"`
+	Slug          string         `json:"slug" gorm:"uniqueIndex;size:255"` // URL 友好的路径标识
 	Content       string         `json:"content" gorm:"type:text"`
 	ContentEn     string         `json:"content_en" gorm:"type:text"`
 	Description   string         `json:"description"`
@@ -190,6 +193,7 @@ func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (pr
 type PromptSitemapItem struct {
 	Id          int    `json:"id"`
 	Title       string `json:"title"`
+	Slug        string `json:"slug"`
 	UpdatedTime int64  `json:"updated_time"`
 	CreatedTime int64  `json:"created_time"`
 }
@@ -197,7 +201,7 @@ type PromptSitemapItem struct {
 // GetPublicPromptsForSitemap 获取公开提示词站点地图数据（只返回 SEO 需要的字段）
 func GetPublicPromptsForSitemap(startIdx int, num int) (items []*PromptSitemapItem, total int64, err error) {
 	query := DB.Model(&Prompt{}).
-		Select("id", "title", "updated_time", "created_time").
+		Select("id", "title", "slug", "updated_time", "created_time").
 		Where("status = ?", 1)
 
 	err = query.Count(&total).Error
@@ -231,11 +235,17 @@ func GetPublicPromptById(id int) (*PromptWithCategory, error) {
 }
 
 func (prompt *Prompt) Insert() error {
+	if prompt.Slug == "" {
+		prompt.Slug = GenerateSlug(prompt.Title)
+	}
+	if prompt.Slug == "" {
+		prompt.Slug = fmt.Sprintf("prompt-%d", time.Now().Unix())
+	}
 	return DB.Create(prompt).Error
 }
 
 func (prompt *Prompt) Update() error {
-	return DB.Model(prompt).Select("category_id", "title", "content", "content_en", "description", "cover_image_url", "video_url", "author", "source", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n").Updates(prompt).Error
+	return DB.Model(prompt).Select("category_id", "title", "slug", "content", "content_en", "description", "cover_image_url", "video_url", "author", "source", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n").Updates(prompt).Error
 }
 
 func (prompt *Prompt) Delete() error {

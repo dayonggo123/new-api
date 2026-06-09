@@ -216,3 +216,9 @@ func SearchRateLimit() func(c *gin.Context) {
 	}
 	return userRateLimitFactory(common.SearchRateLimitNum, common.SearchRateLimitDuration, "SR")
 }
+
+// SitemapRateLimit returns an IP-based rate limiter for sitemap endpoints.
+// 100 requests per minute per IP.
+func SitemapRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(100, 60, "SM")
+}

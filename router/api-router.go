@@ -465,6 +465,10 @@ func SetApiRouter(router *gin.Engine) {
 			apiRouter.POST("/admin/users/:id/tags", middleware.AdminAuth(), controller.AdminSetUserTags)
 			apiRouter.POST("/admin/users/:id/tags/:tag_id", middleware.AdminAuth(), controller.AdminAddUserTag)
 			apiRouter.DELETE("/admin/users/:id/tags/:tag_id", middleware.AdminAuth(), controller.AdminRemoveUserTag)
+		// Sitemap Routes (no auth required, IP rate limited)
+		apiRouter.GET("/articles", middleware.SitemapRateLimit(), controller.GetSitemapArticles)
+		apiRouter.GET("/prompts", middleware.SitemapRateLimit(), controller.GetSitemapPrompts)
+
 		// Prompt Library Public Routes (no auth required)
 		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
 		apiRouter.GET("/public/prompts/sitemap", controller.GetPublicPromptsSitemap)
