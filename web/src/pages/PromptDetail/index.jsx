@@ -5,7 +5,7 @@ import { Button, Tag, Spin, Typography, Breadcrumb } from '@douyinfe/semi-ui';
 import { IconCopy, IconArrowLeft } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../helpers';
 import SEO from '../../components/seo/SEO';
-import { WebPageSchema, FAQPageSchema } from '../../components/seo/SchemaOrg';
+import { WebPageSchema, ArticleSchema, FAQPageSchema } from '../../components/seo/SchemaOrg';
 
 const { Title, Text } = Typography;
 
@@ -178,6 +178,13 @@ export default function PromptDetail() {
         pageTitle={prompt.title}
         pageDescription={description}
         pathname={pagePath}
+      />
+      <ArticleSchema
+        headline={prompt.title}
+        description={description}
+        author={prompt.author || 'HarseTV'}
+        datePublished={prompt.created_time ? new Date(prompt.created_time * 1000).toISOString() : ''}
+        image={prompt.cover_image_url}
       />
       {currentFaqList.length > 0 && (
         <FAQPageSchema faqs={currentFaqList} />
