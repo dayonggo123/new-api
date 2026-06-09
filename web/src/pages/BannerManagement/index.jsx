@@ -223,15 +223,11 @@ export default function BannerManagement() {
           if (queue.results) {
             Object.entries(queue.results).forEach(([langCode, langResult]) => {
               if (langResult && formApi) {
-                const updates = {};
                 if (langResult.text) {
-                  updates[`content_${langCode}_text`] = langResult.text;
+                  formApi.setValue(`content_${langCode}_text`, langResult.text);
                 }
                 if (langResult.cta) {
-                  updates[`content_${langCode}_cta`] = langResult.cta;
-                }
-                if (Object.keys(updates).length > 0) {
-                  formApi.setValues(updates);
+                  formApi.setValue(`content_${langCode}_cta`, langResult.cta);
                 }
               }
             });
