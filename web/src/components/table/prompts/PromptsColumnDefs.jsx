@@ -23,6 +23,7 @@ import {
   PROMPT_STATUS_MAP,
 } from '../../../constants/prompt.constants';
 import { getLucideIcon } from '../../../helpers/render';
+import { openViewGeoBlocksModal } from '../../../components/modals/ViewGeoBlocksModal';
 
 /**
  * Render prompt status
@@ -139,10 +140,15 @@ export const getPromptsColumns = ({
       title: t('GEO 结构'),
       dataIndex: 'geo_blocks',
       width: 100,
-      render: (text) => {
+      render: (text, record) => {
         const has = text && text !== '{}' && text !== 'null';
         return (
-          <Tag color={has ? 'green' : 'red'} size='small'>
+          <Tag
+            color={has ? 'green' : 'red'}
+            size='small'
+            style={has ? { cursor: 'pointer' } : {}}
+            onClick={has ? () => openViewGeoBlocksModal(t, record) : undefined}
+          >
             {has ? t('已生成') : t('未生成')}
           </Tag>
         );
