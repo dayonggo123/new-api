@@ -821,3 +821,48 @@ func AdminRegeneratePromptSlugs(c *gin.Context) {
 		"message": fmt.Sprintf("成功生成 %d 个 slug，跳过 %d 个", updated, skipped),
 	})
 }
+
+// BatchTranslatePromptSEO 启动批量 SEO 翻译异步任务
+func BatchTranslatePromptSEO(c *gin.Context) {
+	var req struct {
+		Ids         []int    `json:"ids" binding:"required"`
+		TargetLangs []string `json:"target_langs" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(req.Ids) == 0 {
+		common.ApiErrorMsg(c, "请选择要翻译的提示词")
+		return
+	}
+	if len(req.Ids) > 50 {
+		common.ApiErrorMsg(c, "单次最多处理 50 个提示词")
+		return
+	}
+
+	taskID := service.StartSEOBatchTranslate(req.Ids, req.TargetLangs)
+	common.ApiSuccess(c, gin.H{
+		"task_id": taskID,
+		"status":  "running",
+		"total":   len(req.Ids),
+		"message":   fmt.Sprintf("已启动 %d 个提示词的批量 SEO 翻译任务", len(req.Ids)),
+	})
+}
+
+// GetBatchTranslatePromptSEOStatus 查询批量 SEO 翻译任务状态
+func GetBatchTranslatePromptSEOStatus(c *gin.Context) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		common.ApiErrorMsg(c, "task_id 不能为空")
+		return
+	}
+
+	task := service.GetSEOBatchTask(taskID)
+	if task == nil {
+		common.ApiErrorMsg(c, "任务不存在或已过期")
+		return
+	}
+
+	common.ApiSuccess(c, task)
+}

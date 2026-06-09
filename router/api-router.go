@@ -398,9 +398,11 @@ func SetApiRouter(router *gin.Engine) {
 			seoRoute.GET("/stats", controller.GetPromptSEOStats)
 			seoRoute.GET("/trends", controller.GetPromptSEOTrends)
 			seoRoute.GET("/low-score", controller.GetLowScorePrompts)
-			seoRoute.GET("/report-all", controller.GetAllSEOReport)
-			seoRoute.POST("/audit-batch", controller.BatchAuditPromptSEO)
-		}
+		seoRoute.GET("/report-all", controller.GetAllSEOReport)
+		seoRoute.POST("/audit-batch", controller.BatchAuditPromptSEO)
+		seoRoute.POST("/batch-translate", controller.BatchTranslatePromptSEO)
+		seoRoute.GET("/batch-translate/:task_id", controller.GetBatchTranslatePromptSEOStatus)
+	}
 
 		// Article Admin Routes
 		apiRouter.GET("/admin/articles", middleware.AdminAuth(), controller.GetArticles)
