@@ -2,7 +2,7 @@
 FROM node:22-slim AS webbuilder
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
-RUN npm install --legacy-peer-deps
+RUN npm config set registry https://registry.npmmirror.com && npm install --legacy-peer-deps
 COPY web/ ./
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build

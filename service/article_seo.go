@@ -53,7 +53,6 @@ func GenerateSEOForArticle(article *model.Article) (*ArticleSEOArticleResult, er
 			{"role": "user", "content": userContent},
 		},
 		"temperature": 0.7,
-		"max_tokens":  6000,
 	}
 
 	jsonData, err := common.Marshal(reqBody)
