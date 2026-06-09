@@ -138,6 +138,9 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 
 	var title, content string
 	var recordExists bool
+	var existingTitleI18n = make(map[string]string)
+	var existingContentI18n = make(map[string]string)
+	var existingArticleI18n = make(map[string]model.ArticleContent18n)
 
 	if task.Type == "prompt" {
 		pwc, err := model.GetPromptById(task.RecordID)
@@ -148,6 +151,12 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 		}
 		title = pwc.Prompt.Title
 		content = pwc.Prompt.Content
+		if pwc.Prompt.TitleI18n != "" {
+			common.Unmarshal([]byte(pwc.Prompt.TitleI18n), &existingTitleI18n)
+		}
+		if pwc.Prompt.I18n != "" {
+			common.Unmarshal([]byte(pwc.Prompt.I18n), &existingContentI18n)
+		}
 		recordExists = true
 	} else if task.Type == "article" {
 		article, err := model.GetArticleById(task.RecordID)
@@ -158,6 +167,18 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 		}
 		title = article.Title
 		content = article.Content
+		if article.I18n != "" {
+			common.Unmarshal([]byte(article.I18n), &existingArticleI18n)
+		}
+		// 把 ArticleContent18n 转成简单的 map 以便统一处理
+		for lang, data := range existingArticleI18n {
+			if data.Title != "" {
+				existingTitleI18n[lang] = data.Title
+			}
+			if data.Content != "" {
+				existingContentI18n[lang] = data.Content
+			}
+		}
 		recordExists = true
 	} else {
 		task.Status = AutoTranslateStatusFailed
@@ -184,11 +205,29 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 		{Key: "content", Text: content},
 	}
 
+	// 过滤已翻译的语言，只翻译缺失的
+	langsToTranslate := []string{}
+	for _, lang := range autoTranslateTargetLangs {
+		hasTitle := existingTitleI18n[lang] != ""
+		hasContent := existingContentI18n[lang] != ""
+		if !hasTitle || !hasContent {
+			langsToTranslate = append(langsToTranslate, lang)
+		}
+	}
+
+	if len(langsToTranslate) == 0 {
+		task.Status = AutoTranslateStatusCompleted
+		common.SysLog(fmt.Sprintf("AutoTranslate skipped: %s %d already fully translated", task.Type, task.RecordID))
+		return
+	}
+
+	common.SysLog(fmt.Sprintf("AutoTranslate: %s %d missing langs=%v", task.Type, task.RecordID, langsToTranslate))
+
 	titleI18n := make(map[string]string)
 	contentI18n := make(map[string]string)
 	failedLangs := []string{}
 
-	for _, lang := range autoTranslateTargetLangs {
+	for _, lang := range langsToTranslate {
 		result := translateItemsWithAI(cfg, items, "zh", lang)
 		task.Progress++
 
@@ -214,22 +253,66 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 		return
 	}
 
+	// 合并新翻译到已有数据
+	for k, v := range titleI18n {
+		existingTitleI18n[k] = v
+	}
+	for k, v := range contentI18n {
+		existingContentI18n[k] = v
+	}
+
 	// 保存到数据库
 	updates := map[string]interface{}{
-		"is_translated":      true,
-		"translation_error":  "", // 成功时清空错误
+		"translation_error": "", // 成功时清空错误
 	}
-	if len(titleI18n) > 0 {
-		titleI18nJSON, _ := common.Marshal(titleI18n)
-		updates["title_i18n"] = string(titleI18nJSON)
+	if task.Type == "prompt" {
+		if len(existingTitleI18n) > 0 {
+			titleI18nJSON, _ := common.Marshal(existingTitleI18n)
+			updates["title_i18n"] = string(titleI18nJSON)
+		}
+		if len(existingContentI18n) > 0 {
+			contentI18nJSON, _ := common.Marshal(existingContentI18n)
+			updates["i18n"] = string(contentI18nJSON)
+		}
+		if en, ok := existingContentI18n["en"]; ok && en != "" {
+			updates["content_en"] = en
+		}
+	} else {
+		// article: 合并成 ArticleContent18n map 保存到 i18n
+		for lang, t := range existingTitleI18n {
+			if data, ok := existingArticleI18n[lang]; ok {
+				data.Title = t
+				existingArticleI18n[lang] = data
+			} else {
+				existingArticleI18n[lang] = model.ArticleContent18n{Title: t}
+			}
+		}
+		for lang, c := range existingContentI18n {
+			if data, ok := existingArticleI18n[lang]; ok {
+				data.Content = c
+				existingArticleI18n[lang] = data
+			} else {
+				existingArticleI18n[lang] = model.ArticleContent18n{Content: c}
+			}
+		}
+		if len(existingArticleI18n) > 0 {
+			articleI18nJSON, _ := common.Marshal(existingArticleI18n)
+			updates["i18n"] = string(articleI18nJSON)
+		}
 	}
-	if len(contentI18n) > 0 {
-		contentI18nJSON, _ := common.Marshal(contentI18n)
-		updates["i18n"] = string(contentI18nJSON)
+
+	// 检查是否所有目标语言都已翻译完整
+	allComplete := true
+	for _, lang := range autoTranslateTargetLangs {
+		if existingTitleI18n[lang] == "" || existingContentI18n[lang] == "" {
+			allComplete = false
+			break
+		}
 	}
-	// en 单独存到 content_en
-	if en, ok := contentI18n["en"]; ok && en != "" {
-		updates["content_en"] = en
+	if allComplete {
+		updates["is_translated"] = true
+	} else {
+		updates["is_translated"] = false
 	}
 
 	var saveErr error
@@ -493,6 +576,7 @@ func callAutoTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, 
 func init() {
 	go cleanupAutoTranslateTasks()
 	go startAutoTranslatePoller()
+	go fixIncompleteTranslationStatus()
 }
 
 // startAutoTranslatePoller 每 5 分钟扫描一次未翻译记录，自动触发翻译
@@ -556,4 +640,72 @@ func pollAndAutoTranslate() {
 	if len(articleIDs) > 0 {
 		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d articles", len(articleIDs)))
 	}
+}
+
+// fixIncompleteTranslationStatus 启动时检查所有 is_translated=1 的记录，
+// 如果 i18n/title_i18n 缺少某些目标语言，则重置为 is_translated=0，让轮询后续补充
+func fixIncompleteTranslationStatus() {
+	time.Sleep(2 * time.Minute) // 等数据库连接就绪
+
+	fixOne := func(recordType string) {
+		var fixed int
+		if recordType == "prompt" {
+			var records []model.Prompt
+			err := model.DB.Where("is_translated = ?", true).Find(&records).Error
+			if err != nil {
+				common.SysLog("fixIncompleteTranslationStatus prompts query error: " + err.Error())
+				return
+			}
+			for _, p := range records {
+				var titleMap, contentMap map[string]string
+				if p.TitleI18n != "" {
+					common.Unmarshal([]byte(p.TitleI18n), &titleMap)
+				}
+				if p.I18n != "" {
+					common.Unmarshal([]byte(p.I18n), &contentMap)
+				}
+				complete := true
+				for _, lang := range autoTranslateTargetLangs {
+					if titleMap[lang] == "" || contentMap[lang] == "" {
+						complete = false
+						break
+					}
+				}
+				if !complete {
+					model.DB.Model(&model.Prompt{}).Where("id = ?", p.Id).Update("is_translated", false)
+					fixed++
+				}
+			}
+		} else {
+			var records []model.Article
+			err := model.DB.Where("is_translated = ?", true).Find(&records).Error
+			if err != nil {
+				common.SysLog("fixIncompleteTranslationStatus articles query error: " + err.Error())
+				return
+			}
+			for _, a := range records {
+				var articleI18n map[string]model.ArticleContent18n
+				if a.I18n != "" {
+					common.Unmarshal([]byte(a.I18n), &articleI18n)
+				}
+				complete := true
+				for _, lang := range autoTranslateTargetLangs {
+					if data, ok := articleI18n[lang]; !ok || data.Title == "" || data.Content == "" {
+						complete = false
+						break
+					}
+				}
+				if !complete {
+					model.DB.Model(&model.Article{}).Where("id = ?", a.Id).Update("is_translated", false)
+					fixed++
+				}
+			}
+		}
+		if fixed > 0 {
+			common.SysLog(fmt.Sprintf("fixIncompleteTranslationStatus: fixed %d %s", fixed, recordType))
+		}
+	}
+
+	fixOne("prompt")
+	fixOne("article")
 }

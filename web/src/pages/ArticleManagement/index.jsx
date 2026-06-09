@@ -405,7 +405,17 @@ const EditArticleModal = ({ visible, onCancel, article, refresh, categories, ini
       showError('请先填写中文内容');
       return;
     }
-    const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
+    const targetLangs = LANGUAGES.filter((l) => {
+      if (l.code === DEFAULT_LANG) return false;
+      const langData = i18nData[l.code];
+      const hasContent = langData && langData.content && langData.content.trim() !== '';
+      const hasTitle = langData && langData.title && langData.title.trim() !== '';
+      return !hasContent || !hasTitle;
+    }).map((l) => l.code);
+    if (targetLangs.length === 0) {
+      showSuccess('所有语言已翻译');
+      return;
+    }
     setTranslating(true);
     setTranslateProgress({ current: 0, total: targetLangs.length });
     try {

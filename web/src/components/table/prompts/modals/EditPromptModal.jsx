@@ -273,7 +273,17 @@ const EditPromptModal = (props) => {
       return;
     }
     setTranslating(true);
-    const targetLangs = LANGUAGES.filter((l) => l.code !== DEFAULT_LANG).map((l) => l.code);
+    const targetLangs = LANGUAGES.filter((l) => {
+      if (l.code === DEFAULT_LANG) return false;
+      const hasContent = i18nData[l.code] && i18nData[l.code].trim() !== '';
+      const hasTitle = titleI18nData[l.code] && titleI18nData[l.code].trim() !== '';
+      return !hasContent || !hasTitle;
+    }).map((l) => l.code);
+    if (targetLangs.length === 0) {
+      showSuccess(t('所有语言已翻译'));
+      setTranslating(false);
+      return;
+    }
     setTranslateProgress({ current: 0, total: targetLangs.length });
     const failedLangs = [];
     try {
