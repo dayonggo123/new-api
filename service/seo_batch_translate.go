@@ -55,6 +55,10 @@ var (
 
 func init() {
 	go cleanupSEOTasks()
+	// 3分钟后启动 SEO 自动翻译/重试轮询
+	time.AfterFunc(3*time.Minute, func() {
+		go startSEOAutoRetryPoller()
+	})
 }
 
 func cleanupSEOTasks() {
@@ -130,8 +134,9 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 	var finalErr error
 	defer func() {
 		if finalErr != nil {
-			model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_translation_error").Updates(map[string]interface{}{
+			model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_translation_error", "updated_time").Updates(map[string]interface{}{
 				"seo_translation_error": finalErr.Error(),
+				"updated_time":          common.GetTimestamp(),
 			})
 		}
 	}()
@@ -192,8 +197,13 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 		return finalErr
 	}
 
-	// 按语言逐个翻译
+	// 解析已有的 seo_i18n，避免覆盖已有翻译
 	seoI18n := make(map[string]interface{})
+	if p.SeoI18n != "" {
+		_ = common.Unmarshal([]byte(p.SeoI18n), &seoI18n)
+	}
+
+	// 按语言逐个翻译
 	for _, lang := range targetLangs {
 		translations := translateSEOItemsWithAI(cfg, validItems, "zh", lang)
 		if translations == nil || len(translations) == 0 {
@@ -248,8 +258,9 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 	updates := map[string]interface{}{
 		"seo_i18n":              string(seoI18nJSON),
 		"seo_translation_error": "", // 成功时清空错误
+		"updated_time":          common.GetTimestamp(),
 	}
-	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_i18n", "seo_translation_error").Updates(updates).Error; err != nil {
+	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_i18n", "seo_translation_error", "updated_time").Updates(updates).Error; err != nil {
 		finalErr = err
 		return err
 	}
@@ -475,4 +486,282 @@ func callSEOTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, u
 	}
 
 	return ""
+}
+
+// ========== SEO 自动翻译/重试轮询 ==========
+
+var seoAutoTranslateTargetLangs = []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
+
+func startSEOAutoRetryPoller() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		cfg := operation_setting.GetTranslateSetting()
+		if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+			continue
+		}
+		pollAndAutoTranslateSEO()
+	}
+}
+
+func getMissingSEOLangs(recordType string, id int, targetLangs []string) []string {
+	var existingI18n string
+	if recordType == "prompt" {
+		var p model.Prompt
+		if err := model.DB.Model(&model.Prompt{}).Select("seo_i18n").Where("id = ?", id).First(&p).Error; err != nil {
+			return targetLangs
+		}
+		existingI18n = p.SeoI18n
+	} else {
+		var a model.Article
+		if err := model.DB.Model(&model.Article{}).Select("seo_i18n").Where("id = ?", id).First(&a).Error; err != nil {
+			return targetLangs
+		}
+		existingI18n = a.SeoI18n
+	}
+
+	if existingI18n == "" {
+		return targetLangs
+	}
+
+	var seoMap map[string]interface{}
+	if err := common.Unmarshal([]byte(existingI18n), &seoMap); err != nil {
+		return targetLangs
+	}
+
+	missing := []string{}
+	for _, lang := range targetLangs {
+		if _, ok := seoMap[lang]; !ok {
+			missing = append(missing, lang)
+		}
+	}
+	return missing
+}
+
+func pollAndAutoTranslateSEO() {
+	const batchSize = 20
+	cooldown := time.Now().Add(-30 * time.Minute).Unix()
+
+	// 1. Prompts: 从未翻译过（有 SEO 内容但 seo_i18n 为空）
+	var promptIDs []int
+	var retryPromptIDs []int
+	err := model.DB.Model(&model.Prompt{}).
+		Select("id").
+		Where("(seo_i18n = ? OR seo_i18n IS NULL) AND (seo_keywords != ? OR intro != ? OR faq != ?)", "", "", "", "").
+		Limit(batchSize).
+		Order("id desc").
+		Pluck("id", &promptIDs).Error
+	if err != nil {
+		common.SysLog("SEOAutoTranslate poller query new prompts error: " + err.Error())
+	}
+
+	// 2. Prompts: 失败重试（冷却时间已过）
+	if len(promptIDs) < batchSize {
+		err = model.DB.Model(&model.Prompt{}).
+			Select("id").
+			Where("seo_translation_error != ? AND updated_time < ?", "", cooldown).
+			Limit(batchSize - len(promptIDs)).
+			Order("updated_time asc").
+			Pluck("id", &retryPromptIDs).Error
+		if err != nil {
+			common.SysLog("SEOAutoTranslate poller query retry prompts error: " + err.Error())
+		}
+		promptIDs = append(promptIDs, retryPromptIDs...)
+	}
+
+	for _, id := range promptIDs {
+		missingLangs := getMissingSEOLangs("prompt", id, seoAutoTranslateTargetLangs)
+		if len(missingLangs) == 0 {
+			// 已经完整，清空错误
+			model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_translation_error", "updated_time").Updates(map[string]interface{}{
+				"seo_translation_error": "",
+				"updated_time":          common.GetTimestamp(),
+			})
+			continue
+		}
+		err := processSinglePromptSEO(id, missingLangs)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("SEOAutoTranslate failed: prompt %d, error=%s", id, err.Error()))
+		}
+		time.Sleep(2 * time.Second)
+	}
+	if len(promptIDs) > 0 {
+		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: triggered %d prompts (%d retry)", len(promptIDs), len(retryPromptIDs)))
+	}
+
+	// 3. Articles: 从未翻译过（有 SEO 内容但 seo_i18n 为空）
+	var articleIDs []int
+	var retryArticleIDs []int
+	err = model.DB.Model(&model.Article{}).
+		Select("id").
+		Where("(seo_i18n = ? OR seo_i18n IS NULL) AND (seo_keywords != ? OR intro != ? OR faq != ?)", "", "", "", "").
+		Limit(batchSize).
+		Order("id desc").
+		Pluck("id", &articleIDs).Error
+	if err != nil {
+		common.SysLog("SEOAutoTranslate poller query new articles error: " + err.Error())
+	}
+
+	// 4. Articles: 失败重试（冷却时间已过）
+	if len(articleIDs) < batchSize {
+		err = model.DB.Model(&model.Article{}).
+			Select("id").
+			Where("seo_translation_error != ? AND updated_time < ?", "", cooldown).
+			Limit(batchSize - len(articleIDs)).
+			Order("updated_time asc").
+			Pluck("id", &retryArticleIDs).Error
+		if err != nil {
+			common.SysLog("SEOAutoTranslate poller query retry articles error: " + err.Error())
+		}
+		articleIDs = append(articleIDs, retryArticleIDs...)
+	}
+
+	for _, id := range articleIDs {
+		missingLangs := getMissingSEOLangs("article", id, seoAutoTranslateTargetLangs)
+		if len(missingLangs) == 0 {
+			model.DB.Model(&model.Article{}).Where("id = ?", id).Select("seo_translation_error", "updated_time").Updates(map[string]interface{}{
+				"seo_translation_error": "",
+				"updated_time":          common.GetTimestamp(),
+			})
+			continue
+		}
+		err := processSingleArticleSEO(id, missingLangs)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("SEOAutoTranslate failed: article %d, error=%s", id, err.Error()))
+		}
+		time.Sleep(2 * time.Second)
+	}
+	if len(articleIDs) > 0 {
+		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: triggered %d articles (%d retry)", len(articleIDs), len(retryArticleIDs)))
+	}
+}
+
+// processSingleArticleSEO 处理单条 Article 的 SEO 多语言翻译
+func processSingleArticleSEO(id int, targetLangs []string) error {
+	var finalErr error
+	defer func() {
+		if finalErr != nil {
+			model.DB.Model(&model.Article{}).Where("id = ?", id).Select("seo_translation_error", "updated_time").Updates(map[string]interface{}{
+				"seo_translation_error": finalErr.Error(),
+				"updated_time":          common.GetTimestamp(),
+			})
+		}
+	}()
+
+	article, err := model.GetArticleById(id)
+	if err != nil {
+		finalErr = fmt.Errorf("get article failed: %w", err)
+		return finalErr
+	}
+	if article == nil {
+		finalErr = fmt.Errorf("article not found")
+		return finalErr
+	}
+
+	items := []seoItem{
+		{Key: "seo_keywords", Text: article.SeoKeywords},
+		{Key: "intro", Text: article.Intro},
+	}
+
+	// 解析 FAQ
+	if article.Faq != "" {
+		var faqArr []map[string]string
+		if err := common.Unmarshal([]byte(article.Faq), &faqArr); err == nil {
+			for idx, f := range faqArr {
+				if q, ok := f["question"]; ok && q != "" {
+					items = append(items, seoItem{Key: fmt.Sprintf("faq_%d_question", idx), Text: q})
+				}
+				if a, ok := f["answer"]; ok && a != "" {
+					items = append(items, seoItem{Key: fmt.Sprintf("faq_%d_answer", idx), Text: a})
+				}
+			}
+		}
+	}
+
+	validItems := make([]seoItem, 0, len(items))
+	for _, it := range items {
+		if it.Text != "" {
+			validItems = append(validItems, it)
+		}
+	}
+	if len(validItems) == 0 {
+		return nil // 无内容可翻译
+	}
+
+	cfg := operation_setting.GetTranslateSetting()
+	if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+		finalErr = fmt.Errorf("AI translation not configured")
+		return finalErr
+	}
+
+	// 解析已有的 seo_i18n，避免覆盖已有翻译
+	seoI18n := make(map[string]interface{})
+	if article.SeoI18n != "" {
+		_ = common.Unmarshal([]byte(article.SeoI18n), &seoI18n)
+	}
+
+	// 按语言逐个翻译
+	for _, lang := range targetLangs {
+		translations := translateSEOItemsWithAI(cfg, validItems, "zh", lang)
+		if translations == nil || len(translations) == 0 {
+			continue
+		}
+
+		langData := map[string]interface{}{
+			"seo_keywords": translations["seo_keywords"],
+			"intro":        translations["intro"],
+		}
+
+		// 重组 FAQ
+		newFaqMap := make(map[int]map[string]string)
+		faqRe := regexp.MustCompile(`^faq_(\d+)_(question|answer)$`)
+		for key, val := range translations {
+			matches := faqRe.FindStringSubmatch(key)
+			if len(matches) == 3 {
+				idx, _ := strconv.Atoi(matches[1])
+				field := matches[2]
+				if newFaqMap[idx] == nil {
+					newFaqMap[idx] = make(map[string]string)
+				}
+				newFaqMap[idx][field] = val
+			}
+		}
+
+		if len(newFaqMap) > 0 {
+			indices := make([]int, 0, len(newFaqMap))
+			for idx := range newFaqMap {
+				indices = append(indices, idx)
+			}
+			sort.Ints(indices)
+			var faqList []map[string]string
+			for _, idx := range indices {
+				faqList = append(faqList, newFaqMap[idx])
+			}
+			langData["faq"] = faqList
+		}
+
+		seoI18n[lang] = langData
+	}
+
+	if len(seoI18n) == 0 {
+		return nil
+	}
+
+	seoI18nJSON, err := common.Marshal(seoI18n)
+	if err != nil {
+		return fmt.Errorf("marshal seo_i18n failed: %w", err)
+	}
+
+	updates := map[string]interface{}{
+		"seo_i18n":              string(seoI18nJSON),
+		"seo_translation_error": "",
+		"updated_time":          common.GetTimestamp(),
+	}
+	if err := model.DB.Model(&model.Article{}).Where("id = ?", id).Select("seo_i18n", "seo_translation_error", "updated_time").Updates(updates).Error; err != nil {
+		finalErr = err
+		return err
+	}
+
+	return nil
 }
