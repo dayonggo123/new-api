@@ -300,7 +300,16 @@ func BatchGeneratePromptSlugs() (updated int, skipped int, err error) {
 	return updated, skipped, nil
 }
 
-// GetPromptsWithCategory 获取提示词列表并附带分类名称
+// GetPublicPromptsUpdatedSince 获取自指定时间后有更新的公开提示词
+func GetPublicPromptsUpdatedSince(since int64) ([]*Prompt, error) {
+	var prompts []*Prompt
+	tx := DB.Where("status = ?", 1)
+	if since > 0 {
+		tx = tx.Where("updated_time > ?", since)
+	}
+	err := tx.Order("updated_time desc, id desc").Find(&prompts).Error
+	return prompts, err
+}
 func GetPromptsWithCategory(startIdx int, num int) ([]*PromptWithCategory, int64, error) {
 	prompts, total, err := GetAllPrompts(startIdx, num)
 	if err != nil {

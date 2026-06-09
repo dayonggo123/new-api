@@ -260,6 +260,59 @@ func GetPublicPrompts(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// GetPublicPromptUpdates 公开接口：获取提示词库增量更新
+// 支持 ?since= 参数（秒级时间戳），返回该时间之后有更新的启用提示词
+// 不带 since 则返回全部启用提示词（但精简字段）
+func GetPublicPromptUpdates(c *gin.Context) {
+	sinceStr := c.Query("since")
+	since := int64(0)
+	if sinceStr != "" {
+		if v, err := strconv.ParseInt(sinceStr, 10, 64); err == nil {
+			since = v
+		}
+	}
+
+	prompts, err := model.GetPublicPromptsUpdatedSince(since)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 精简字段返回，只保留下游同步需要的核心信息
+	type PromptUpdateItem struct {
+		Id          int    `json:"id"`
+		Title       string `json:"title"`
+		Slug        string `json:"slug"`
+		CategoryId  int    `json:"category_id"`
+		Description string `json:"description"`
+		Status      int    `json:"status"`
+		SortOrder   int    `json:"sort_order"`
+		UpdatedTime int64  `json:"updated_time"`
+		CreatedTime int64  `json:"created_time"`
+	}
+
+	items := make([]PromptUpdateItem, 0, len(prompts))
+	for i := range prompts {
+		items = append(items, PromptUpdateItem{
+			Id:          prompts[i].Id,
+			Title:       prompts[i].Title,
+			Slug:        prompts[i].Slug,
+			CategoryId:  prompts[i].CategoryId,
+			Description: prompts[i].Description,
+			Status:      prompts[i].Status,
+			SortOrder:   prompts[i].SortOrder,
+			UpdatedTime: prompts[i].UpdatedTime,
+			CreatedTime: prompts[i].CreatedTime,
+		})
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"items":       items,
+		"total":       len(items),
+		"server_time": time.Now().Unix(),
+	})
+}
+
 func GetPublicPrompt(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

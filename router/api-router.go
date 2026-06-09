@@ -475,6 +475,7 @@ func SetApiRouter(router *gin.Engine) {
 		// Prompt Library Public Routes (no auth required)
 		apiRouter.GET("/public/prompts", controller.GetPublicPrompts)
 		apiRouter.GET("/public/prompts/sitemap", controller.GetPublicPromptsSitemap)
+		apiRouter.GET("/public/prompts/updates", controller.GetPublicPromptUpdates)
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
 		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
 		apiRouter.GET("/public/prompt-media/:id", controller.GetPromptMedia)
