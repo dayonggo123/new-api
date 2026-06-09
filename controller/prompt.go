@@ -338,6 +338,10 @@ func GetPublicPrompt(c *gin.Context) {
 	}
 	// Increment usage count asynchronously
 	go model.IncrementPromptUsageCount(id)
+	lang := c.Query("lang")
+	if lang != "" {
+		prompt.Prompt.ApplyLanguage(lang)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
