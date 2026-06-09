@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
-import { IconLanguage } from '@douyinfe/semi-icons';
+import { IconLanguage, IconHelpCircle } from '@douyinfe/semi-icons';
 import CardPro from '../../common/ui/CardPro';
 import PromptsTable from './PromptsTable';
 import PromptsActions from './PromptsActions';
@@ -65,6 +65,9 @@ const PromptsPage = () => {
     batchSEOTranslating,
     batchSEOProgress,
     handleBatchSEOTranslate,
+    batchAutoFAQTranslating,
+    batchAutoFAQProgress,
+    handleBatchAutoFAQ,
 
     // Translation
     t,
@@ -109,6 +112,15 @@ const PromptsPage = () => {
                 >
                   批量 SEO 翻译
                 </Button>
+                <Button
+                  type='tertiary'
+                  size='small'
+                  icon={<IconHelpCircle />}
+                  loading={batchAutoFAQTranslating}
+                  onClick={handleBatchAutoFAQ}
+                >
+                  自动生成 FAQ
+                </Button>
                 {batchTranslating && (
                   <span className='text-xs text-gray-400'>
                     翻译中 {batchProgress.current}/{batchProgress.total}
@@ -117,6 +129,11 @@ const PromptsPage = () => {
                 {batchSEOTranslating && (
                   <span className='text-xs text-gray-400'>
                     SEO 翻译中 {batchSEOProgress.current}/{batchSEOProgress.total}
+                  </span>
+                )}
+                {batchAutoFAQTranslating && (
+                  <span className='text-xs text-gray-400'>
+                    FAQ 生成中 {batchAutoFAQProgress.current}/{batchAutoFAQProgress.total}
                   </span>
                 )}
                 <Button theme='light' size='small' onClick={() => { setSelectedRowKeys([]); }}>

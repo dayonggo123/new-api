@@ -62,6 +62,7 @@ import {
   IconVideo,
   IconQuote,
   IconH2,
+  IconHelpCircle,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -1246,6 +1247,11 @@ const ArticleManagement = () => {
   const [selectedArticleKeys, setSelectedArticleKeys] = useState([]);
   const [batchTranslating, setBatchTranslating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const autoFaqPollIntervalRef = useRef(null);
+
+  // Auto FAQ state
+  const [batchAutoFAQTranslating, setBatchAutoFAQTranslating] = useState(false);
+  const [batchAutoFAQProgress, setBatchAutoFAQProgress] = useState({ current: 0, total: 0 });
 
   // AI Generate state
   const [showAIGenerate, setShowAIGenerate] = useState(false);
@@ -1298,6 +1304,14 @@ const ArticleManagement = () => {
 
   useEffect(() => {
     loadCategories();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (autoFaqPollIntervalRef.current) {
+        clearInterval(autoFaqPollIntervalRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -1422,6 +1436,78 @@ const ArticleManagement = () => {
     setBatchTranslating(false);
     setSelectedArticleKeys([]);
     loadArticles();
+  };
+
+  // Batch auto FAQ handler (async backend task)
+  const handleBatchAutoFAQ = async () => {
+    if (selectedArticleKeys.length === 0) {
+      showError(t('请先选择要生成 FAQ 的文章'));
+      return;
+    }
+    if (selectedArticleKeys.length > 20) {
+      showError(t('单次最多选择 20 篇文章'));
+      return;
+    }
+    // Clear any existing poll interval
+    if (autoFaqPollIntervalRef.current) {
+      clearInterval(autoFaqPollIntervalRef.current);
+      autoFaqPollIntervalRef.current = null;
+    }
+
+    setBatchAutoFAQTranslating(true);
+    setBatchAutoFAQProgress({ current: 0, total: selectedArticleKeys.length });
+
+    try {
+      const res = await API.post('/api/admin/articles/auto-faq/batch', {
+        ids: selectedArticleKeys,
+      });
+      if (!res.data.success) {
+        showError(res.data.message || t('启动自动生成 FAQ 失败'));
+        setBatchAutoFAQTranslating(false);
+        return;
+      }
+      const taskId = res.data.data.task_id;
+      showSuccess(res.data.data.message || t('已启动自动生成 FAQ 任务'));
+
+      autoFaqPollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await API.get(`/api/admin/auto-faq/batch/${taskId}`);
+          const task = statusRes.data.data;
+          if (!task) {
+            clearInterval(autoFaqPollIntervalRef.current);
+            autoFaqPollIntervalRef.current = null;
+            setBatchAutoFAQTranslating(false);
+            return;
+          }
+
+          setBatchAutoFAQProgress({
+            current: task.completed || 0,
+            total: task.total || selectedArticleKeys.length,
+          });
+
+          if (task.status === 'completed' || task.status === 'failed') {
+            clearInterval(autoFaqPollIntervalRef.current);
+            autoFaqPollIntervalRef.current = null;
+            setBatchAutoFAQTranslating(false);
+            setSelectedArticleKeys([]);
+
+            const successCount = (task.completed || 0) - (task.failed || 0);
+            const failCount = task.failed || 0;
+            if (failCount > 0) {
+              showSuccess(t('自动生成 FAQ 完成：') + successCount + t(' 成功，') + failCount + t(' 失败'));
+            } else {
+              showSuccess(t('自动生成 FAQ 全部完成'));
+            }
+            loadArticles();
+          }
+        } catch (err) {
+          console.error('Auto FAQ batch poll error:', err);
+        }
+      }, 2000);
+    } catch (err) {
+      showError(err.message || t('启动自动生成 FAQ 失败'));
+      setBatchAutoFAQTranslating(false);
+    }
   };
 
   const handleDeleteCategory = async (id) => {
@@ -1662,9 +1748,23 @@ const ArticleManagement = () => {
                 >
                   批量自动翻译
                 </Button>
+                <Button
+                  type="tertiary"
+                  size="small"
+                  icon={<IconHelpCircle />}
+                  loading={batchAutoFAQTranslating}
+                  onClick={handleBatchAutoFAQ}
+                >
+                  自动生成 FAQ
+                </Button>
                 {batchTranslating && (
                   <Text size="small" type="tertiary">
                     翻译中 {batchProgress.current}/{batchProgress.total}
+                  </Text>
+                )}
+                {batchAutoFAQTranslating && (
+                  <Text size="small" type="tertiary">
+                    FAQ 生成中 {batchAutoFAQProgress.current}/{batchAutoFAQProgress.total}
                   </Text>
                 )}
                 <Button theme="light" size="small" onClick={() => setSelectedArticleKeys([])}>

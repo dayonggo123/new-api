@@ -197,6 +197,11 @@ export const usePromptsData = () => {
   const [batchSEOProgress, setBatchSEOProgress] = useState({ current: 0, total: 0 });
   const seoPollIntervalRef = useRef(null);
 
+  // Batch auto FAQ state
+  const [batchAutoFAQTranslating, setBatchAutoFAQTranslating] = useState(false);
+  const [batchAutoFAQProgress, setBatchAutoFAQProgress] = useState({ current: 0, total: 0 });
+  const autoFaqPollIntervalRef = useRef(null);
+
   // Row selection configuration
   const rowSelection = {
     selectedRowKeys,
@@ -365,11 +370,87 @@ export const usePromptsData = () => {
     }
   };
 
+  // Batch auto FAQ handler (async backend task)
+  const handleBatchAutoFAQ = async () => {
+    if (selectedRowKeys.length === 0) {
+      showError(t('请先选择要生成 FAQ 的提示词'));
+      return;
+    }
+    if (selectedRowKeys.length > 20) {
+      showError(t('单次最多选择 20 个提示词'));
+      return;
+    }
+    // Clear any existing poll interval
+    if (autoFaqPollIntervalRef.current) {
+      clearInterval(autoFaqPollIntervalRef.current);
+      autoFaqPollIntervalRef.current = null;
+    }
+
+    setBatchAutoFAQTranslating(true);
+    setBatchAutoFAQProgress({ current: 0, total: selectedRowKeys.length });
+
+    try {
+      const res = await API.post('/api/admin/prompts/auto-faq/batch', {
+        ids: selectedRowKeys,
+      });
+      if (!res.data.success) {
+        showError(res.data.message || t('启动自动生成 FAQ 失败'));
+        setBatchAutoFAQTranslating(false);
+        return;
+      }
+      const taskId = res.data.data.task_id;
+      showSuccess(res.data.data.message || t('已启动自动生成 FAQ 任务'));
+
+      autoFaqPollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await API.get(`/api/admin/auto-faq/batch/${taskId}`);
+          const task = statusRes.data.data;
+          if (!task) {
+            clearInterval(autoFaqPollIntervalRef.current);
+            autoFaqPollIntervalRef.current = null;
+            setBatchAutoFAQTranslating(false);
+            return;
+          }
+
+          setBatchAutoFAQProgress({
+            current: task.completed || 0,
+            total: task.total || selectedRowKeys.length,
+          });
+
+          if (task.status === 'completed' || task.status === 'failed') {
+            clearInterval(autoFaqPollIntervalRef.current);
+            autoFaqPollIntervalRef.current = null;
+            setBatchAutoFAQTranslating(false);
+            setSelectedRowKeys([]);
+            setSelectedKeys([]);
+
+            const successCount = (task.completed || 0) - (task.failed || 0);
+            const failCount = task.failed || 0;
+            if (failCount > 0) {
+              showSuccess(t('自动生成 FAQ 完成：') + successCount + t(' 成功，') + failCount + t(' 失败'));
+            } else {
+              showSuccess(t('自动生成 FAQ 全部完成'));
+            }
+            refresh();
+          }
+        } catch (err) {
+          console.error('Auto FAQ batch poll error:', err);
+        }
+      }, 2000);
+    } catch (err) {
+      showError(err.message || t('启动自动生成 FAQ 失败'));
+      setBatchAutoFAQTranslating(false);
+    }
+  };
+
   // Cleanup interval on unmount
   useEffect(() => {
     return () => {
       if (seoPollIntervalRef.current) {
         clearInterval(seoPollIntervalRef.current);
+      }
+      if (autoFaqPollIntervalRef.current) {
+        clearInterval(autoFaqPollIntervalRef.current);
       }
     };
   }, []);
@@ -411,6 +492,9 @@ export const usePromptsData = () => {
     batchSEOTranslating,
     batchSEOProgress,
     handleBatchSEOTranslate,
+    batchAutoFAQTranslating,
+    batchAutoFAQProgress,
+    handleBatchAutoFAQ,
     categories,
 
     // Edit state
