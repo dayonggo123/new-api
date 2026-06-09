@@ -152,7 +152,13 @@ Rules:
 	updates := map[string]interface{}{
 		"geo_blocks": geoBlocksJSON,
 	}
-	return model.DB.Model(&model.Prompt{}).Where("id = ?", id).Updates(updates).Error
+	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return err
+	}
+
+	// 异步翻译多语言 GEO 块
+	translatePromptGeoBlocksAsync(id, geoBlocksJSON)
+	return nil
 }
 
 // GenerateArticleGeoBlocks 为单篇文章生成 GEO 结构化内容
@@ -214,7 +220,13 @@ Rules:
 	updates := map[string]interface{}{
 		"geo_blocks": geoBlocksJSON,
 	}
-	return model.DB.Model(&model.Article{}).Where("id = ?", id).Updates(updates).Error
+	if err := model.DB.Model(&model.Article{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return err
+	}
+
+	// 异步翻译多语言 GEO 块
+	translateArticleGeoBlocksAsync(id, geoBlocksJSON)
+	return nil
 }
 
 // ========== 批量处理逻辑 ==========
@@ -361,4 +373,90 @@ func extractGeoBlocksJSON(response string) string {
 	}
 
 	return response[start : end+1]
+}
+
+// ========== GEO 块多语言翻译 ==========
+
+var geoBlocksTargetLangs = []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
+
+func translateGeoBlocksJSON(cfg *operation_setting.TranslateSetting, geoBlocksJSON, targetLang string) (string, error) {
+	targetLangName := getSEOLangName(targetLang)
+	systemPrompt := fmt.Sprintf(`You are a professional translator. Translate the following JSON from Chinese to %s.
+
+Rules:
+1. Keep ALL keys exactly the same (do not translate keys)
+2. Translate ALL string values and ALL array string items into %s
+3. Return ONLY valid JSON. No markdown, no explanations.`, targetLangName, targetLangName)
+
+	response := callGeoBlocksAI(cfg, systemPrompt, geoBlocksJSON)
+	if response == "" {
+		return "", fmt.Errorf("empty translation response")
+	}
+
+	translatedJSON := extractGeoBlocksJSON(response)
+	if translatedJSON == "" {
+		return "", fmt.Errorf("failed to extract JSON from translation")
+	}
+
+	return translatedJSON, nil
+}
+
+func translatePromptGeoBlocksAsync(id int, geoBlocksJSON string) {
+	go func() {
+		cfg := operation_setting.GetTranslateSetting()
+		if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+			return
+		}
+
+		geoBlocksI18n := make(map[string]string)
+		for _, lang := range geoBlocksTargetLangs {
+			translated, err := translateGeoBlocksJSON(cfg, geoBlocksJSON, lang)
+			if err != nil || translated == "" {
+				common.SysLog(fmt.Sprintf("GeoBlocks translate failed: prompt %d lang=%s err=%v", id, lang, err))
+				continue
+			}
+			geoBlocksI18n[lang] = translated
+			time.Sleep(1 * time.Second) // 避免限流
+		}
+
+		if len(geoBlocksI18n) == 0 {
+			return
+		}
+
+		i18nJSON, _ := common.Marshal(geoBlocksI18n)
+		model.DB.Model(&model.Prompt{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"geo_blocks_i18n": string(i18nJSON),
+		})
+		common.SysLog(fmt.Sprintf("GeoBlocks i18n saved: prompt %d, langs=%d", id, len(geoBlocksI18n)))
+	}()
+}
+
+func translateArticleGeoBlocksAsync(id int, geoBlocksJSON string) {
+	go func() {
+		cfg := operation_setting.GetTranslateSetting()
+		if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+			return
+		}
+
+		geoBlocksI18n := make(map[string]string)
+		for _, lang := range geoBlocksTargetLangs {
+			translated, err := translateGeoBlocksJSON(cfg, geoBlocksJSON, lang)
+			if err != nil || translated == "" {
+				common.SysLog(fmt.Sprintf("GeoBlocks translate failed: article %d lang=%s err=%v", id, lang, err))
+				continue
+			}
+			geoBlocksI18n[lang] = translated
+			time.Sleep(1 * time.Second) // 避免限流
+		}
+
+		if len(geoBlocksI18n) == 0 {
+			return
+		}
+
+		i18nJSON, _ := common.Marshal(geoBlocksI18n)
+		model.DB.Model(&model.Article{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"geo_blocks_i18n": string(i18nJSON),
+		})
+		common.SysLog(fmt.Sprintf("GeoBlocks i18n saved: article %d, langs=%d", id, len(geoBlocksI18n)))
+	}()
 }

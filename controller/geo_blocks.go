@@ -2,9 +2,11 @@ package controller
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -120,4 +122,154 @@ func GetGeoBlocksBatchStatus(c *gin.Context) {
 	}
 
 	common.ApiSuccess(c, task)
+}
+
+// ========== 下游对接接口（公开 API） ==========
+
+// GetPublicPromptGeoBlocks 公开接口：获取提示词的 GEO 结构化内容
+// GET /api/public/prompts/:id/geo-blocks?lang=ko
+func GetPublicPromptGeoBlocks(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	prompt, err := model.GetPublicPromptById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	lang := c.Query("lang")
+	if lang != "" {
+		prompt.Prompt.ApplyLanguage(lang)
+	}
+
+	var geoData interface{}
+	if prompt.Prompt.GeoBlocks != "" {
+		_ = common.Unmarshal([]byte(prompt.Prompt.GeoBlocks), &geoData)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"id":         id,
+			"title":      prompt.Prompt.Title,
+			"slug":       prompt.Prompt.Slug,
+			"geo_blocks": geoData,
+		},
+	})
+}
+
+// GetPublicPromptGeoBlocksBySlug 公开接口：通过 slug 获取提示词的 GEO 结构化内容
+// GET /api/public/prompts/slug/:slug/geo-blocks?lang=ko
+func GetPublicPromptGeoBlocksBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		common.ApiErrorMsg(c, "slug is required")
+		return
+	}
+
+	prompt, err := model.GetPublicPromptBySlug(slug)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	lang := c.Query("lang")
+	if lang != "" {
+		prompt.Prompt.ApplyLanguage(lang)
+	}
+
+	var geoData interface{}
+	if prompt.Prompt.GeoBlocks != "" {
+		_ = common.Unmarshal([]byte(prompt.Prompt.GeoBlocks), &geoData)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"id":         prompt.Prompt.Id,
+			"title":      prompt.Prompt.Title,
+			"slug":       prompt.Prompt.Slug,
+			"geo_blocks": geoData,
+		},
+	})
+}
+
+// GetPublicArticleGeoBlocks 公开接口：获取文章的 GEO 结构化内容
+// GET /api/public/articles/:id/geo-blocks?lang=ko
+func GetPublicArticleGeoBlocks(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	article, err := model.GetArticleById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	lang := c.Query("lang")
+	if lang != "" {
+		article.ApplyLanguage(lang)
+	}
+
+	var geoData interface{}
+	if article.GeoBlocks != "" {
+		_ = common.Unmarshal([]byte(article.GeoBlocks), &geoData)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"id":         id,
+			"title":      article.Title,
+			"slug":       article.Slug,
+			"geo_blocks": geoData,
+		},
+	})
+}
+
+// GetPublicArticleGeoBlocksBySlug 公开接口：通过 slug 获取文章的 GEO 结构化内容
+// GET /api/public/articles/slug/:slug/geo-blocks?lang=ko
+func GetPublicArticleGeoBlocksBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		common.ApiErrorMsg(c, "slug is required")
+		return
+	}
+
+	article, err := model.GetArticleBySlug(slug)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	lang := c.Query("lang")
+	if lang != "" {
+		article.ApplyLanguage(lang)
+	}
+
+	var geoData interface{}
+	if article.GeoBlocks != "" {
+		_ = common.Unmarshal([]byte(article.GeoBlocks), &geoData)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"id":         article.Id,
+			"title":      article.Title,
+			"slug":       article.Slug,
+			"geo_blocks": geoData,
+		},
+	})
 }

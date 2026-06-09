@@ -497,6 +497,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/prompts/updates", controller.GetPublicPromptUpdates)
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
 		apiRouter.GET("/public/prompts/slug/:slug", controller.GetPublicPromptBySlug)
+		apiRouter.GET("/public/prompts/:id/geo-blocks", controller.GetPublicPromptGeoBlocks)
+		apiRouter.GET("/public/prompts/slug/:slug/geo-blocks", controller.GetPublicPromptGeoBlocksBySlug)
 		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
 		apiRouter.GET("/public/prompt-media/:id", controller.GetPromptMedia)
 		apiRouter.GET("/public/article-media/:id", controller.GetArticleMedia)
@@ -506,6 +508,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/articles/sitemap", controller.GetPublicArticlesSitemap)
 		apiRouter.GET("/public/articles/:id", controller.GetPublicArticle)
 		apiRouter.GET("/public/articles/slug/:slug", controller.GetPublicArticleBySlug)
+		apiRouter.GET("/public/articles/:id/geo-blocks", controller.GetPublicArticleGeoBlocks)
+		apiRouter.GET("/public/articles/slug/:slug/geo-blocks", controller.GetPublicArticleGeoBlocksBySlug)
 		apiRouter.GET("/public/article-categories", controller.GetPublicArticleCategories)
 
 		// Preset Prompt Public Routes (optional auth for auto language detection)
