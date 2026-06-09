@@ -332,8 +332,8 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 		task.Error = "partial failure: " + strings.Join(failedLangs, ", ")
 	}
 	task.Status = AutoTranslateStatusCompleted
-	common.SysLog(fmt.Sprintf("AutoTranslate completed: %s %d, title_langs=%d, content_langs=%d, failed=%v",
-		task.Type, task.RecordID, len(titleI18n), len(contentI18n), failedLangs))
+	common.SysLog(fmt.Sprintf("AutoTranslate completed: %s %d, missing=%d, new_title=%d, new_content=%d, existing_title=%d, existing_content=%d, failed=%v",
+		task.Type, task.RecordID, len(langsToTranslate), len(titleI18n), len(contentI18n), len(existingTitleI18n), len(existingContentI18n), failedLangs))
 }
 
 // ========== AI 翻译调用（内联实现，避免循环依赖） ==========
