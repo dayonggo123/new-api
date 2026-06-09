@@ -1,3 +1,11 @@
 {
-  "translation": {}
+  "translation": {
+    "GEO 结构化内容": "GEO-strukturierter Inhalt",
+    "暂无 GEO 内容": "Kein GEO-Inhalt verfügbar",
+    "中文原文": "Chinesisches Original",
+    "多语言版本": "Mehrsprachige Version",
+    "适用场景": "Anwendbare Szenarien",
+    "使用步骤": "Verwendungsschritte",
+    "使用技巧": "Nutzungstipps"
+  }
 }

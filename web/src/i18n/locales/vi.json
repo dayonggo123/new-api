@@ -3046,7 +3046,6 @@
     "表格视图": "Chế độ xem bảng",
     "被封禁": "Bị cấm",
     "被禁用": "Bị vô hiệu hóa",
-    "覆盖": "Ghi đè",
     "覆盖原模型": "Ghi đè mô hình gốc",
     "覆盖模式": "Chế độ ghi đè",
     "覆盖模式：将完全替换现有的所有密钥": "Chế độ ghi đè: sẽ thay thế hoàn toàn tất cả các khóa hiện có",
@@ -4019,6 +4018,13 @@
     "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Hiện tại chỉ hỗ trợ giao diện Epay, địa chỉ máy chủ phía trên được sử dụng làm địa chỉ gọi lại theo mặc định!)",
     "，当前无生效订阅，将自动使用钱包": ", hiện không có gói đăng ký hiệu lực, sẽ tự động dùng ví.",
     "，时间：": ", thời gian:",
-    "，点击更新": ", nhấn để cập nhật"
+    "，点击更新": ", nhấn để cập nhật",
+    "GEO 结构化内容": "Nội dung cấu trúc GEO",
+    "暂无 GEO 内容": "Chưa có nội dung GEO",
+    "中文原文": "Bản gốc tiếng Trung",
+    "多语言版本": "Phiên bản đa ngôn ngữ",
+    "适用场景": "Tình huống áp dụng",
+    "使用步骤": "Các bước sử dụng",
+    "使用技巧": "Mẹo sử dụng"
   }
 }
