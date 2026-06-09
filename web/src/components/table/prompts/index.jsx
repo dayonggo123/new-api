@@ -68,6 +68,9 @@ const PromptsPage = () => {
     batchAutoFAQTranslating,
     batchAutoFAQProgress,
     handleBatchAutoFAQ,
+    batchGeoBlocksGenerating,
+    batchGeoBlocksProgress,
+    handleBatchGeoBlocks,
 
     // Translation
     t,
@@ -121,6 +124,15 @@ const PromptsPage = () => {
                 >
                   自动生成 FAQ
                 </Button>
+                <Button
+                  type='tertiary'
+                  size='small'
+                  icon={<IconLanguage />}
+                  loading={batchGeoBlocksGenerating}
+                  onClick={handleBatchGeoBlocks}
+                >
+                  生成 GEO 结构
+                </Button>
                 {batchTranslating && (
                   <span className='text-xs text-gray-400'>
                     翻译中 {batchProgress.current}/{batchProgress.total}
@@ -134,6 +146,11 @@ const PromptsPage = () => {
                 {batchAutoFAQTranslating && (
                   <span className='text-xs text-gray-400'>
                     FAQ 生成中 {batchAutoFAQProgress.current}/{batchAutoFAQProgress.total}
+                  </span>
+                )}
+                {batchGeoBlocksGenerating && (
+                  <span className='text-xs text-gray-400'>
+                    GEO 结构生成中 {batchGeoBlocksProgress.current}/{batchGeoBlocksProgress.total}
                   </span>
                 )}
                 <Button theme='light' size='small' onClick={() => { setSelectedRowKeys([]); }}>

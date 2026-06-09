@@ -59,6 +59,17 @@ function isHtmlContent(content) {
   return htmlTagPattern.test(trimmed);
 }
 
+function parseGeoBlocks(geoBlocksStr) {
+  if (!geoBlocksStr || geoBlocksStr === 'null') return null;
+  try {
+    const parsed = JSON.parse(geoBlocksStr);
+    if (parsed && typeof parsed === 'object') return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function applyLanguage(article, lang) {
   if (!article || lang === 'zh' || lang === 'zh-CN' || lang === 'zh-TW') return article;
   const result = { ...article };
@@ -79,6 +90,14 @@ function applyLanguage(article, lang) {
         if (contentMap[lang].title) result.title = contentMap[lang].title;
         if (contentMap[lang].summary) result.summary = contentMap[lang].summary;
         if (contentMap[lang].content) result.content = contentMap[lang].content;
+      }
+    } catch (e) {}
+  }
+  if (article.geo_blocks_i18n) {
+    try {
+      const gbMap = JSON.parse(article.geo_blocks_i18n);
+      if (gbMap[lang]) {
+        result.geo_blocks = gbMap[lang];
       }
     } catch (e) {}
   }
@@ -165,6 +184,11 @@ export default function ArticleDetail() {
       : (seoI18n[activeLang]?.faq || currentArticle.faq);
     return parseFAQ(faqStr);
   }, [activeLang, currentArticle?.faq, seoI18n]);
+
+  const currentGeoBlocks = useMemo(() => {
+    if (!currentArticle) return null;
+    return parseGeoBlocks(currentArticle.geo_blocks);
+  }, [currentArticle?.geo_blocks]);
 
   // 生成多语言 hreflang 链接（必须在所有条件分支之前调用 hook）
   const alternateLangs = useMemo(() => {
@@ -335,6 +359,55 @@ export default function ArticleDetail() {
               : <MarkdownRenderer content={currentArticle.content || ''} />
             }
           </div>
+
+          {/* GEO Blocks */}
+          {currentGeoBlocks && (
+            <div style={{ marginBottom: 32 }}>
+              {/* 什么是 */}
+              {currentGeoBlocks.what && (
+                <div style={{ marginBottom: 24 }}>
+                  <Title heading={4} style={{ marginBottom: 12 }}>{t('什么是')} {currentArticle.title}</Title>
+                  <div style={{ padding: 16, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
+                    <Text style={{ fontSize: 15, lineHeight: 1.7 }}>{currentGeoBlocks.what}</Text>
+                  </div>
+                </div>
+              )}
+
+              {/* 为什么 */}
+              {currentGeoBlocks.why && (
+                <div style={{ marginBottom: 24 }}>
+                  <Title heading={4} style={{ marginBottom: 12 }}>{t('为什么需要')} {currentArticle.title}</Title>
+                  <div style={{ padding: 16, background: '#f0fdf4', borderRadius: 8, borderLeft: '4px solid #16a34a' }}>
+                    <Text style={{ fontSize: 15, lineHeight: 1.7 }}>{currentGeoBlocks.why}</Text>
+                  </div>
+                </div>
+              )}
+
+              {/* 如何做 */}
+              {currentGeoBlocks.how && currentGeoBlocks.how.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <Title heading={4} style={{ marginBottom: 12 }}>{t('如何操作')}</Title>
+                  <ol style={{ paddingLeft: 20, margin: 0 }}>
+                    {currentGeoBlocks.how.map((step, idx) => (
+                      <li key={idx} style={{ marginBottom: 8, lineHeight: 1.7, fontSize: 15 }}>
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* 总结 */}
+              {currentGeoBlocks.summary && (
+                <div style={{ marginBottom: 24 }}>
+                  <Title heading={4} style={{ marginBottom: 12 }}>{t('总结')}</Title>
+                  <div style={{ padding: 16, background: '#faf5ff', borderRadius: 8, borderLeft: '4px solid #9333ea' }}>
+                    <Text style={{ fontSize: 15, lineHeight: 1.7, fontWeight: 500 }}>{currentGeoBlocks.summary}</Text>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* FAQ */}
           {currentFaqList.length > 0 && (

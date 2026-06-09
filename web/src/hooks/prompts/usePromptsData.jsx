@@ -202,6 +202,11 @@ export const usePromptsData = () => {
   const [batchAutoFAQProgress, setBatchAutoFAQProgress] = useState({ current: 0, total: 0 });
   const autoFaqPollIntervalRef = useRef(null);
 
+  // Batch GEO blocks state
+  const [batchGeoBlocksGenerating, setBatchGeoBlocksGenerating] = useState(false);
+  const [batchGeoBlocksProgress, setBatchGeoBlocksProgress] = useState({ current: 0, total: 0 });
+  const geoBlocksPollIntervalRef = useRef(null);
+
   // Row selection configuration
   const rowSelection = {
     selectedRowKeys,
@@ -448,6 +453,77 @@ export const usePromptsData = () => {
     }
   };
 
+  const handleBatchGeoBlocks = async () => {
+    if (selectedRowKeys.length === 0) {
+      showError(t('请先选择要生成 GEO 结构的提示词'));
+      return;
+    }
+    if (selectedRowKeys.length > 50) {
+      showError(t('单次最多选择 50 个提示词'));
+      return;
+    }
+    if (geoBlocksPollIntervalRef.current) {
+      clearInterval(geoBlocksPollIntervalRef.current);
+      geoBlocksPollIntervalRef.current = null;
+    }
+
+    setBatchGeoBlocksGenerating(true);
+    setBatchGeoBlocksProgress({ current: 0, total: selectedRowKeys.length });
+
+    try {
+      const res = await API.post('/api/admin/prompts/geo-blocks/batch', {
+        ids: selectedRowKeys,
+      });
+      if (!res.data.success) {
+        showError(res.data.message || t('启动 GEO 结构生成失败'));
+        setBatchGeoBlocksGenerating(false);
+        return;
+      }
+      const taskId = res.data.data.task_id;
+      showSuccess(res.data.data.message || t('已启动 GEO 结构生成任务'));
+
+      geoBlocksPollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await API.get(`/api/admin/geo-blocks/batch/${taskId}`);
+          const task = statusRes.data.data;
+          if (!task) {
+            clearInterval(geoBlocksPollIntervalRef.current);
+            geoBlocksPollIntervalRef.current = null;
+            setBatchGeoBlocksGenerating(false);
+            return;
+          }
+
+          setBatchGeoBlocksProgress({
+            current: task.completed || 0,
+            total: task.total || selectedRowKeys.length,
+          });
+
+          if (task.status === 'completed' || task.status === 'failed') {
+            clearInterval(geoBlocksPollIntervalRef.current);
+            geoBlocksPollIntervalRef.current = null;
+            setBatchGeoBlocksGenerating(false);
+            setSelectedRowKeys([]);
+            setSelectedKeys([]);
+
+            const successCount = (task.completed || 0) - (task.failed || 0);
+            const failCount = task.failed || 0;
+            if (failCount > 0) {
+              showSuccess(t('GEO 结构生成完成：') + successCount + t(' 成功，') + failCount + t(' 失败'));
+            } else {
+              showSuccess(t('GEO 结构生成全部完成'));
+            }
+            refresh();
+          }
+        } catch (err) {
+          console.error('GEO blocks batch poll error:', err);
+        }
+      }, 2000);
+    } catch (err) {
+      showError(err.message || t('启动 GEO 结构生成失败'));
+      setBatchGeoBlocksGenerating(false);
+    }
+  };
+
   // Cleanup interval on unmount
   useEffect(() => {
     return () => {
@@ -456,6 +532,9 @@ export const usePromptsData = () => {
       }
       if (autoFaqPollIntervalRef.current) {
         clearInterval(autoFaqPollIntervalRef.current);
+      }
+      if (geoBlocksPollIntervalRef.current) {
+        clearInterval(geoBlocksPollIntervalRef.current);
       }
     };
   }, []);
@@ -500,6 +579,9 @@ export const usePromptsData = () => {
     batchAutoFAQTranslating,
     batchAutoFAQProgress,
     handleBatchAutoFAQ,
+    batchGeoBlocksGenerating,
+    batchGeoBlocksProgress,
+    handleBatchGeoBlocks,
     categories,
 
     // Edit state
@@ -525,7 +607,6 @@ export const usePromptsData = () => {
     setActivePage,
     setPageSize,
     setSelectedKeys,
-    setSelectedRowKeys,
     setEditingPrompt,
     setShowEdit,
     setFormApi,

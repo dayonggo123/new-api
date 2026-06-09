@@ -131,6 +131,8 @@ type Article struct {
 	Faq            string         `json:"faq" gorm:"type:text"`          // AI 生成的 FAQ 问答（JSON）
 	I18n           string         `json:"i18n" gorm:"type:longtext"`     // 内容多语言 JSON
 	SeoI18n        string         `json:"seo_i18n" gorm:"type:longtext"` // SEO 多语言 JSON
+	GeoBlocks      string         `json:"geo_blocks" gorm:"type:longtext"`   // GEO 结构化内容 JSON（文章 5 语义块）
+	GeoBlocksI18n  string         `json:"geo_blocks_i18n" gorm:"type:longtext"` // GEO 结构化内容多语言 JSON
 	IsTranslated   bool           `json:"is_translated" gorm:"default:false"` // 是否已完成多语言翻译
 	CreatedTime    int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime    int64          `json:"updated_time" gorm:"bigint"`
@@ -177,6 +179,15 @@ func (a *Article) ApplyLanguage(lang string) {
 				if c.Content != "" {
 					a.Content = c.Content
 				}
+			}
+		}
+	}
+	// 处理 geo_blocks_i18n
+	if a.GeoBlocksI18n != "" {
+		var gbMap map[string]string
+		if err := common.Unmarshal([]byte(a.GeoBlocksI18n), &gbMap); err == nil {
+			if gb, ok := gbMap[lang]; ok && gb != "" {
+				a.GeoBlocks = gb
 			}
 		}
 	}

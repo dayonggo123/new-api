@@ -122,6 +122,19 @@ export const getPromptsColumns = ({
       },
     },
     {
+      title: t('GEO 结构'),
+      dataIndex: 'geo_blocks',
+      width: 100,
+      render: (text) => {
+        const has = text && text !== '{}' && text !== 'null';
+        return (
+          <Tag color={has ? 'green' : 'red'} size='small'>
+            {has ? t('已生成') : t('未生成')}
+          </Tag>
+        );
+      },
+    },
+    {
       title: t('排序'),
       dataIndex: 'sort_order',
       width: 80,

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Tag, Spin, Typography, Breadcrumb } from '@douyinfe/semi-ui';
 import { IconCopy, IconArrowLeft } from '@douyinfe/semi-icons';
@@ -46,9 +46,21 @@ function parseFAQ(faqStr) {
   }
 }
 
+function parseGeoBlocks(geoBlocksStr) {
+  if (!geoBlocksStr || geoBlocksStr === 'null') return null;
+  try {
+    const parsed = JSON.parse(geoBlocksStr);
+    if (parsed && typeof parsed === 'object') return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PromptDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState(null);
@@ -61,7 +73,7 @@ export default function PromptDetail() {
       setActiveLang(urlLang);
     }
     loadPrompt();
-  }, [id]);
+  }, [id, activeLang]);
 
   const loadPrompt = async () => {
     setLoading(true);
@@ -71,7 +83,8 @@ export default function PromptDetail() {
       const apiPath = isNumericId
         ? `/api/public/prompts/${id}`
         : `/api/public/prompts/slug/${id}`;
-      const res = await API.get(apiPath);
+      const params = activeLang && activeLang !== 'zh' ? { lang: activeLang } : {};
+      const res = await API.get(apiPath, { params });
       const { success, data, message } = res.data;
       if (success) {
         setPrompt(data);
@@ -126,6 +139,11 @@ export default function PromptDetail() {
       url: lang.code === 'zh' ? path : `${path}?lang=${lang.code}`,
     }));
   }, [prompt?.slug, id]);
+
+  const currentGeoBlocks = useMemo(() => {
+    if (!prompt) return null;
+    return parseGeoBlocks(prompt.geo_blocks);
+  }, [prompt?.geo_blocks]);
 
   if (loading) {
     return (
@@ -244,7 +262,14 @@ export default function PromptDetail() {
                 <button
                   key={lang.code}
                   type='button'
-                  onClick={() => setActiveLang(lang.code)}
+                  onClick={() => {
+                    setActiveLang(lang.code);
+                    if (lang.code === 'zh') {
+                      navigate(location.pathname, { replace: true });
+                    } else {
+                      navigate(`${location.pathname}?lang=${lang.code}`, { replace: true });
+                    }
+                  }}
                   style={{
                     padding: '6px 12px',
                     border: 'none',
@@ -310,6 +335,45 @@ export default function PromptDetail() {
               <pre style={{ background: '#f8f9fa', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, fontSize: 14, border: '1px solid var(--semi-color-border)' }}>
                 {currentContent}
               </pre>
+            </div>
+          )}
+
+          {/* GEO Blocks */}
+          {currentGeoBlocks && (
+            <div style={{ marginBottom: 24 }}>
+              {/* 适用场景 */}
+              {currentGeoBlocks.scenarios && (
+                <div style={{ marginBottom: 20 }}>
+                  <Title heading={4} style={{ marginBottom: 12 }}>{t('这个提示词适合什么场景？')}</Title>
+                  <div style={{ padding: 16, background: '#f0fdf4', borderRadius: 8, borderLeft: '4px solid #16a34a' }}>
+                    <Text style={{ fontSize: 15, lineHeight: 1.7 }}>{currentGeoBlocks.scenarios}</Text>
+                  </div>
+                </div>
+              )}
+
+              {/* 使用步骤 */}
+              {currentGeoBlocks.steps && currentGeoBlocks.steps.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <Title heading={4} style={{ marginBottom: 12 }}>{t('使用步骤')}</Title>
+                  <ol style={{ paddingLeft: 20, margin: 0 }}>
+                    {currentGeoBlocks.steps.map((step, idx) => (
+                      <li key={idx} style={{ marginBottom: 8, lineHeight: 1.7, fontSize: 15 }}>
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* 使用技巧 */}
+              {currentGeoBlocks.tips && (
+                <div style={{ marginBottom: 20 }}>
+                  <Title heading={4} style={{ marginBottom: 12 }}>{t('使用技巧')}</Title>
+                  <div style={{ padding: 16, background: '#fffbeb', borderRadius: 8, borderLeft: '4px solid #f59e0b' }}>
+                    <Text style={{ fontSize: 15, lineHeight: 1.7 }}>{currentGeoBlocks.tips}</Text>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

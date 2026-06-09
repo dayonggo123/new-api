@@ -43,6 +43,8 @@ type Prompt struct {
 	I18n          string         `json:"i18n" gorm:"type:text"`         // 多语言 JSON（内容）
 	TitleI18n     string         `json:"title_i18n" gorm:"type:text"`   // 标题多语言 JSON
 	SeoI18n       string         `json:"seo_i18n" gorm:"type:text"`     // SEO 多语言 JSON
+	GeoBlocks     string         `json:"geo_blocks" gorm:"type:text"`   // GEO 结构化内容 JSON（Prompt 3 区块）
+	GeoBlocksI18n string         `json:"geo_blocks_i18n" gorm:"type:text"` // GEO 结构化内容多语言 JSON
 	IsTranslated  bool           `json:"is_translated" gorm:"default:false"` // 是否已完成多语言翻译
 	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime   int64          `json:"updated_time" gorm:"bigint"`
@@ -73,6 +75,16 @@ func (p *Prompt) ApplyLanguage(lang string) {
 		if err := common.Unmarshal([]byte(p.I18n), &contentMap); err == nil {
 			if c, ok := contentMap[lang]; ok && c != "" {
 				p.Content = c
+			}
+		}
+	}
+
+	// 处理 geo_blocks_i18n
+	if p.GeoBlocksI18n != "" {
+		var gbMap map[string]string
+		if err := common.Unmarshal([]byte(p.GeoBlocksI18n), &gbMap); err == nil {
+			if gb, ok := gbMap[lang]; ok && gb != "" {
+				p.GeoBlocks = gb
 			}
 		}
 	}

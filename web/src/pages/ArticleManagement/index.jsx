@@ -1253,6 +1253,10 @@ const ArticleManagement = () => {
   const [batchAutoFAQTranslating, setBatchAutoFAQTranslating] = useState(false);
   const [batchAutoFAQProgress, setBatchAutoFAQProgress] = useState({ current: 0, total: 0 });
 
+  const geoBlocksPollIntervalRef = useRef(null);
+  const [batchGeoBlocksGenerating, setBatchGeoBlocksGenerating] = useState(false);
+  const [batchGeoBlocksProgress, setBatchGeoBlocksProgress] = useState({ current: 0, total: 0 });
+
   // AI Generate state
   const [showAIGenerate, setShowAIGenerate] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -1310,6 +1314,9 @@ const ArticleManagement = () => {
     return () => {
       if (autoFaqPollIntervalRef.current) {
         clearInterval(autoFaqPollIntervalRef.current);
+      }
+      if (geoBlocksPollIntervalRef.current) {
+        clearInterval(geoBlocksPollIntervalRef.current);
       }
     };
   }, []);
@@ -1510,6 +1517,76 @@ const ArticleManagement = () => {
     }
   };
 
+  const handleBatchGeoBlocks = async () => {
+    if (selectedArticleKeys.length === 0) {
+      showError(t('请先选择要生成 GEO 结构的文章'));
+      return;
+    }
+    if (selectedArticleKeys.length > 50) {
+      showError(t('单次最多选择 50 篇文章'));
+      return;
+    }
+    if (geoBlocksPollIntervalRef.current) {
+      clearInterval(geoBlocksPollIntervalRef.current);
+      geoBlocksPollIntervalRef.current = null;
+    }
+
+    setBatchGeoBlocksGenerating(true);
+    setBatchGeoBlocksProgress({ current: 0, total: selectedArticleKeys.length });
+
+    try {
+      const res = await API.post('/api/admin/articles/geo-blocks/batch', {
+        ids: selectedArticleKeys,
+      });
+      if (!res.data.success) {
+        showError(res.data.message || t('启动 GEO 结构生成失败'));
+        setBatchGeoBlocksGenerating(false);
+        return;
+      }
+      const taskId = res.data.data.task_id;
+      showSuccess(res.data.data.message || t('已启动 GEO 结构生成任务'));
+
+      geoBlocksPollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await API.get(`/api/admin/geo-blocks/batch/${taskId}`);
+          const task = statusRes.data.data;
+          if (!task) {
+            clearInterval(geoBlocksPollIntervalRef.current);
+            geoBlocksPollIntervalRef.current = null;
+            setBatchGeoBlocksGenerating(false);
+            return;
+          }
+
+          setBatchGeoBlocksProgress({
+            current: task.completed || 0,
+            total: task.total || selectedArticleKeys.length,
+          });
+
+          if (task.status === 'completed' || task.status === 'failed') {
+            clearInterval(geoBlocksPollIntervalRef.current);
+            geoBlocksPollIntervalRef.current = null;
+            setBatchGeoBlocksGenerating(false);
+            setSelectedArticleKeys([]);
+
+            const successCount = (task.completed || 0) - (task.failed || 0);
+            const failCount = task.failed || 0;
+            if (failCount > 0) {
+              showSuccess(t('GEO 结构生成完成：') + successCount + t(' 成功，') + failCount + t(' 失败'));
+            } else {
+              showSuccess(t('GEO 结构生成全部完成'));
+            }
+            loadArticles();
+          }
+        } catch (err) {
+          console.error('GEO blocks batch poll error:', err);
+        }
+      }, 2000);
+    } catch (err) {
+      showError(err.message || t('启动 GEO 结构生成失败'));
+      setBatchGeoBlocksGenerating(false);
+    }
+  };
+
   const handleDeleteCategory = async (id) => {
     try {
       const res = await API.delete(`/api/admin/article-categories/${id}`);
@@ -1570,6 +1647,19 @@ const ArticleManagement = () => {
           {text ? t('是') : t('否')}
         </Tag>
       ),
+    },
+    {
+      title: t('GEO 结构'),
+      dataIndex: 'geo_blocks',
+      width: 100,
+      render: (text) => {
+        const has = text && text !== '{}' && text !== 'null';
+        return (
+          <Tag color={has ? 'green' : 'red'} size='small'>
+            {has ? t('已生成') : t('未生成')}
+          </Tag>
+        );
+      },
     },
     {
       title: t('浏览量'),
@@ -1767,6 +1857,15 @@ const ArticleManagement = () => {
                 >
                   自动生成 FAQ
                 </Button>
+                <Button
+                  type="tertiary"
+                  size="small"
+                  icon={<IconLanguage />}
+                  loading={batchGeoBlocksGenerating}
+                  onClick={handleBatchGeoBlocks}
+                >
+                  生成 GEO 结构
+                </Button>
                 {batchTranslating && (
                   <Text size="small" type="tertiary">
                     翻译中 {batchProgress.current}/{batchProgress.total}
@@ -1775,6 +1874,11 @@ const ArticleManagement = () => {
                 {batchAutoFAQTranslating && (
                   <Text size="small" type="tertiary">
                     FAQ 生成中 {batchAutoFAQProgress.current}/{batchAutoFAQProgress.total}
+                  </Text>
+                )}
+                {batchGeoBlocksGenerating && (
+                  <Text size="small" type="tertiary">
+                    GEO 结构生成中 {batchGeoBlocksProgress.current}/{batchGeoBlocksProgress.total}
                   </Text>
                 )}
                 <Button theme="light" size="small" onClick={() => setSelectedArticleKeys([])}>
