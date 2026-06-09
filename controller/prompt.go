@@ -333,6 +333,32 @@ func GetPublicPrompt(c *gin.Context) {
 	})
 }
 
+func GetPublicPromptBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		common.ApiErrorMsg(c, "slug is required")
+		return
+	}
+	prompt, err := model.GetPublicPromptBySlug(slug)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Increment usage count asynchronously
+	go model.IncrementPromptUsageCount(prompt.Id)
+	lang := c.Query("lang")
+	if lang != "" {
+		// Note: ApplyLanguage is currently only on Article model.
+		// Prompt model's language application is handled by frontend using seo_i18n/i18n fields.
+		// The API returns raw data and frontend picks the right language.
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    prompt,
+	})
+}
+
 // GetPublicPromptsSitemap 公开接口：获取提示词站点地图数据（SEO 专用，轻量、高性能）
 func GetPublicPromptsSitemap(c *gin.Context) {
 	page, _ := strconv.Atoi(c.Query("page"))

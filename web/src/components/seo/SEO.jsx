@@ -41,6 +41,7 @@ export default function SEO({
   noindex = false,
   keywords,
   type = 'website',
+  alternateLangs = [],
 }) {
   const { i18n } = useTranslation();
   const [statusState] = useContext(StatusContext);
@@ -78,6 +79,14 @@ export default function SEO({
 
       {/* Canonical */}
       {canonicalUrl && <link rel='canonical' href={canonicalUrl} />}
+
+      {/* Hreflang - 多语言 SEO + GEO */}
+      {alternateLangs.map(({ lang, url }) => (
+        <link key={lang} rel='alternate' hrefLang={lang} href={url} />
+      ))}
+      {alternateLangs.length > 0 && canonicalUrl && (
+        <link rel='alternate' hrefLang='x-default' href={canonicalUrl} />
+      )}
 
       {/* Robots */}
       {noindex ? (

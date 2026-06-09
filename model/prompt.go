@@ -234,6 +234,22 @@ func GetPublicPromptById(id int) (*PromptWithCategory, error) {
 	return result[0], nil
 }
 
+func GetPublicPromptBySlug(slug string) (*PromptWithCategory, error) {
+	if slug == "" {
+		return nil, errors.New("slug is empty")
+	}
+	var prompt Prompt
+	err := DB.Where("status = ? AND slug = ?", 1, slug).First(&prompt).Error
+	if err != nil {
+		return nil, err
+	}
+	result := attachCategoryInfo([]*Prompt{&prompt})
+	if len(result) == 0 {
+		return nil, errors.New("prompt not found")
+	}
+	return result[0], nil
+}
+
 func (prompt *Prompt) Insert() error {
 	if prompt.Slug == "" {
 		prompt.Slug = GenerateSlug(prompt.Title)

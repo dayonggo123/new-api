@@ -164,7 +164,7 @@ export default function PromptGallery() {
   };
 
   const openDetail = (prompt) => {
-    navigate(`/prompt/${prompt.id}`);
+    navigate(`/prompt/${prompt.slug || prompt.id}`);
   };
 
   const closeDetail = () => {

@@ -479,6 +479,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/prompts/sitemap", controller.GetPublicPromptsSitemap)
 		apiRouter.GET("/public/prompts/updates", controller.GetPublicPromptUpdates)
 		apiRouter.GET("/public/prompts/:id", controller.GetPublicPrompt)
+		apiRouter.GET("/public/prompts/slug/:slug", controller.GetPublicPromptBySlug)
 		apiRouter.GET("/public/prompt-categories", controller.GetPublicPromptCategories)
 		apiRouter.GET("/public/prompt-media/:id", controller.GetPromptMedia)
 		apiRouter.GET("/public/article-media/:id", controller.GetArticleMedia)

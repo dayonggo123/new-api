@@ -5,7 +5,7 @@ import { Button, Tag, Spin, Typography, Breadcrumb, Divider } from '@douyinfe/se
 import { IconArrowLeft } from '@douyinfe/semi-icons';
 import { API, showError } from '../../helpers';
 import SEO from '../../components/seo/SEO';
-import { WebPageSchema, ArticleSchema } from '../../components/seo/SchemaOrg';
+import { WebPageSchema, ArticleSchema, FAQPageSchema } from '../../components/seo/SchemaOrg';
 import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
 import HtmlRenderer from '../../components/common/HtmlRenderer';
 
@@ -110,7 +110,12 @@ export default function ArticleDetail() {
     try {
       const params = new URLSearchParams();
       if (activeLang && activeLang !== 'zh') params.append('lang', activeLang);
-      const res = await API.get(`/api/public/articles/${id}?${params.toString()}`);
+      // 支持数字 ID 或 slug 访问
+      const isNumericId = /^\d+$/.test(id);
+      const apiPath = isNumericId
+        ? `/api/public/articles/${id}`
+        : `/api/public/articles/slug/${id}`;
+      const res = await API.get(`${apiPath}?${params.toString()}`);
       const { success, data, message } = res.data;
       if (success) {
         setArticle(data);
@@ -185,20 +190,33 @@ export default function ArticleDetail() {
   const keywords = currentArticle.seo_keywords || tags.join(', ');
   const publishedDate = currentArticle.created_time ? new Date(currentArticle.created_time * 1000).toISOString() : '';
 
+  // 优先使用 slug 作为 URL 标识（SEO/GEO 更友好）
+  const urlIdentifier = currentArticle.slug || id;
+  const pagePath = `/article/${urlIdentifier}`;
+
+  // 生成多语言 hreflang 链接
+  const alternateLangs = useMemo(() => {
+    return SEO_LANGS.map((lang) => ({
+      lang: lang.code === 'zh' ? 'zh-CN' : lang.code,
+      url: lang.code === 'zh' ? pagePath : `${pagePath}?lang=${lang.code}`,
+    }));
+  }, [pagePath]);
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--semi-color-bg-0)', paddingTop: 64 }}>
       <SEO
         title={currentArticle.seo_title || currentArticle.title}
         description={description}
-        pathname={`/article/${id}`}
+        pathname={pagePath}
         keywords={keywords}
         ogImage={currentArticle.cover_image_url}
         type='article'
+        alternateLangs={alternateLangs}
       />
       <WebPageSchema
         pageTitle={currentArticle.title}
         pageDescription={description}
-        pathname={`/article/${id}`}
+        pathname={pagePath}
       />
       <ArticleSchema
         headline={currentArticle.title}
@@ -207,6 +225,9 @@ export default function ArticleDetail() {
         datePublished={publishedDate}
         image={currentArticle.cover_image_url}
       />
+      {currentFaqList.length > 0 && (
+        <FAQPageSchema faqs={currentFaqList} />
+      )}
 
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
         <Breadcrumb>

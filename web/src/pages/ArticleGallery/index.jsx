@@ -159,7 +159,7 @@ export default function ArticleGallery() {
             <h2 style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>{t('精选文章')}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
               {featuredArticles.map((article) => (
-                <ArticleCard key={article.id} article={article} getCategoryName={getCategoryName} onClick={() => navigate(`/article/${article.id}`)} t={t} />
+                <ArticleCard key={article.id} article={article} getCategoryName={getCategoryName} onClick={() => navigate(`/article/${article.slug || article.id}`)} t={t} />
               ))}
             </div>
           </div>
@@ -173,7 +173,7 @@ export default function ArticleGallery() {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
                 {articles.map((article) => (
-                  <ArticleCard key={article.id} article={article} getCategoryName={getCategoryName} onClick={() => navigate(`/article/${article.id}`)} t={t} />
+                  <ArticleCard key={article.id} article={article} getCategoryName={getCategoryName} onClick={() => navigate(`/article/${article.slug || article.id}`)} t={t} />
                 ))}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: 32 }}>

@@ -66,7 +66,12 @@ export default function PromptDetail() {
   const loadPrompt = async () => {
     setLoading(true);
     try {
-      const res = await API.get(`/api/public/prompts/${id}`);
+      // 支持数字 ID 或 slug 访问
+      const isNumericId = /^\d+$/.test(id);
+      const apiPath = isNumericId
+        ? `/api/public/prompts/${id}`
+        : `/api/public/prompts/slug/${id}`;
+      const res = await API.get(apiPath);
       const { success, data, message } = res.data;
       if (success) {
         setPrompt(data);
@@ -146,20 +151,33 @@ export default function PromptDetail() {
   const description = currentIntro || prompt.description || prompt.content?.slice(0, 200) || '';
   const keywords = currentKeywords;
 
+  // 优先使用 slug 作为 URL 标识（SEO/GEO 更友好）
+  const urlIdentifier = prompt.slug || id;
+  const pagePath = `/prompt/${urlIdentifier}`;
+
+  // 生成多语言 hreflang 链接
+  const alternateLangs = useMemo(() => {
+    return SEO_LANGS.map((lang) => ({
+      lang: lang.code === 'zh' ? 'zh-CN' : lang.code,
+      url: lang.code === 'zh' ? pagePath : `${pagePath}?lang=${lang.code}`,
+    }));
+  }, [pagePath]);
+
   return (
     <div className='prompt-detail-page' style={{ minHeight: '100vh', background: 'var(--semi-color-bg-0)', paddingTop: 64 }}>
       <SEO
         title={prompt.title}
         description={description}
-        pathname={`/prompt/${id}`}
+        pathname={pagePath}
         keywords={keywords}
         ogImage={prompt.cover_image_url}
         type='article'
+        alternateLangs={alternateLangs}
       />
       <WebPageSchema
         pageTitle={prompt.title}
         pageDescription={description}
-        pathname={`/prompt/${id}`}
+        pathname={pagePath}
       />
       {currentFaqList.length > 0 && (
         <FAQPageSchema faqs={currentFaqList} />
