@@ -238,7 +238,15 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 	updates := map[string]interface{}{
 		"seo_i18n": string(seoI18nJSON),
 	}
-	return model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_i18n").Updates(updates).Error
+	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_i18n").Updates(updates).Error; err != nil {
+		return err
+	}
+
+	// 翻译完成后自动触发 SEO 审计
+	p.SeoI18n = string(seoI18nJSON)
+	go AuditPromptSEO(p)
+
+	return nil
 }
 
 // ========== AI 翻译调用（简化内联实现，避免循环依赖） ==========
