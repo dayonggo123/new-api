@@ -43,7 +43,6 @@ func AuditArticleSEO(article *model.Article) (*SEOAuditResult, error) {
 			{"role": "user", "content": userContent},
 		},
 		"temperature": 0.3,
-		"max_tokens":  4000,
 	}
 
 	jsonData, err := common.Marshal(reqBody)

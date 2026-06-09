@@ -65,7 +65,6 @@ func GenerateArticle(req *ArticleWriteRequest) (*ArticleWriteResult, error) {
 			{"role": "user", "content": userContent},
 		},
 		"temperature": 0.6,
-		"max_tokens":  8000,
 	}
 
 	jsonData, err := common.Marshal(reqBody)

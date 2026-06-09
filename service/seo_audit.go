@@ -59,7 +59,6 @@ func AuditPromptSEO(prompt *model.Prompt) (*SEOAuditResult, error) {
 			{"role": "user", "content": userContent},
 		},
 		"temperature": 0.3,
-		"max_tokens":  4000,
 	}
 
 	jsonData, err := common.Marshal(reqBody)

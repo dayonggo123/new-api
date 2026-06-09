@@ -394,7 +394,6 @@ func callSEOTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, u
 			{"role": "user", "content": userPrompt},
 		},
 		"temperature": 0.3,
-		"max_tokens":  8192,
 	}
 
 	jsonData, err := common.Marshal(reqBody)

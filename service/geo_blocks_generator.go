@@ -267,7 +267,6 @@ func callGeoBlocksAI(cfg *operation_setting.TranslateSetting, systemPrompt, user
 			{"role": "user", "content": userPrompt},
 		},
 		"temperature": 0.3,
-		"max_tokens":  4096,
 	}
 
 	jsonData, err := common.Marshal(reqBody)

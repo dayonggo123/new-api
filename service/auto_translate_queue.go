@@ -416,7 +416,6 @@ func callAutoTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, 
 			{"role": "user", "content": userPrompt},
 		},
 		"temperature": 0.3,
-		"max_tokens":  8192,
 	}
 
 	jsonData, err := common.Marshal(reqBody)
