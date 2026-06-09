@@ -159,7 +159,7 @@ func GetPromptById(id int) (*PromptWithCategory, error) {
 func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (prompts []*PromptWithCategory, total int64, err error) {
 	// 列表页只需要这些字段，避免加载大文本字段（content, variables, tags 等）
 	selectFields := []string{
-		"id", "category_id", "title", "description",
+		"id", "category_id", "title", "description", "slug",
 		"cover_image_url", "video_url", "author", "source", "model",
 		"media_type", "is_premium", "unlock_cost",
 		"sort_order", "status", "usage_count",
