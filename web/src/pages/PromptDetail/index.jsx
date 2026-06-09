@@ -116,6 +116,17 @@ export default function PromptDetail() {
     return contentI18n[activeLang]?.content || prompt.content_en || prompt.content || '';
   }, [activeLang, prompt?.content, prompt?.content_en, contentI18n]);
 
+  // 生成多语言 hreflang 链接（必须在所有条件分支之前调用 hook）
+  const alternateLangs = useMemo(() => {
+    if (!prompt) return [];
+    const urlId = prompt.slug || id;
+    const path = `/prompt/${urlId}`;
+    return SEO_LANGS.map((lang) => ({
+      lang: lang.code === 'zh' ? 'zh-CN' : lang.code,
+      url: lang.code === 'zh' ? path : `${path}?lang=${lang.code}`,
+    }));
+  }, [prompt?.slug, id]);
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -154,14 +165,6 @@ export default function PromptDetail() {
   // 优先使用 slug 作为 URL 标识（SEO/GEO 更友好）
   const urlIdentifier = prompt.slug || id;
   const pagePath = `/prompt/${urlIdentifier}`;
-
-  // 生成多语言 hreflang 链接
-  const alternateLangs = useMemo(() => {
-    return SEO_LANGS.map((lang) => ({
-      lang: lang.code === 'zh' ? 'zh-CN' : lang.code,
-      url: lang.code === 'zh' ? pagePath : `${pagePath}?lang=${lang.code}`,
-    }));
-  }, [pagePath]);
 
   return (
     <div className='prompt-detail-page' style={{ minHeight: '100vh', background: 'var(--semi-color-bg-0)', paddingTop: 64 }}>

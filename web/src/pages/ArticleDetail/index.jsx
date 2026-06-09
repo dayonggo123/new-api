@@ -166,6 +166,17 @@ export default function ArticleDetail() {
     return parseFAQ(faqStr);
   }, [activeLang, currentArticle?.faq, seoI18n]);
 
+  // 生成多语言 hreflang 链接（必须在所有条件分支之前调用 hook）
+  const alternateLangs = useMemo(() => {
+    if (!currentArticle) return [];
+    const urlId = currentArticle.slug || id;
+    const path = `/article/${urlId}`;
+    return SEO_LANGS.map((lang) => ({
+      lang: lang.code === 'zh' ? 'zh-CN' : lang.code,
+      url: lang.code === 'zh' ? path : `${path}?lang=${lang.code}`,
+    }));
+  }, [currentArticle?.slug, id]);
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -193,14 +204,6 @@ export default function ArticleDetail() {
   // 优先使用 slug 作为 URL 标识（SEO/GEO 更友好）
   const urlIdentifier = currentArticle.slug || id;
   const pagePath = `/article/${urlIdentifier}`;
-
-  // 生成多语言 hreflang 链接
-  const alternateLangs = useMemo(() => {
-    return SEO_LANGS.map((lang) => ({
-      lang: lang.code === 'zh' ? 'zh-CN' : lang.code,
-      url: lang.code === 'zh' ? pagePath : `${pagePath}?lang=${lang.code}`,
-    }));
-  }, [pagePath]);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--semi-color-bg-0)', paddingTop: 64 }}>
