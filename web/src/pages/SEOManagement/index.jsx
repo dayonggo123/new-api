@@ -944,6 +944,16 @@ const SEOManagement = () => {
     loadData();
   };
 
+  const renderSeoTranslateStatus = (item) => {
+    if (item.seo_i18n && item.seo_i18n !== '') {
+      return <Tag color='green' size='small'>{t('是')}</Tag>;
+    }
+    if (item.seo_translation_error) {
+      return <Tag color='red' size='small' title={item.seo_translation_error}>{t('失败')}</Tag>;
+    }
+    return <Tag color='grey' size='small'>{t('否')}</Tag>;
+  };
+
   const truncate = (text, maxLen = 60) => {
     if (!text) return '-';
     return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
@@ -1160,6 +1170,9 @@ const SEOManagement = () => {
                     {t('FAQ')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
+                    {t('SEO翻译状态')}
+                  </th>
+                  <th className='text-left py-2 px-3 font-medium w-24'>
                     {t('审计评分')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
@@ -1219,6 +1232,9 @@ const SEOManagement = () => {
                       {renderFaqCount(item.faq)}
                     </td>
                     <td className='py-2 px-3'>
+                      {renderSeoTranslateStatus(item)}
+                    </td>
+                    <td className='py-2 px-3'>
                       {renderAuditScore(item.audit_score)}
                     </td>
                     <td className='py-2 px-3'>
@@ -1265,7 +1281,7 @@ const SEOManagement = () => {
                 {items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className='py-8 text-center text-gray-400'
                     >
                       <Empty description={t('暂无数据')} />

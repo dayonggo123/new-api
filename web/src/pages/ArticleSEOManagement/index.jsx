@@ -696,6 +696,16 @@ const ArticleSEOManagement = () => {
     setAuditing((prev) => ({ ...prev, [id]: false }));
   };
 
+  const renderSeoTranslateStatus = (item) => {
+    if (item.seo_i18n && item.seo_i18n !== '') {
+      return <Tag color='green' size='small'>{t('是')}</Tag>;
+    }
+    if (item.seo_translation_error) {
+      return <Tag color='red' size='small' title={item.seo_translation_error}>{t('失败')}</Tag>;
+    }
+    return <Tag color='grey' size='small'>{t('否')}</Tag>;
+  };
+
   const truncate = (text, maxLen = 60) => {
     if (!text) return '-';
     return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
@@ -836,6 +846,9 @@ const ArticleSEOManagement = () => {
                     {t('SEO 关键词')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
+                    {t('SEO翻译状态')}
+                  </th>
+                  <th className='text-left py-2 px-3 font-medium w-24'>
                     {t('审计评分')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
@@ -875,6 +888,9 @@ const ArticleSEOManagement = () => {
                     </td>
                     <td className='py-2 px-3 text-gray-600'>
                       {truncate(item.seo_keywords, 40)}
+                    </td>
+                    <td className='py-2 px-3'>
+                      {renderSeoTranslateStatus(item)}
                     </td>
                     <td className='py-2 px-3'>
                       {renderAuditScore(item.audit_score)}
@@ -923,7 +939,7 @@ const ArticleSEOManagement = () => {
                 {items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className='py-8 text-center text-gray-400'
                     >
                       <Empty description={t('暂无数据')} />

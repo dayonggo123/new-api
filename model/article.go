@@ -133,10 +133,12 @@ type Article struct {
 	SeoI18n        string         `json:"seo_i18n" gorm:"type:longtext"` // SEO 多语言 JSON
 	GeoBlocks      string         `json:"geo_blocks" gorm:"type:longtext"`   // GEO 结构化内容 JSON（文章 5 语义块）
 	GeoBlocksI18n  string         `json:"geo_blocks_i18n" gorm:"type:longtext"` // GEO 结构化内容多语言 JSON
-	IsTranslated   bool           `json:"is_translated" gorm:"default:false"` // 是否已完成多语言翻译
-	CreatedTime    int64          `json:"created_time" gorm:"bigint"`
-	UpdatedTime    int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt      gorm.DeletedAt `gorm:"index"`
+	IsTranslated        bool           `json:"is_translated" gorm:"default:false"` // 是否已完成多语言翻译
+	TranslationError    string         `json:"translation_error" gorm:"type:text"` // 内容翻译失败原因
+	SeoTranslationError string         `json:"seo_translation_error" gorm:"type:text"` // SEO 翻译失败原因
+	CreatedTime         int64          `json:"created_time" gorm:"bigint"`
+	UpdatedTime         int64          `json:"updated_time" gorm:"bigint"`
+	DeletedAt           gorm.DeletedAt `gorm:"index"`
 }
 
 // ApplyLanguage 根据语言代码替换内容和 SEO 字段（缺失则保持默认中文）
@@ -347,6 +349,7 @@ func (article *Article) Update() error {
 		"category_id", "title", "slug", "content", "summary",
 		"cover_image_url", "video_url", "media_type", "author", "tags", "status", "is_featured",
 		"seo_title", "seo_description", "seo_keywords", "i18n", "seo_i18n",
+		"is_translated", "translation_error", "seo_translation_error",
 	).Updates(article).Error
 }
 

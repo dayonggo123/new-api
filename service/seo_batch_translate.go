@@ -127,17 +127,26 @@ func processSEOBatchTranslate(task *SEOTask, ids []int, targetLangs []string) {
 }
 
 func processSinglePromptSEO(id int, targetLangs []string) error {
+	var finalErr error
+	defer func() {
+		if finalErr != nil {
+			model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_translation_error").Updates(map[string]interface{}{
+				"seo_translation_error": finalErr.Error(),
+			})
+		}
+	}()
+
 	promptWC, err := model.GetPromptById(id)
 	if err != nil {
-		return fmt.Errorf("get prompt failed: %w", err)
+		finalErr = fmt.Errorf("get prompt failed: %w", err)
+		return finalErr
 	}
 	if promptWC == nil || promptWC.Prompt == nil {
-		return fmt.Errorf("prompt not found")
+		finalErr = fmt.Errorf("prompt not found")
+		return finalErr
 	}
 
 	p := promptWC.Prompt
-
-	// 构建翻译项
 	items := []seoItem{
 		{Key: "seo_keywords", Text: p.SeoKeywords},
 		{Key: "intro", Text: p.Intro},
@@ -179,7 +188,8 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 
 	cfg := operation_setting.GetTranslateSetting()
 	if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
-		return fmt.Errorf("AI translation not configured")
+		finalErr = fmt.Errorf("AI translation not configured")
+		return finalErr
 	}
 
 	// 按语言逐个翻译
@@ -236,9 +246,11 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 	}
 
 	updates := map[string]interface{}{
-		"seo_i18n": string(seoI18nJSON),
+		"seo_i18n":              string(seoI18nJSON),
+		"seo_translation_error": "", // 成功时清空错误
 	}
-	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_i18n").Updates(updates).Error; err != nil {
+	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_i18n", "seo_translation_error").Updates(updates).Error; err != nil {
+		finalErr = err
 		return err
 	}
 

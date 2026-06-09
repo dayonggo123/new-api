@@ -113,10 +113,24 @@ export const getPromptsColumns = ({
       title: t('已翻译'),
       dataIndex: 'is_translated',
       width: 90,
-      render: (text) => {
+      render: (text, record) => {
+        if (text) {
+          return (
+            <Tag color='green' size='small'>
+              {t('是')}
+            </Tag>
+          );
+        }
+        if (record.translation_error) {
+          return (
+            <Tag color='red' size='small' title={record.translation_error}>
+              {t('失败')}
+            </Tag>
+          );
+        }
         return (
-          <Tag color={text ? 'green' : 'red'} size='small'>
-            {text ? t('是') : t('否')}
+          <Tag color='grey' size='small'>
+            {t('否')}
           </Tag>
         );
       },

@@ -231,6 +231,11 @@ func UpdateArticle(c *gin.Context) {
 	cleanArticle.SeoKeywords = article.SeoKeywords
 	cleanArticle.I18n = article.I18n
 	cleanArticle.SeoI18n = article.SeoI18n
+	// 如果提交了多语言内容，标记为已翻译并清空错误
+	if article.I18n != "" {
+		cleanArticle.IsTranslated = true
+		cleanArticle.TranslationError = ""
+	}
 	cleanArticle.UpdatedTime = common.GetTimestamp()
 	err = cleanArticle.Update()
 	if err != nil {
@@ -473,12 +478,13 @@ func UpdateArticleSEOFields(c *gin.Context) {
 	}
 
 	updates := map[string]interface{}{
-		"seo_title":       req.SeoTitle,
-		"seo_description": req.SeoDescription,
-		"seo_keywords":    req.SeoKeywords,
-		"intro":           req.Intro,
-		"faq":             req.Faq,
-		"seo_i18n":        req.SeoI18n,
+		"seo_title":             req.SeoTitle,
+		"seo_description":       req.SeoDescription,
+		"seo_keywords":          req.SeoKeywords,
+		"intro":                 req.Intro,
+		"faq":                   req.Faq,
+		"seo_i18n":              req.SeoI18n,
+		"seo_translation_error": "", // 保存时清空 SEO 翻译错误
 	}
 	if err := model.DB.Model(&model.Article{}).Where("id = ?", req.Id).Updates(updates).Error; err != nil {
 		common.ApiError(c, err)

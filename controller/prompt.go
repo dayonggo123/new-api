@@ -218,9 +218,10 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.Status = prompt.Status
 	cleanPrompt.I18n = prompt.I18n
 	cleanPrompt.TitleI18n = prompt.TitleI18n
-	// 如果提交了多语言内容，标记为已翻译
+	// 如果提交了多语言内容，标记为已翻译并清空错误
 	if prompt.I18n != "" || prompt.TitleI18n != "" {
 		cleanPrompt.IsTranslated = true
+		cleanPrompt.TranslationError = ""
 	}
 	cleanPrompt.UpdatedTime = common.GetTimestamp()
 	err = cleanPrompt.Update()
@@ -545,12 +546,13 @@ func UpdatePromptSEOFields(c *gin.Context) {
 	}
 
 	updates := map[string]interface{}{
-		"seo_keywords": req.SeoKeywords,
-		"intro":        req.Intro,
-		"faq":          req.Faq,
-		"seo_i18n":     req.SeoI18n,
+		"seo_keywords":          req.SeoKeywords,
+		"intro":                 req.Intro,
+		"faq":                   req.Faq,
+		"seo_i18n":              req.SeoI18n,
+		"seo_translation_error": "", // 保存时清空 SEO 翻译错误
 	}
-	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", req.Id).Select("seo_keywords", "intro", "faq", "seo_i18n").Updates(updates).Error; err != nil {
+	if err := model.DB.Model(&model.Prompt{}).Where("id = ?", req.Id).Select("seo_keywords", "intro", "faq", "seo_i18n", "seo_translation_error").Updates(updates).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}

@@ -119,6 +119,21 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 		autoTranslateRunMu.Unlock()
 	}()
 
+	// defer 中统一处理失败状态写入数据库
+	defer func() {
+		if task.Status == AutoTranslateStatusFailed && task.Error != "" {
+			failUpdates := map[string]interface{}{
+				"is_translated":     false,
+				"translation_error": task.Error,
+			}
+			if task.Type == "prompt" {
+				model.DB.Model(&model.Prompt{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error").Updates(failUpdates)
+			} else {
+				model.DB.Model(&model.Article{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error").Updates(failUpdates)
+			}
+		}
+	}()
+
 	task.Status = AutoTranslateStatusRunning
 
 	var title, content string
@@ -201,7 +216,8 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 
 	// 保存到数据库
 	updates := map[string]interface{}{
-		"is_translated": true,
+		"is_translated":      true,
+		"translation_error":  "", // 成功时清空错误
 	}
 	if len(titleI18n) > 0 {
 		titleI18nJSON, _ := common.Marshal(titleI18n)
@@ -471,4 +487,74 @@ func callAutoTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, 
 	}
 
 	return ""
+}
+
+// ========== 后台自动轮询：扫描未翻译记录并自动触发翻译 ==========
+
+func init() {
+	go cleanupAutoTranslateTasks()
+	go startAutoTranslatePoller()
+}
+
+// startAutoTranslatePoller 每 5 分钟扫描一次未翻译记录，自动触发翻译
+func startAutoTranslatePoller() {
+	// 首次启动延迟 1 分钟，给服务启动留出时间
+	time.Sleep(1 * time.Minute)
+	for {
+		pollAndAutoTranslate()
+		time.Sleep(5 * time.Minute)
+	}
+}
+
+func pollAndAutoTranslate() {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysLog(fmt.Sprintf("AutoTranslate poller panic: %v", r))
+		}
+	}()
+
+	cfg := operation_setting.GetTranslateSetting()
+	if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+		return // 翻译 AI 未配置，跳过
+	}
+
+	const batchSize = 20
+
+	// 扫描未翻译的 Prompts
+	var promptIDs []int
+	err := model.DB.Model(&model.Prompt{}).
+		Select("id").
+		Where("is_translated = ? AND (translation_error = ? OR translation_error IS NULL)", false, "").
+		Limit(batchSize).
+		Order("id desc").
+		Pluck("id", &promptIDs).Error
+	if err != nil {
+		common.SysLog("AutoTranslate poller query prompts error: " + err.Error())
+	}
+	for _, id := range promptIDs {
+		StartAutoTranslate("prompt", id)
+		time.Sleep(2 * time.Second) // 间隔避免并发过高
+	}
+	if len(promptIDs) > 0 {
+		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d prompts", len(promptIDs)))
+	}
+
+	// 扫描未翻译的 Articles
+	var articleIDs []int
+	err = model.DB.Model(&model.Article{}).
+		Select("id").
+		Where("is_translated = ? AND (translation_error = ? OR translation_error IS NULL)", false, "").
+		Limit(batchSize).
+		Order("id desc").
+		Pluck("id", &articleIDs).Error
+	if err != nil {
+		common.SysLog("AutoTranslate poller query articles error: " + err.Error())
+	}
+	for _, id := range articleIDs {
+		StartAutoTranslate("article", id)
+		time.Sleep(2 * time.Second)
+	}
+	if len(articleIDs) > 0 {
+		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d articles", len(articleIDs)))
+	}
 }
