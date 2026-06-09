@@ -250,12 +250,21 @@ func GetPublicPrompts(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
 	categoryId, _ := strconv.Atoi(c.Query("category_id"))
+	lang := c.Query("lang")
 
 	prompts, total, err := model.GetPublicPrompts(categoryId, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 根据 lang 参数切换多语言内容
+	if lang != "" {
+		for _, p := range prompts {
+			p.Prompt.ApplyLanguage(lang)
+		}
+	}
+
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(prompts)
 	common.ApiSuccess(c, pageInfo)
@@ -349,9 +358,7 @@ func GetPublicPromptBySlug(c *gin.Context) {
 	go model.IncrementPromptUsageCount(prompt.Id)
 	lang := c.Query("lang")
 	if lang != "" {
-		// Note: ApplyLanguage is currently only on Article model.
-		// Prompt model's language application is handled by frontend using seo_i18n/i18n fields.
-		// The API returns raw data and frontend picks the right language.
+		prompt.Prompt.ApplyLanguage(lang)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

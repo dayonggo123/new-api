@@ -48,11 +48,35 @@ type Prompt struct {
 	DeletedAt     gorm.DeletedAt `gorm:"index"`
 }
 
-// ApplyLanguage 根据语言代码替换 SEO 字段内容（缺失则保持默认中文）
+// ApplyLanguage 根据语言代码替换 title/content/SEO 字段内容（缺失则保持默认中文）
 func (p *Prompt) ApplyLanguage(lang string) {
 	if lang == "" || lang == "zh" || lang == "zh-CN" || lang == "zh-TW" {
 		return
 	}
+
+	// 处理 title_i18n
+	if p.TitleI18n != "" {
+		var titleMap map[string]string
+		if err := common.Unmarshal([]byte(p.TitleI18n), &titleMap); err == nil {
+			if t, ok := titleMap[lang]; ok && t != "" {
+				p.Title = t
+			}
+		}
+	}
+
+	// 处理 content：en 优先用 content_en，其他从 i18n 取
+	if lang == "en" && p.ContentEn != "" {
+		p.Content = p.ContentEn
+	} else if p.I18n != "" {
+		var contentMap map[string]string
+		if err := common.Unmarshal([]byte(p.I18n), &contentMap); err == nil {
+			if c, ok := contentMap[lang]; ok && c != "" {
+				p.Content = c
+			}
+		}
+	}
+
+	// 处理 seo_i18n
 	if p.SeoI18n == "" {
 		return
 	}
@@ -165,6 +189,7 @@ func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (pr
 		"media_type", "is_premium", "unlock_cost",
 		"sort_order", "status", "usage_count",
 		"created_time", "updated_time",
+		"i18n", "title_i18n", "content_en",
 	}
 
 	query := DB.Model(&Prompt{}).Select(selectFields).Where("status = ?", 1)
@@ -262,7 +287,7 @@ func (prompt *Prompt) Insert() error {
 }
 
 func (prompt *Prompt) Update() error {
-	return DB.Model(prompt).Select("category_id", "title", "slug", "content", "content_en", "description", "cover_image_url", "video_url", "author", "source", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n").Updates(prompt).Error
+	return DB.Model(prompt).Select("category_id", "title", "slug", "content", "content_en", "description", "cover_image_url", "video_url", "author", "source", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n", "title_i18n").Updates(prompt).Error
 }
 
 func (prompt *Prompt) Delete() error {
