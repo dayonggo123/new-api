@@ -55,6 +55,33 @@ const formatTime = (ts) => {
 };
 
 /**
+ * Calculate translation progress from title_i18n / i18n / content_en
+ * Returns "X/11"
+ */
+const getTranslationProgress = (record) => {
+  const targetLangs = ['en', 'fr', 'ru', 'ja', 'vi', 'ko', 'es', 'de', 'pt', 'it', 'ar'];
+  let titleMap = {};
+  let contentMap = {};
+  try {
+    if (record.title_i18n) titleMap = JSON.parse(record.title_i18n);
+  } catch (e) { /* ignore */ }
+  try {
+    if (record.i18n) contentMap = JSON.parse(record.i18n);
+  } catch (e) { /* ignore */ }
+
+  let completed = 0;
+  for (const lang of targetLangs) {
+    const hasTitle = titleMap[lang] && String(titleMap[lang]).trim() !== '';
+    let hasContent = contentMap[lang] && String(contentMap[lang]).trim() !== '';
+    if (lang === 'en' && record.content_en && String(record.content_en).trim() !== '') {
+      hasContent = true;
+    }
+    if (hasTitle && hasContent) completed++;
+  }
+  return `${completed}/11`;
+};
+
+/**
  * Get prompts table column definitions
  */
 export const getPromptsColumns = ({
@@ -132,6 +159,22 @@ export const getPromptsColumns = ({
         return (
           <Tag color='grey' size='small'>
             {t('否')}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: t('翻译进度'),
+      dataIndex: 'translation_progress',
+      width: 100,
+      render: (_text, record) => {
+        const progress = getTranslationProgress(record);
+        const [completed] = progress.split('/').map(Number);
+        const isDone = completed === 11;
+        const hasError = !!record.translation_error;
+        return (
+          <Tag color={hasError ? 'red' : isDone ? 'green' : 'blue'} size='small'>
+            {progress}
           </Tag>
         );
       },

@@ -221,7 +221,7 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 		return
 	}
 
-	common.SysLog(fmt.Sprintf("AutoTranslate: %s %d missing langs=%v", task.Type, task.RecordID, langsToTranslate))
+	common.SysLog(fmt.Sprintf("AutoTranslate: %s %d need=%d/%d missing langs=%v", task.Type, task.RecordID, len(langsToTranslate), len(autoTranslateTargetLangs), langsToTranslate))
 
 	titleI18n := make(map[string]string)
 	contentI18n := make(map[string]string)
@@ -332,8 +332,15 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 		task.Error = "partial failure: " + strings.Join(failedLangs, ", ")
 	}
 	task.Status = AutoTranslateStatusCompleted
-	common.SysLog(fmt.Sprintf("AutoTranslate completed: %s %d, missing=%d, new_title=%d, new_content=%d, existing_title=%d, existing_content=%d, failed=%v",
-		task.Type, task.RecordID, len(langsToTranslate), len(titleI18n), len(contentI18n), len(existingTitleI18n), len(existingContentI18n), failedLangs))
+	// 计算总完成进度（合并新翻译后的现有数据）
+	completedCount := 0
+	for _, lang := range autoTranslateTargetLangs {
+		if existingTitleI18n[lang] != "" && existingContentI18n[lang] != "" {
+			completedCount++
+		}
+	}
+	common.SysLog(fmt.Sprintf("AutoTranslate completed: %s %d, progress=%d/%d, missing=%d, new_title=%d, new_content=%d, existing_title=%d, existing_content=%d, failed=%v",
+		task.Type, task.RecordID, completedCount, len(autoTranslateTargetLangs), len(langsToTranslate), len(titleI18n), len(contentI18n), len(existingTitleI18n), len(existingContentI18n), failedLangs))
 }
 
 // ========== AI 翻译调用（内联实现，避免循环依赖） ==========
