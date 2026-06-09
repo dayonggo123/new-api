@@ -53,7 +53,7 @@ func GenerateSEOForArticle(article *model.Article) (*ArticleSEOArticleResult, er
 			{"role": "user", "content": userContent},
 		},
 		"temperature": 0.7,
-		"max_tokens":  4000,
+		"max_tokens":  6000,
 	}
 
 	jsonData, err := common.Marshal(reqBody)
@@ -110,6 +110,24 @@ func GenerateSEOForArticle(article *model.Article) (*ArticleSEOArticleResult, er
 	}
 
 	common.SysLog(fmt.Sprintf("[SEO] article=%d parsed: title=%q intro=%q faq_len=%d", article.Id, result.SeoTitle, result.Intro, len(result.Faq)))
+
+	// fallback: 如果 AI 没返回 intro，用 summary 或 content 前 300 字自动生成
+	if result.Intro == "" {
+		source := article.Summary
+		if source == "" {
+			source = article.Content
+		}
+		if len(source) > 300 {
+			source = source[:300]
+		}
+		// 尝试在句号处截断，避免截断在句子中间
+		if idx := strings.LastIndex(source, "。"); idx > 100 {
+			source = source[:idx+3] // 包含句号
+		}
+		result.Intro = strings.TrimSpace(source)
+		common.SysLog(fmt.Sprintf("[SEO] article=%d intro fallback applied: %q", article.Id, result.Intro))
+	}
+
 	return &result, nil
 }
 
