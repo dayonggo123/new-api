@@ -131,6 +131,7 @@ type Article struct {
 	Faq            string         `json:"faq" gorm:"type:text"`          // AI 生成的 FAQ 问答（JSON）
 	I18n           string         `json:"i18n" gorm:"type:longtext"`     // 内容多语言 JSON
 	SeoI18n        string         `json:"seo_i18n" gorm:"type:longtext"` // SEO 多语言 JSON
+	IsTranslated   bool           `json:"is_translated" gorm:"default:false"` // 是否已完成多语言翻译
 	CreatedTime    int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime    int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt      gorm.DeletedAt `gorm:"index"`

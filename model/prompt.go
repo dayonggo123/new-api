@@ -43,6 +43,7 @@ type Prompt struct {
 	I18n          string         `json:"i18n" gorm:"type:text"`         // 多语言 JSON（内容）
 	TitleI18n     string         `json:"title_i18n" gorm:"type:text"`   // 标题多语言 JSON
 	SeoI18n       string         `json:"seo_i18n" gorm:"type:text"`     // SEO 多语言 JSON
+	IsTranslated  bool           `json:"is_translated" gorm:"default:false"` // 是否已完成多语言翻译
 	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime   int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt     gorm.DeletedAt `gorm:"index"`

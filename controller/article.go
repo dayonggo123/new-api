@@ -195,6 +195,8 @@ func CreateArticle(c *gin.Context) {
 	}
 	// 异步生成 SEO 元数据
 	go generateArticleSEO(&article)
+	// 异步触发多语言自动翻译
+	go service.StartAutoTranslate("article", article.Id)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

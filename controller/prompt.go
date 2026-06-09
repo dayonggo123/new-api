@@ -180,6 +180,8 @@ func AddPrompt(c *gin.Context) {
 	}
 	// 异步生成 SEO 关键词和介绍文案
 	go generatePromptSEO(&prompt)
+	// 异步触发多语言自动翻译
+	go service.StartAutoTranslate("prompt", prompt.Id)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -893,6 +895,23 @@ func GetBatchTranslatePromptSEOStatus(c *gin.Context) {
 	}
 
 	task := service.GetSEOBatchTask(taskID)
+	if task == nil {
+		common.ApiErrorMsg(c, "任务不存在或已过期")
+		return
+	}
+
+	common.ApiSuccess(c, task)
+}
+
+// GetAutoTranslateStatus 查询自动翻译任务状态
+func GetAutoTranslateStatus(c *gin.Context) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		common.ApiErrorMsg(c, "task_id 不能为空")
+		return
+	}
+
+	task := service.GetAutoTranslateTask(taskID)
 	if task == nil {
 		common.ApiErrorMsg(c, "任务不存在或已过期")
 		return

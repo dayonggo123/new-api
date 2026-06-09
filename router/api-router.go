@@ -411,6 +411,9 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.POST("/admin/prompts/auto-faq/batch", middleware.AdminAuth(), controller.BatchAutoGeneratePromptFAQ)
 	apiRouter.GET("/admin/auto-faq/batch/:task_id", middleware.AdminAuth(), controller.GetAutoFAQBatchStatus)
 
+	// Auto Translate Status (Admin)
+	apiRouter.GET("/admin/auto-translate/:task_id", middleware.AdminAuth(), controller.GetAutoTranslateStatus)
+
 		// Article Admin Routes
 		apiRouter.GET("/admin/articles", middleware.AdminAuth(), controller.GetArticles)
 		apiRouter.POST("/admin/articles", middleware.AdminAuth(), controller.CreateArticle)

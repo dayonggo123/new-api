@@ -110,6 +110,18 @@ export const getPromptsColumns = ({
       },
     },
     {
+      title: t('已翻译'),
+      dataIndex: 'is_translated',
+      width: 90,
+      render: (text) => {
+        return (
+          <Tag color={text ? 'green' : 'red'} size='small'>
+            {text ? t('是') : t('否')}
+          </Tag>
+        );
+      },
+    },
+    {
       title: t('排序'),
       dataIndex: 'sort_order',
       width: 80,
