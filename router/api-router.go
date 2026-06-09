@@ -404,6 +404,13 @@ func SetApiRouter(router *gin.Engine) {
 		seoRoute.GET("/batch-translate/:task_id", controller.GetBatchTranslatePromptSEOStatus)
 	}
 
+	// Auto FAQ Generation Routes (Admin)
+	apiRouter.POST("/admin/articles/:id/auto-faq", middleware.AdminAuth(), controller.AutoGenerateArticleFAQ)
+	apiRouter.POST("/admin/prompts/:id/auto-faq", middleware.AdminAuth(), controller.AutoGeneratePromptFAQ)
+	apiRouter.POST("/admin/articles/auto-faq/batch", middleware.AdminAuth(), controller.BatchAutoGenerateArticleFAQ)
+	apiRouter.POST("/admin/prompts/auto-faq/batch", middleware.AdminAuth(), controller.BatchAutoGeneratePromptFAQ)
+	apiRouter.GET("/admin/auto-faq/batch/:task_id", middleware.AdminAuth(), controller.GetAutoFAQBatchStatus)
+
 		// Article Admin Routes
 		apiRouter.GET("/admin/articles", middleware.AdminAuth(), controller.GetArticles)
 		apiRouter.POST("/admin/articles", middleware.AdminAuth(), controller.CreateArticle)
