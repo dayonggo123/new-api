@@ -954,6 +954,29 @@ const SEOManagement = () => {
     return <Tag color='grey' size='small'>{t('否')}</Tag>;
   };
 
+  const getTranslationProgress = (record) => {
+    const targetLangs = ['en', 'fr', 'ru', 'ja', 'vi', 'ko', 'es', 'de', 'pt', 'it', 'ar'];
+    let titleMap = {};
+    let contentMap = {};
+    try {
+      if (record.title_i18n) titleMap = JSON.parse(record.title_i18n);
+    } catch (e) { /* ignore */ }
+    try {
+      if (record.i18n) contentMap = JSON.parse(record.i18n);
+    } catch (e) { /* ignore */ }
+
+    let completed = 0;
+    for (const lang of targetLangs) {
+      const hasTitle = titleMap[lang] && String(titleMap[lang]).trim() !== '';
+      let hasContent = contentMap[lang] && String(contentMap[lang]).trim() !== '';
+      if (lang === 'en' && record.content_en && String(record.content_en).trim() !== '') {
+        hasContent = true;
+      }
+      if (hasTitle && hasContent) completed++;
+    }
+    return `${completed}/11`;
+  };
+
   const truncate = (text, maxLen = 60) => {
     if (!text) return '-';
     return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
@@ -1170,6 +1193,9 @@ const SEOManagement = () => {
                     {t('FAQ')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
+                    {t('翻译进度')}
+                  </th>
+                  <th className='text-left py-2 px-3 font-medium w-24'>
                     {t('SEO翻译状态')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
@@ -1232,6 +1258,19 @@ const SEOManagement = () => {
                       {renderFaqCount(item.faq)}
                     </td>
                     <td className='py-2 px-3'>
+                      {(() => {
+                        const progress = getTranslationProgress(item);
+                        const [completed] = progress.split('/').map(Number);
+                        const isDone = completed === 11;
+                        const hasError = !!item.translation_error;
+                        return (
+                          <Tag color={hasError ? 'red' : isDone ? 'green' : 'blue'} size='small'>
+                            {progress}
+                          </Tag>
+                        );
+                      })()}
+                    </td>
+                    <td className='py-2 px-3'>
                       {renderSeoTranslateStatus(item)}
                     </td>
                     <td className='py-2 px-3'>
@@ -1281,7 +1320,7 @@ const SEOManagement = () => {
                 {items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={11}
+                      colSpan={12}
                       className='py-8 text-center text-gray-400'
                     >
                       <Empty description={t('暂无数据')} />
