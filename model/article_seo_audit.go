@@ -99,11 +99,11 @@ func GetArticleSEOAuditStats() (map[string]interface{}, error) {
 				WHEN overall_score >= 60 THEN 'good'
 				WHEN overall_score >= 40 THEN 'average'
 				ELSE 'poor'
-			END as range,
+			END as `+"`"+`range`+"`"+`,
 			COUNT(*) as count
 		FROM article_seo_audit
 		WHERE id IN (SELECT MAX(id) FROM article_seo_audit GROUP BY article_id)
-		GROUP BY range
+		GROUP BY `+"`"+`range`+"`"+`
 	`).Scan(&scoreDistribution)
 
 	return map[string]interface{}{

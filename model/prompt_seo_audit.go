@@ -75,11 +75,11 @@ func GetPromptSEOAuditStats() (map[string]interface{}, error) {
 				WHEN overall_score >= 60 THEN 'good'
 				WHEN overall_score >= 40 THEN 'average'
 				ELSE 'poor'
-			END as range,
+			END as `+"`"+`range`+"`"+`,
 			COUNT(*) as count
 		FROM prompt_seo_audit
 		WHERE id IN (SELECT MAX(id) FROM prompt_seo_audit GROUP BY prompt_id)
-		GROUP BY range
+		GROUP BY `+"`"+`range`+"`"+`
 	`).Scan(&scoreDistribution)
 
 	return map[string]interface{}{
