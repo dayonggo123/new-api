@@ -754,3 +754,17 @@ func BatchAuditPromptSEO(c *gin.Context) {
 		"message": fmt.Sprintf("已启动 %d 个提示词的批量审计任务", len(req.Ids)),
 	})
 }
+
+// AdminRegeneratePromptSlugs 管理员接口：批量为 slug 为空的提示词生成 slug
+func AdminRegeneratePromptSlugs(c *gin.Context) {
+	updated, skipped, err := model.BatchGeneratePromptSlugs()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"updated": updated,
+		"skipped": skipped,
+		"message": fmt.Sprintf("成功生成 %d 个 slug，跳过 %d 个", updated, skipped),
+	})
+}

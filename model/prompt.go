@@ -268,6 +268,38 @@ func IncrementPromptUsageCount(id int) error {
 	return DB.Model(&Prompt{}).Where("id = ?", id).UpdateColumn("usage_count", gorm.Expr("usage_count + ?", 1)).Error
 }
 
+// BatchGeneratePromptSlugs 批量为 slug 为空的提示词生成 slug
+// 从 title 生成，如果冲突则加 "-{id}" 后缀保证唯一性
+func BatchGeneratePromptSlugs() (updated int, skipped int, err error) {
+	var prompts []Prompt
+	err = DB.Where("slug = ? OR slug IS NULL", "").Find(&prompts).Error
+	if err != nil {
+		return 0, 0, err
+	}
+
+	for _, p := range prompts {
+		slug := GenerateSlug(p.Title)
+		if slug == "" {
+			slug = fmt.Sprintf("prompt-%d", p.Id)
+		}
+
+		// 检查是否已存在相同 slug（其他记录）
+		var count int64
+		DB.Model(&Prompt{}).Where("slug = ? AND id != ?", slug, p.Id).Count(&count)
+		if count > 0 {
+			slug = fmt.Sprintf("%s-%d", slug, p.Id)
+		}
+
+		if err := DB.Model(&Prompt{}).Where("id = ?", p.Id).Update("slug", slug).Error; err != nil {
+			common.SysLog(fmt.Sprintf("批量生成 slug 失败: prompt_id=%d, err=%v", p.Id, err))
+			skipped++
+			continue
+		}
+		updated++
+	}
+	return updated, skipped, nil
+}
+
 // GetPromptsWithCategory 获取提示词列表并附带分类名称
 func GetPromptsWithCategory(startIdx int, num int) ([]*PromptWithCategory, int64, error) {
 	prompts, total, err := GetAllPrompts(startIdx, num)

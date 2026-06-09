@@ -411,6 +411,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.PUT("/admin/articles/:id", middleware.AdminAuth(), controller.UpdateArticle)
 		apiRouter.DELETE("/admin/articles/:id", middleware.AdminAuth(), controller.DeleteArticle)
 
+		// Admin: batch regenerate prompt slugs
+		apiRouter.POST("/admin/prompts/regenerate-slugs", middleware.AdminAuth(), controller.AdminRegeneratePromptSlugs)
+
 		// Image Studio
 		apiRouter.POST("/image-studio/generate", middleware.UserAuth(), controller.ImageStudioGenerate)
 
