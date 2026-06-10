@@ -426,10 +426,10 @@ const GEOManagement = () => {
               dataSource={prompts}
               pagination={false}
               rowKey='id'
-              rowSelection={{
+              rowSelection={useMemo(() => ({
                 selectedRowKeys: promptSelectedKeys,
-                onChange: setPromptSelectedKeys,
-              }}
+                onChange: (keys) => setPromptSelectedKeys(keys),
+              }), [promptSelectedKeys])}
               empty={<Empty description={t('暂无数据')} />}
             />
 
@@ -487,10 +487,10 @@ const GEOManagement = () => {
               dataSource={articles}
               pagination={false}
               rowKey='id'
-              rowSelection={{
+              rowSelection={useMemo(() => ({
                 selectedRowKeys: articleSelectedKeys,
-                onChange: setArticleSelectedKeys,
-              }}
+                onChange: (keys) => setArticleSelectedKeys(keys),
+              }), [articleSelectedKeys])}
               empty={<Empty description={t('暂无数据')} />}
             />
 
