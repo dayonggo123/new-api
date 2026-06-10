@@ -543,20 +543,39 @@ func pollAndAutoTranslateSEO() {
 	const batchSize = 20
 	cooldown := time.Now().Add(-30 * time.Minute).Unix()
 
-	// 1. Prompts: 有 SEO 内容且冷却时间已过的记录（包括从未翻译和部分翻译的）
+	// Prompts: 分两部分查询
+	// A. 从未翻译过（seo_i18n 为空）— 不限冷却时间，这是最优先的
+	// B. 已部分翻译（seo_i18n 不为空）— 需要冷却时间，避免频繁扫描
 	var promptIDs []int
 	var retryPromptIDs []int
+
+	// A. 从未翻译的 prompts
 	err := model.DB.Model(&model.Prompt{}).
 		Select("id").
-		Where("((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?)) AND updated_time < ?", "", "", "", cooldown).
+		Where("(seo_i18n = ? OR seo_i18n IS NULL) AND ((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?))", "", "", "", "").
 		Limit(batchSize).
-		Order("updated_time asc").
+		Order("id desc").
 		Pluck("id", &promptIDs).Error
 	if err != nil {
-		common.SysLog("SEOAutoTranslate poller query prompts error: " + err.Error())
+		common.SysLog("SEOAutoTranslate poller query new prompts error: " + err.Error())
 	}
 
-	// 2. Prompts: 失败重试（冷却时间已过）
+	// B. 已部分翻译的 prompts（冷却时间已过）
+	if len(promptIDs) < batchSize {
+		var partialPromptIDs []int
+		err = model.DB.Model(&model.Prompt{}).
+			Select("id").
+			Where("(seo_i18n IS NOT NULL AND seo_i18n != ?) AND ((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?)) AND updated_time < ?", "", "", "", "", cooldown).
+			Limit(batchSize - len(promptIDs)).
+			Order("updated_time asc").
+			Pluck("id", &partialPromptIDs).Error
+		if err != nil {
+			common.SysLog("SEOAutoTranslate poller query partial prompts error: " + err.Error())
+		}
+		promptIDs = append(promptIDs, partialPromptIDs...)
+	}
+
+	// C. 失败重试（冷却时间已过）
 	if len(promptIDs) < batchSize {
 		err = model.DB.Model(&model.Prompt{}).
 			Select("id").
@@ -590,20 +609,37 @@ func pollAndAutoTranslateSEO() {
 		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: triggered %d prompts (%d retry)", len(promptIDs), len(retryPromptIDs)))
 	}
 
-	// 3. Articles: 有 SEO 内容且冷却时间已过的记录
+	// Articles: 同样分两部分查询
 	var articleIDs []int
 	var retryArticleIDs []int
+
+	// A. 从未翻译的 articles
 	err = model.DB.Model(&model.Article{}).
 		Select("id").
-		Where("((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?)) AND updated_time < ?", "", "", "", cooldown).
+		Where("(seo_i18n = ? OR seo_i18n IS NULL) AND ((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?))", "", "", "", "").
 		Limit(batchSize).
-		Order("updated_time asc").
+		Order("id desc").
 		Pluck("id", &articleIDs).Error
 	if err != nil {
-		common.SysLog("SEOAutoTranslate poller query articles error: " + err.Error())
+		common.SysLog("SEOAutoTranslate poller query new articles error: " + err.Error())
 	}
 
-	// 4. Articles: 失败重试（冷却时间已过）
+	// B. 已部分翻译的 articles（冷却时间已过）
+	if len(articleIDs) < batchSize {
+		var partialArticleIDs []int
+		err = model.DB.Model(&model.Article{}).
+			Select("id").
+			Where("(seo_i18n IS NOT NULL AND seo_i18n != ?) AND ((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?)) AND updated_time < ?", "", "", "", "", cooldown).
+			Limit(batchSize - len(articleIDs)).
+			Order("updated_time asc").
+			Pluck("id", &partialArticleIDs).Error
+		if err != nil {
+			common.SysLog("SEOAutoTranslate poller query partial articles error: " + err.Error())
+		}
+		articleIDs = append(articleIDs, partialArticleIDs...)
+	}
+
+	// C. 失败重试
 	if len(articleIDs) < batchSize {
 		err = model.DB.Model(&model.Article{}).
 			Select("id").
