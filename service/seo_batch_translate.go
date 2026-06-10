@@ -763,5 +763,9 @@ func processSingleArticleSEO(id int, targetLangs []string) error {
 		return err
 	}
 
+	// 翻译完成后自动触发 SEO 审计
+	article.SeoI18n = string(seoI18nJSON)
+	go AuditArticleSEO(article)
+
 	return nil
 }
