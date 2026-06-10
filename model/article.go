@@ -306,39 +306,26 @@ func GetPublicArticles(categoryId int, keyword string, startIdx int, num int) (a
 
 // GetPublicArticlesWithGeo 获取有 GEO 结构化内容的公开文章列表（下游对接用）
 func GetPublicArticlesWithGeo(categoryId int, keyword string, startIdx int, num int) (articles []*Article, total int64, err error) {
-	tx := DB.Begin()
-	if tx.Error != nil {
-		return nil, 0, tx.Error
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	query := tx.Model(&Article{}).Where("status = ?", 1).
+	// 构建基础查询条件
+	base := DB.Model(&Article{}).Where("status = ?", 1).
 		Where("geo_blocks != ? AND geo_blocks IS NOT NULL", "")
 	if categoryId > 0 {
-		query = query.Where("category_id = ?", categoryId)
+		base = base.Where("category_id = ?", categoryId)
 	}
 	if keyword != "" {
 		like := "%" + keyword + "%"
-		query = query.Where("title LIKE ? OR summary LIKE ?", like, like)
+		base = base.Where("title LIKE ? OR summary LIKE ?", like, like)
 	}
 
-	err = query.Count(&total).Error
+	// Count 用独立 query，避免影响 Find
+	err = base.Session(&gorm.Session{}).Count(&total).Error
 	if err != nil {
-		tx.Rollback()
 		return nil, 0, err
 	}
 
-	err = query.Order("updated_time desc, id desc").Limit(num).Offset(startIdx).Find(&articles).Error
+	// Find 用独立 query
+	err = base.Session(&gorm.Session{}).Order("updated_time desc, id desc").Limit(num).Offset(startIdx).Find(&articles).Error
 	if err != nil {
-		tx.Rollback()
-		return nil, 0, err
-	}
-
-	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
 	return articles, total, nil

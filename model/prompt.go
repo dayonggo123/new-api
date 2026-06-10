@@ -241,23 +241,25 @@ func GetPublicPromptsWithGeo(categoryId int, keyword string, startIdx int, num i
 		"geo_blocks", "geo_blocks_i18n",
 	}
 
-	query := DB.Model(&Prompt{}).Select(selectFields).
+	base := DB.Model(&Prompt{}).Select(selectFields).
 		Where("status = ?", 1).
 		Where("geo_blocks != ? AND geo_blocks IS NOT NULL", "")
 	if categoryId > 0 {
-		query = query.Where("category_id = ?", categoryId)
+		base = base.Where("category_id = ?", categoryId)
 	}
 	if keyword != "" {
-		query = query.Where("title LIKE ?", "%"+keyword+"%")
+		base = base.Where("title LIKE ?", "%"+keyword+"%")
 	}
 
-	err = query.Count(&total).Error
+	// Count 用独立 query，避免影响 Find
+	err = base.Session(&gorm.Session{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
+	// Find 用独立 query
 	var rawPrompts []*Prompt
-	err = query.Order("updated_time desc, id desc").Limit(num).Offset(startIdx).Find(&rawPrompts).Error
+	err = base.Session(&gorm.Session{}).Order("updated_time desc, id desc").Limit(num).Offset(startIdx).Find(&rawPrompts).Error
 	if err != nil {
 		return nil, 0, err
 	}
