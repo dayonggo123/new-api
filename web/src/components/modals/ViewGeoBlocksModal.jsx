@@ -112,72 +112,172 @@ export function openViewGeoBlocksModal(t, record) {
 function GeoBlocksContent({ data, t }) {
   if (!data) return null;
 
+  // 判断是 Prompt GEO (scenarios/steps/tips) 还是 Article GEO (what/why/how/summary)
+  const isPromptGeo = data.scenarios !== undefined || data.steps !== undefined || data.tips !== undefined;
+  const isArticleGeo = data.what !== undefined || data.why !== undefined || data.how !== undefined || data.summary !== undefined;
+
   return (
     <div>
-      {/* 适用场景 */}
-      {data.scenarios && (
-        <div className='mb-4'>
-          <div
-            style={{
-              padding: 14,
-              background: '#f0fdf4',
-              borderRadius: 8,
-              borderLeft: '4px solid #16a34a',
-            }}
-          >
-            <div className='font-semibold mb-2 flex items-center' style={{ color: '#166534', fontSize: 14 }}>
-              <MapPin size={14} className='mr-1' />
-              {t('适用场景')}
+      {/* ========== Prompt GEO 结构 ========== */}
+      {isPromptGeo && (
+        <>
+          {/* 适用场景 */}
+          {data.scenarios && (
+            <div className='mb-4'>
+              <div
+                style={{
+                  padding: 14,
+                  background: '#f0fdf4',
+                  borderRadius: 8,
+                  borderLeft: '4px solid #16a34a',
+                }}
+              >
+                <div className='font-semibold mb-2 flex items-center' style={{ color: '#166534', fontSize: 14 }}>
+                  <MapPin size={14} className='mr-1' />
+                  {t('适用场景')}
+                </div>
+                <Text style={{ fontSize: 14, lineHeight: 1.7, color: '#374151' }}>{data.scenarios}</Text>
+              </div>
             </div>
-            <Text style={{ fontSize: 14, lineHeight: 1.7, color: '#374151' }}>{data.scenarios}</Text>
-          </div>
-        </div>
+          )}
+
+          {/* 使用步骤 */}
+          {data.steps && data.steps.length > 0 && (
+            <div className='mb-4'>
+              <div
+                style={{
+                  padding: 14,
+                  background: '#eff6ff',
+                  borderRadius: 8,
+                  borderLeft: '4px solid #2563eb',
+                }}
+              >
+                <div className='font-semibold mb-2 flex items-center' style={{ color: '#1e40af', fontSize: 14 }}>
+                  <ListOrdered size={14} className='mr-1' />
+                  {t('使用步骤')}
+                </div>
+                <ol style={{ paddingLeft: 20, margin: 0 }}>
+                  {data.steps.map((step, idx) => (
+                    <li key={idx} style={{ marginBottom: 6, lineHeight: 1.7, fontSize: 14, color: '#374151' }}>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* 使用技巧 */}
+          {data.tips && (
+            <div>
+              <div
+                style={{
+                  padding: 14,
+                  background: '#fffbeb',
+                  borderRadius: 8,
+                  borderLeft: '4px solid #f59e0b',
+                }}
+              >
+                <div className='font-semibold mb-2 flex items-center' style={{ color: '#92400e', fontSize: 14 }}>
+                  <Lightbulb size={14} className='mr-1' />
+                  {t('使用技巧')}
+                </div>
+                <Text style={{ fontSize: 14, lineHeight: 1.7, color: '#374151' }}>{data.tips}</Text>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* 使用步骤 */}
-      {data.steps && data.steps.length > 0 && (
-        <div className='mb-4'>
-          <div
-            style={{
-              padding: 14,
-              background: '#eff6ff',
-              borderRadius: 8,
-              borderLeft: '4px solid #2563eb',
-            }}
-          >
-            <div className='font-semibold mb-2 flex items-center' style={{ color: '#1e40af', fontSize: 14 }}>
-              <ListOrdered size={14} className='mr-1' />
-              {t('使用步骤')}
+      {/* ========== Article GEO 结构 ========== */}
+      {isArticleGeo && (
+        <>
+          {/* What - 是什么 */}
+          {data.what && (
+            <div className='mb-4'>
+              <div
+                style={{
+                  padding: 14,
+                  background: '#f0fdf4',
+                  borderRadius: 8,
+                  borderLeft: '4px solid #16a34a',
+                }}
+              >
+                <div className='font-semibold mb-2 flex items-center' style={{ color: '#166534', fontSize: 14 }}>
+                  <MapPin size={14} className='mr-1' />
+                  {t('是什么')}
+                </div>
+                <Text style={{ fontSize: 14, lineHeight: 1.7, color: '#374151' }}>{data.what}</Text>
+              </div>
             </div>
-            <ol style={{ paddingLeft: 20, margin: 0 }}>
-              {data.steps.map((step, idx) => (
-                <li key={idx} style={{ marginBottom: 6, lineHeight: 1.7, fontSize: 14, color: '#374151' }}>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* 使用技巧 */}
-      {data.tips && (
-        <div>
-          <div
-            style={{
-              padding: 14,
-              background: '#fffbeb',
-              borderRadius: 8,
-              borderLeft: '4px solid #f59e0b',
-            }}
-          >
-            <div className='font-semibold mb-2 flex items-center' style={{ color: '#92400e', fontSize: 14 }}>
-              <Lightbulb size={14} className='mr-1' />
-              {t('使用技巧')}
+          {/* Why - 为什么 */}
+          {data.why && (
+            <div className='mb-4'>
+              <div
+                style={{
+                  padding: 14,
+                  background: '#eff6ff',
+                  borderRadius: 8,
+                  borderLeft: '4px solid #2563eb',
+                }}
+              >
+                <div className='font-semibold mb-2 flex items-center' style={{ color: '#1e40af', fontSize: 14 }}>
+                  <ListOrdered size={14} className='mr-1' />
+                  {t('为什么')}
+                </div>
+                <Text style={{ fontSize: 14, lineHeight: 1.7, color: '#374151' }}>{data.why}</Text>
+              </div>
             </div>
-            <Text style={{ fontSize: 14, lineHeight: 1.7, color: '#374151' }}>{data.tips}</Text>
-          </div>
-        </div>
+          )}
+
+          {/* How - 怎么做 */}
+          {data.how && data.how.length > 0 && (
+            <div className='mb-4'>
+              <div
+                style={{
+                  padding: 14,
+                  background: '#f5f3ff',
+                  borderRadius: 8,
+                  borderLeft: '4px solid #7c3aed',
+                }}
+              >
+                <div className='font-semibold mb-2 flex items-center' style={{ color: '#5b21b6', fontSize: 14 }}>
+                  <ListOrdered size={14} className='mr-1' />
+                  {t('怎么做')}
+                </div>
+                <ol style={{ paddingLeft: 20, margin: 0 }}>
+                  {data.how.map((step, idx) => (
+                    <li key={idx} style={{ marginBottom: 6, lineHeight: 1.7, fontSize: 14, color: '#374151' }}>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* Summary - 核心总结 */}
+          {data.summary && (
+            <div>
+              <div
+                style={{
+                  padding: 14,
+                  background: '#fffbeb',
+                  borderRadius: 8,
+                  borderLeft: '4px solid #f59e0b',
+                }}
+              >
+                <div className='font-semibold mb-2 flex items-center' style={{ color: '#92400e', fontSize: 14 }}>
+                  <Lightbulb size={14} className='mr-1' />
+                  {t('核心总结')}
+                </div>
+                <Text style={{ fontSize: 14, lineHeight: 1.7, color: '#374151' }}>{data.summary}</Text>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
