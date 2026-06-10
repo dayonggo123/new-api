@@ -81,6 +81,8 @@ const emptySeoI18n = () => {
 
 const safeParseFAQ = (faqStr) => {
   if (!faqStr || faqStr === 'null' || faqStr === '[]') return [];
+  // 如果已经是数组对象，直接返回
+  if (Array.isArray(faqStr)) return faqStr;
   try {
     const parsed = JSON.parse(faqStr);
     return Array.isArray(parsed) ? parsed : [];
@@ -113,9 +115,11 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
       const res = await API.get(`/api/prompt/seo/${promptId}`);
       const { success, message, data } = res.data;
       if (success) {
+        // 确保 faq 始终是字符串（后端可能返回数组对象）
+        const faqStr = typeof data.faq === 'string' ? data.faq : Array.isArray(data.faq) ? JSON.stringify(data.faq) : '';
         const values = {
           ...data,
-          faq: data.faq || '',
+          faq: faqStr,
         };
         setData(values);
         let parsed = {};
@@ -131,7 +135,7 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
         formApiRef.current?.setValues({
           seo_keywords: data.seo_keywords || '',
           intro: data.intro || '',
-          faq: data.faq || '',
+          faq: faqStr,
         });
       } else {
         showError(message);

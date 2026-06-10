@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -57,6 +58,10 @@ func init() {
 	go cleanupSEOTasks()
 	// 3分钟后启动 SEO 自动翻译/重试轮询
 	time.AfterFunc(3*time.Minute, func() {
+		if os.Getenv("DISABLE_SEO_AUTO_TRANSLATE") == "true" {
+			common.SysLog("SEOAutoTranslate poller: disabled by env DISABLE_SEO_AUTO_TRANSLATE=true")
+			return
+		}
 		go startSEOAutoRetryPoller()
 	})
 }
