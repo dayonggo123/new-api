@@ -506,6 +506,15 @@ func UpdateArticleSEOFields(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 保存后如果 seo_i18n 有值，自动触发 SEO 审计
+	if req.SeoI18n != "" {
+		if article, err := model.GetArticleById(req.Id); err == nil && article != nil {
+			article.SeoI18n = req.SeoI18n
+			go service.AuditArticleSEO(article)
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
