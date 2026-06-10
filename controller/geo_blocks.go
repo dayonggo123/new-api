@@ -273,3 +273,149 @@ func GetPublicArticleGeoBlocksBySlug(c *gin.Context) {
 		},
 	})
 }
+
+// GetPublicPromptGeoBlocksList 公开接口：获取有 GEO 的提示词列表（下游批量对接用）
+// GET /api/public/prompts/geo-blocks/list?category_id=0&keyword=&p=1&page_size=20&lang=ko
+func GetPublicPromptGeoBlocksList(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+	categoryId, _ := strconv.Atoi(c.Query("category_id"))
+	lang := c.Query("lang")
+
+	prompts, total, err := model.GetPublicPromptsWithGeo(categoryId, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	type GeoListItem struct {
+		Id               int         `json:"id"`
+		Title            string      `json:"title"`
+		Slug             string      `json:"slug"`
+		Description      string      `json:"description"`
+		CategoryName     string      `json:"category_name"`
+		MediaType        string      `json:"media_type"`
+		CoverImageUrl    string      `json:"cover_image_url"`
+		GeoBlocks        interface{} `json:"geo_blocks"`
+		GeoTranslateProgress string  `json:"geo_translate_progress"`
+		UpdatedTime      int64       `json:"updated_time"`
+	}
+
+	items := make([]*GeoListItem, len(prompts))
+	for i, p := range prompts {
+		if lang != "" {
+			p.Prompt.ApplyLanguage(lang)
+		}
+
+		var geoData interface{}
+		if p.Prompt.GeoBlocks != "" {
+			_ = common.Unmarshal([]byte(p.Prompt.GeoBlocks), &geoData)
+		}
+
+		// 计算 GEO 翻译进度
+		geoProgress := "0/11"
+		if p.Prompt.GeoBlocksI18n != "" {
+			var i18nMap map[string]string
+			if err := common.Unmarshal([]byte(p.Prompt.GeoBlocksI18n), &i18nMap); err == nil {
+				completed := 0
+				targetLangs := []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
+				for _, l := range targetLangs {
+					if v, ok := i18nMap[l]; ok && v != "" {
+						completed++
+					}
+				}
+				geoProgress = fmt.Sprintf("%d/%d", completed, len(targetLangs))
+			}
+		}
+
+		items[i] = &GeoListItem{
+			Id:               p.Prompt.Id,
+			Title:            p.Prompt.Title,
+			Slug:             p.Prompt.Slug,
+			Description:      p.Prompt.Description,
+			CategoryName:     p.CategoryName,
+			MediaType:        p.Prompt.MediaType,
+			CoverImageUrl:    p.Prompt.CoverImageUrl,
+			GeoBlocks:        geoData,
+			GeoTranslateProgress: geoProgress,
+			UpdatedTime:      p.Prompt.UpdatedTime,
+		}
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}
+
+// GetPublicArticleGeoBlocksList 公开接口：获取有 GEO 的文章列表（下游批量对接用）
+// GET /api/public/articles/geo-blocks/list?category_id=0&keyword=&p=1&page_size=20&lang=ko
+func GetPublicArticleGeoBlocksList(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+	categoryId, _ := strconv.Atoi(c.Query("category_id"))
+	lang := c.Query("lang")
+
+	articles, total, err := model.GetPublicArticlesWithGeo(categoryId, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	articlesWithCat := model.AttachArticleCategoryInfo(articles)
+
+	type GeoListItem struct {
+		Id               int         `json:"id"`
+		Title            string      `json:"title"`
+		Slug             string      `json:"slug"`
+		Summary          string      `json:"summary"`
+		CategoryName     string      `json:"category_name"`
+		CoverImageUrl    string      `json:"cover_image_url"`
+		GeoBlocks        interface{} `json:"geo_blocks"`
+		GeoTranslateProgress string  `json:"geo_translate_progress"`
+		UpdatedTime      int64       `json:"updated_time"`
+	}
+
+	items := make([]*GeoListItem, len(articlesWithCat))
+	for i, a := range articlesWithCat {
+		if lang != "" {
+			a.ApplyLanguage(lang)
+		}
+
+		var geoData interface{}
+		if a.GeoBlocks != "" {
+			_ = common.Unmarshal([]byte(a.GeoBlocks), &geoData)
+		}
+
+		// 计算 GEO 翻译进度
+		geoProgress := "0/11"
+		if a.GeoBlocksI18n != "" {
+			var i18nMap map[string]string
+			if err := common.Unmarshal([]byte(a.GeoBlocksI18n), &i18nMap); err == nil {
+				completed := 0
+				targetLangs := []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
+				for _, l := range targetLangs {
+					if v, ok := i18nMap[l]; ok && v != "" {
+						completed++
+					}
+				}
+				geoProgress = fmt.Sprintf("%d/%d", completed, len(targetLangs))
+			}
+		}
+
+		items[i] = &GeoListItem{
+			Id:               a.Id,
+			Title:            a.Title,
+			Slug:             a.Slug,
+			Summary:          a.Summary,
+			CategoryName:     a.CategoryName,
+			CoverImageUrl:    a.CoverImageUrl,
+			GeoBlocks:        geoData,
+			GeoTranslateProgress: geoProgress,
+			UpdatedTime:      a.UpdatedTime,
+		}
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}

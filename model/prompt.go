@@ -230,6 +230,41 @@ func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (pr
 	return attachCategoryInfo(rawPrompts), total, nil
 }
 
+// GetPublicPromptsWithGeo 获取有 GEO 结构化内容的公开提示词列表（下游对接用）
+func GetPublicPromptsWithGeo(categoryId int, keyword string, startIdx int, num int) (prompts []*PromptWithCategory, total int64, err error) {
+	selectFields := []string{
+		"id", "category_id", "title", "description", "slug",
+		"cover_image_url", "video_url", "author", "source", "model",
+		"media_type", "is_premium", "unlock_cost",
+		"sort_order", "status", "usage_count",
+		"created_time", "updated_time",
+		"geo_blocks", "geo_blocks_i18n",
+	}
+
+	query := DB.Model(&Prompt{}).Select(selectFields).
+		Where("status = ?", 1).
+		Where("geo_blocks != ? AND geo_blocks IS NOT NULL", "")
+	if categoryId > 0 {
+		query = query.Where("category_id = ?", categoryId)
+	}
+	if keyword != "" {
+		query = query.Where("title LIKE ?", "%"+keyword+"%")
+	}
+
+	err = query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var rawPrompts []*Prompt
+	err = query.Order("updated_time desc, id desc").Limit(num).Offset(startIdx).Find(&rawPrompts).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return attachCategoryInfo(rawPrompts), total, nil
+}
+
 // PromptSitemapItem 提示词站点地图条目（精简字段，高性能）
 type PromptSitemapItem struct {
 	Id          int    `json:"id"`
