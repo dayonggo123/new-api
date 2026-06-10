@@ -540,6 +540,7 @@ func getMissingSEOLangs(recordType string, id int, targetLangs []string) []strin
 }
 
 func pollAndAutoTranslateSEO() {
+	common.SysLog("SEOAutoTranslate poller: starting scan")
 	const batchSize = 20
 	cooldown := time.Now().Add(-30 * time.Minute).Unix()
 
@@ -559,10 +560,11 @@ func pollAndAutoTranslateSEO() {
 	if err != nil {
 		common.SysLog("SEOAutoTranslate poller query new prompts error: " + err.Error())
 	}
+	common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: found %d new prompts (seo_i18n empty)", len(promptIDs)))
 
 	// B. 已部分翻译的 prompts（冷却时间已过）
+	var partialPromptIDs []int
 	if len(promptIDs) < batchSize {
-		var partialPromptIDs []int
 		err = model.DB.Model(&model.Prompt{}).
 			Select("id").
 			Where("(seo_i18n IS NOT NULL AND seo_i18n != ?) AND ((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?)) AND updated_time < ?", "", "", "", "", cooldown).
@@ -573,6 +575,7 @@ func pollAndAutoTranslateSEO() {
 			common.SysLog("SEOAutoTranslate poller query partial prompts error: " + err.Error())
 		}
 		promptIDs = append(promptIDs, partialPromptIDs...)
+		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: found %d partial prompts", len(partialPromptIDs)))
 	}
 
 	// C. 失败重试（冷却时间已过）
@@ -587,6 +590,7 @@ func pollAndAutoTranslateSEO() {
 			common.SysLog("SEOAutoTranslate poller query retry prompts error: " + err.Error())
 		}
 		promptIDs = append(promptIDs, retryPromptIDs...)
+		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: found %d retry prompts", len(retryPromptIDs)))
 	}
 
 	for _, id := range promptIDs {
@@ -606,7 +610,9 @@ func pollAndAutoTranslateSEO() {
 		time.Sleep(2 * time.Second)
 	}
 	if len(promptIDs) > 0 {
-		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: triggered %d prompts (%d retry)", len(promptIDs), len(retryPromptIDs)))
+		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: triggered %d prompts (%d new, %d partial, %d retry)", len(promptIDs), len(promptIDs)-len(partialPromptIDs)-len(retryPromptIDs), len(partialPromptIDs), len(retryPromptIDs)))
+	} else {
+		common.SysLog("SEOAutoTranslate poller: no prompts to translate")
 	}
 
 	// Articles: 同样分两部分查询
@@ -623,10 +629,11 @@ func pollAndAutoTranslateSEO() {
 	if err != nil {
 		common.SysLog("SEOAutoTranslate poller query new articles error: " + err.Error())
 	}
+	common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: found %d new articles (seo_i18n empty)", len(articleIDs)))
 
 	// B. 已部分翻译的 articles（冷却时间已过）
+	var partialArticleIDs []int
 	if len(articleIDs) < batchSize {
-		var partialArticleIDs []int
 		err = model.DB.Model(&model.Article{}).
 			Select("id").
 			Where("(seo_i18n IS NOT NULL AND seo_i18n != ?) AND ((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?)) AND updated_time < ?", "", "", "", "", cooldown).
@@ -637,6 +644,7 @@ func pollAndAutoTranslateSEO() {
 			common.SysLog("SEOAutoTranslate poller query partial articles error: " + err.Error())
 		}
 		articleIDs = append(articleIDs, partialArticleIDs...)
+		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: found %d partial articles", len(partialArticleIDs)))
 	}
 
 	// C. 失败重试
@@ -651,6 +659,7 @@ func pollAndAutoTranslateSEO() {
 			common.SysLog("SEOAutoTranslate poller query retry articles error: " + err.Error())
 		}
 		articleIDs = append(articleIDs, retryArticleIDs...)
+		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: found %d retry articles", len(retryArticleIDs)))
 	}
 
 	for _, id := range articleIDs {
