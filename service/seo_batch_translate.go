@@ -493,12 +493,14 @@ func callSEOTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, u
 var seoAutoTranslateTargetLangs = []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
 
 func startSEOAutoRetryPoller() {
+	common.SysLog("SEOAutoTranslate poller: started (interval=10min)")
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		cfg := operation_setting.GetTranslateSetting()
 		if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+			common.SysLog("SEOAutoTranslate poller: skipped — AI translation not configured")
 			continue
 		}
 		pollAndAutoTranslateSEO()
