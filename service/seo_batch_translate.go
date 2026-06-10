@@ -543,17 +543,17 @@ func pollAndAutoTranslateSEO() {
 	const batchSize = 20
 	cooldown := time.Now().Add(-30 * time.Minute).Unix()
 
-	// 1. Prompts: 从未翻译过（有 SEO 内容但 seo_i18n 为空）
+	// 1. Prompts: 有 SEO 内容且冷却时间已过的记录（包括从未翻译和部分翻译的）
 	var promptIDs []int
 	var retryPromptIDs []int
 	err := model.DB.Model(&model.Prompt{}).
 		Select("id").
-		Where("(seo_i18n = ? OR seo_i18n IS NULL) AND (seo_keywords != ? OR intro != ? OR faq != ?)", "", "", "", "").
+		Where("((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?)) AND updated_time < ?", "", "", "", cooldown).
 		Limit(batchSize).
-		Order("id desc").
+		Order("updated_time asc").
 		Pluck("id", &promptIDs).Error
 	if err != nil {
-		common.SysLog("SEOAutoTranslate poller query new prompts error: " + err.Error())
+		common.SysLog("SEOAutoTranslate poller query prompts error: " + err.Error())
 	}
 
 	// 2. Prompts: 失败重试（冷却时间已过）
@@ -573,7 +573,7 @@ func pollAndAutoTranslateSEO() {
 	for _, id := range promptIDs {
 		missingLangs := getMissingSEOLangs("prompt", id, seoAutoTranslateTargetLangs)
 		if len(missingLangs) == 0 {
-			// 已经完整，清空错误
+			// 已经完整，清空错误并更新时间避免下次重复扫描
 			model.DB.Model(&model.Prompt{}).Where("id = ?", id).Select("seo_translation_error", "updated_time").Updates(map[string]interface{}{
 				"seo_translation_error": "",
 				"updated_time":          common.GetTimestamp(),
@@ -590,17 +590,17 @@ func pollAndAutoTranslateSEO() {
 		common.SysLog(fmt.Sprintf("SEOAutoTranslate poller: triggered %d prompts (%d retry)", len(promptIDs), len(retryPromptIDs)))
 	}
 
-	// 3. Articles: 从未翻译过（有 SEO 内容但 seo_i18n 为空）
+	// 3. Articles: 有 SEO 内容且冷却时间已过的记录
 	var articleIDs []int
 	var retryArticleIDs []int
 	err = model.DB.Model(&model.Article{}).
 		Select("id").
-		Where("(seo_i18n = ? OR seo_i18n IS NULL) AND (seo_keywords != ? OR intro != ? OR faq != ?)", "", "", "", "").
+		Where("((seo_keywords IS NOT NULL AND seo_keywords != ?) OR (intro IS NOT NULL AND intro != ?) OR (faq IS NOT NULL AND faq != ?)) AND updated_time < ?", "", "", "", cooldown).
 		Limit(batchSize).
-		Order("id desc").
+		Order("updated_time asc").
 		Pluck("id", &articleIDs).Error
 	if err != nil {
-		common.SysLog("SEOAutoTranslate poller query new articles error: " + err.Error())
+		common.SysLog("SEOAutoTranslate poller query articles error: " + err.Error())
 	}
 
 	// 4. Articles: 失败重试（冷却时间已过）
