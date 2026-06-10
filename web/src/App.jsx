@@ -40,6 +40,7 @@ import PromptDetail from './pages/PromptDetail';
 import ArticleGallery from './pages/ArticleGallery';
 import ArticleDetail from './pages/ArticleDetail';
 import SEOManagement from './pages/SEOManagement';
+import GEOManagement from './pages/GEOManagement';
 import SEOTrends from './pages/SEOTrends';
 import ArticleManagement from './pages/ArticleManagement';
 import ArticleEditor from './pages/ArticleEditor';
@@ -219,6 +220,14 @@ function App() {
           element={
             <AdminRoute>
               <EcommerceWizardManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/geo'
+          element={
+            <AdminRoute>
+              <GEOManagement />
             </AdminRoute>
           }
         />

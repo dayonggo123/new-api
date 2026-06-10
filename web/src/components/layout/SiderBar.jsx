@@ -54,6 +54,7 @@ const routerMap = {
   personal: '/console/personal',
   seo: '/console/seo',
   seo_trends: '/console/seo-trends',
+  geo: '/console/geo',
   notification: '/console/notification',
   article: '/console/article',
   ecommerce_wizard: '/console/ecommerce-wizard',
@@ -163,6 +164,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     const operationSubItems = [
       { text: t('提示词库'), itemKey: 'prompt', to: '/prompt', tooltip: { content: t('管理用户公开的提示词，支持分类、SEO、多语言') } },
       { text: t('SEO 趋势'), itemKey: 'seo_trends', to: '/seo-trends', tooltip: { content: t('查看提示词 SEO 审核分数趋势和统计数据') } },
+      { text: t('GEO 管理'), itemKey: 'geo', to: '/geo', tooltip: { content: t('管理提示词和文章的结构化 GEO 内容，支持多语言') } },
       { text: t('预设提示词'), itemKey: 'preset_prompt', to: '/preset-prompt', tooltip: { content: t('管理内置的预设提示词模板，用户可直接使用') } },
       { text: t('Skill 管理'), itemKey: 'skills', to: '/skills', tooltip: { content: t('管理 AI 技能模板，用于自定义翻译、SEO、审核等提示词') } },
       { text: t('文章管理'), itemKey: 'article', to: '/article', tooltip: { content: t('管理博客文章，支持分类、多语言、AI 生成内容') } },

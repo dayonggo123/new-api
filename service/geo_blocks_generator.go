@@ -460,3 +460,174 @@ func translateArticleGeoBlocksAsync(id int, geoBlocksJSON string) {
 		common.SysLog(fmt.Sprintf("GeoBlocks i18n saved: article %d, langs=%d", id, len(geoBlocksI18n)))
 	}()
 }
+
+// ========== GEO 块自动翻译轮询 ==========
+
+func init() {
+	// 5分钟后启动 GEO 自动翻译轮询
+	time.AfterFunc(5*time.Minute, func() {
+		go startGeoAutoTranslatePoller()
+	})
+}
+
+func startGeoAutoTranslatePoller() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		cfg := operation_setting.GetTranslateSetting()
+		if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
+			continue
+		}
+		pollAndAutoTranslateGeoBlocks()
+	}
+}
+
+func getMissingGeoBlocksLangs(recordType string, id int, targetLangs []string) ([]string, string) {
+	var existingI18n, geoBlocks string
+	if recordType == "prompt" {
+		var p model.Prompt
+		if err := model.DB.Model(&model.Prompt{}).Select("geo_blocks_i18n", "geo_blocks").Where("id = ?", id).First(&p).Error; err != nil {
+			return targetLangs, ""
+		}
+		existingI18n = p.GeoBlocksI18n
+		geoBlocks = p.GeoBlocks
+	} else {
+		var a model.Article
+		if err := model.DB.Model(&model.Article{}).Select("geo_blocks_i18n", "geo_blocks").Where("id = ?", id).First(&a).Error; err != nil {
+			return targetLangs, ""
+		}
+		existingI18n = a.GeoBlocksI18n
+		geoBlocks = a.GeoBlocks
+	}
+
+	if existingI18n == "" {
+		return targetLangs, geoBlocks
+	}
+
+	var i18nMap map[string]string
+	if err := common.Unmarshal([]byte(existingI18n), &i18nMap); err != nil {
+		return targetLangs, geoBlocks
+	}
+
+	missing := []string{}
+	for _, lang := range targetLangs {
+		if v, ok := i18nMap[lang]; !ok || v == "" {
+			missing = append(missing, lang)
+		}
+	}
+	return missing, geoBlocks
+}
+
+func pollAndAutoTranslateGeoBlocks() {
+	const batchSize = 20
+
+	// 1. 扫描有 geo_blocks 但 geo_blocks_i18n 不完整的 Prompts
+	var promptIDs []int
+	err := model.DB.Model(&model.Prompt{}).
+		Select("id").
+		Where("geo_blocks != ? AND geo_blocks IS NOT NULL", "").
+		Limit(batchSize).
+		Order("id desc").
+		Pluck("id", &promptIDs).Error
+	if err != nil {
+		common.SysLog("GeoAutoTranslate poller query prompts error: " + err.Error())
+	}
+
+	processed := 0
+	for _, id := range promptIDs {
+		missingLangs, geoBlocks := getMissingGeoBlocksLangs("prompt", id, geoBlocksTargetLangs)
+		if len(missingLangs) == 0 {
+			continue // 已经完整
+		}
+		if geoBlocks == "" {
+			continue
+		}
+
+		cfg := operation_setting.GetTranslateSetting()
+		geoBlocksI18n := make(map[string]string)
+
+		// 解析已有的 i18n
+		var p model.Prompt
+		model.DB.Model(&model.Prompt{}).Select("geo_blocks_i18n").Where("id = ?", id).First(&p)
+		if p.GeoBlocksI18n != "" {
+			_ = common.Unmarshal([]byte(p.GeoBlocksI18n), &geoBlocksI18n)
+		}
+
+		for _, lang := range missingLangs {
+			translated, err := translateGeoBlocksJSON(cfg, geoBlocks, lang)
+			if err != nil || translated == "" {
+				common.SysLog(fmt.Sprintf("GeoAutoTranslate failed: prompt %d lang=%s err=%v", id, lang, err))
+				continue
+			}
+			geoBlocksI18n[lang] = translated
+			processed++
+			time.Sleep(1 * time.Second)
+		}
+
+		if len(geoBlocksI18n) > 0 {
+			i18nJSON, _ := common.Marshal(geoBlocksI18n)
+			model.DB.Model(&model.Prompt{}).Where("id = ?", id).Updates(map[string]interface{}{
+				"geo_blocks_i18n": string(i18nJSON),
+			})
+			common.SysLog(fmt.Sprintf("GeoAutoTranslate saved: prompt %d, langs=%d", id, len(geoBlocksI18n)))
+		}
+	}
+	if len(promptIDs) > 0 {
+		common.SysLog(fmt.Sprintf("GeoAutoTranslate poller: processed %d prompts (%d langs)", len(promptIDs), processed))
+	}
+
+	// 2. 扫描有 geo_blocks 但 geo_blocks_i18n 不完整的 Articles
+	var articleIDs []int
+	err = model.DB.Model(&model.Article{}).
+		Select("id").
+		Where("geo_blocks != ? AND geo_blocks IS NOT NULL", "").
+		Limit(batchSize).
+		Order("id desc").
+		Pluck("id", &articleIDs).Error
+	if err != nil {
+		common.SysLog("GeoAutoTranslate poller query articles error: " + err.Error())
+	}
+
+	articleProcessed := 0
+	for _, id := range articleIDs {
+		missingLangs, geoBlocks := getMissingGeoBlocksLangs("article", id, geoBlocksTargetLangs)
+		if len(missingLangs) == 0 {
+			continue
+		}
+		if geoBlocks == "" {
+			continue
+		}
+
+		cfg := operation_setting.GetTranslateSetting()
+		geoBlocksI18n := make(map[string]string)
+
+		var a model.Article
+		model.DB.Model(&model.Article{}).Select("geo_blocks_i18n").Where("id = ?", id).First(&a)
+		if a.GeoBlocksI18n != "" {
+			_ = common.Unmarshal([]byte(a.GeoBlocksI18n), &geoBlocksI18n)
+		}
+
+		for _, lang := range missingLangs {
+			translated, err := translateGeoBlocksJSON(cfg, geoBlocks, lang)
+			if err != nil || translated == "" {
+				common.SysLog(fmt.Sprintf("GeoAutoTranslate failed: article %d lang=%s err=%v", id, lang, err))
+				continue
+			}
+			geoBlocksI18n[lang] = translated
+			articleProcessed++
+			time.Sleep(1 * time.Second)
+		}
+
+		if len(geoBlocksI18n) > 0 {
+			i18nJSON, _ := common.Marshal(geoBlocksI18n)
+			model.DB.Model(&model.Article{}).Where("id = ?", id).Updates(map[string]interface{}{
+				"geo_blocks_i18n": string(i18nJSON),
+			})
+			common.SysLog(fmt.Sprintf("GeoAutoTranslate saved: article %d, langs=%d", id, len(geoBlocksI18n)))
+		}
+	}
+	if len(articleIDs) > 0 {
+		common.SysLog(fmt.Sprintf("GeoAutoTranslate poller: processed %d articles (%d langs)", len(articleIDs), articleProcessed))
+	}
+}

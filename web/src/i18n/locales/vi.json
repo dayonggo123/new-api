@@ -4025,6 +4025,14 @@
     "多语言版本": "Phiên bản đa ngôn ngữ",
     "适用场景": "Tình huống áp dụng",
     "使用步骤": "Các bước sử dụng",
-    "使用技巧": "Mẹo sử dụng"
+    "使用技巧": "Mẹo sử dụng",
+    "GEO 管理": "Quản lý GEO",
+    "提示词 GEO": "Prompt GEO",
+    "文章 GEO": "Bài viết GEO",
+    "GEO状态": "Trạng thái GEO",
+    "未生成": "Chưa tạo",
+    "已生成": "Đã tạo",
+    "生成GEO": "Tạo GEO",
+    "批量生成GEO": "Tạo hàng loạt GEO"
   }
 }

@@ -3579,6 +3579,14 @@
     "多语言版本": "Multilingual Version",
     "适用场景": "Applicable Scenarios",
     "使用步骤": "Usage Steps",
-    "使用技巧": "Usage Tips"
+    "使用技巧": "Usage Tips",
+    "GEO 管理": "GEO Management",
+    "提示词 GEO": "Prompt GEO",
+    "文章 GEO": "Article GEO",
+    "GEO状态": "GEO Status",
+    "未生成": "Not Generated",
+    "已生成": "Generated",
+    "生成GEO": "Generate GEO",
+    "批量生成GEO": "Batch Generate GEO"
   }
 }

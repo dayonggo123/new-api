@@ -6,6 +6,14 @@
     "多语言版本": "Versión multilingüe",
     "适用场景": "Escenarios aplicables",
     "使用步骤": "Pasos de uso",
-    "使用技巧": "Consejos de uso"
+    "使用技巧": "Consejos de uso",
+    "GEO 管理": "Gestión GEO",
+    "提示词 GEO": "Prompt GEO",
+    "文章 GEO": "Artículo GEO",
+    "GEO状态": "Estado GEO",
+    "未生成": "No generado",
+    "已生成": "Generado",
+    "生成GEO": "Generar GEO",
+    "批量生成GEO": "Generar GEO por lotes"
   }
 }
