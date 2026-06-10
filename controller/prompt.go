@@ -478,6 +478,8 @@ func GetPromptSEOList(c *gin.Context) {
 		Intro         string `json:"intro"`
 		Faq           string `json:"faq"`
 		SeoI18n       string `json:"seo_i18n"`
+		TitleI18n     string `json:"title_i18n"`
+		I18n          string `json:"i18n"`
 		AuditScore    int    `json:"audit_score"`
 		Status        int    `json:"status"`
 		CreatedTime   int64  `json:"created_time"`
@@ -494,6 +496,8 @@ func GetPromptSEOList(c *gin.Context) {
 			Intro:        p.Intro,
 			Faq:          p.Faq,
 			SeoI18n:      p.SeoI18n,
+			TitleI18n:    p.TitleI18n,
+			I18n:         p.I18n,
 			AuditScore:   auditScores[p.Id],
 			Status:       p.Status,
 			CreatedTime:  p.CreatedTime,

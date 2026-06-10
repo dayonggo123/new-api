@@ -78,7 +78,7 @@ const GEOManagement = () => {
   const loadPrompts = useCallback(async (page, size, kw) => {
     setPromptLoading(true);
     try {
-      const res = await API.get(`/api/prompts?p=${page}&page_size=${size}&keyword=${encodeURIComponent(kw || '')}`);
+      const res = await API.get(`/api/prompt/?p=${page}&page_size=${size}&keyword=${encodeURIComponent(kw || '')}`);
       const { success, data } = res.data;
       if (success && data) {
         setPrompts(data.items || []);
@@ -93,7 +93,7 @@ const GEOManagement = () => {
   const loadArticles = useCallback(async (page, size, kw) => {
     setArticleLoading(true);
     try {
-      const res = await API.get(`/api/articles?p=${page}&page_size=${size}&keyword=${encodeURIComponent(kw || '')}`);
+      const res = await API.get(`/api/admin/articles?p=${page}&page_size=${size}&keyword=${encodeURIComponent(kw || '')}`);
       const { success, data } = res.data;
       if (success && data) {
         setArticles(data.items || []);
