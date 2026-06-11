@@ -42,6 +42,7 @@ import ArticleDetail from './pages/ArticleDetail';
 import SEOManagement from './pages/SEOManagement';
 import GEOManagement from './pages/GEOManagement';
 import SEOTrends from './pages/SEOTrends';
+import SEOCenter from './pages/SEOCenter';
 import ArticleManagement from './pages/ArticleManagement';
 import ArticleEditor from './pages/ArticleEditor';
 import EcommerceWizardManagement from './pages/EcommerceWizardManagement';
@@ -188,6 +189,14 @@ function App() {
           element={
             <AdminRoute>
               <Prompt />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/seo-center'
+          element={
+            <AdminRoute>
+              <SEOCenter />
             </AdminRoute>
           }
         />

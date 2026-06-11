@@ -427,6 +427,29 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.POST("/admin/prompts/geo-blocks/batch", middleware.AdminAuth(), controller.BatchGeneratePromptGeoBlocks)
 	apiRouter.GET("/admin/geo-blocks/batch/:task_id", middleware.AdminAuth(), controller.GetGeoBlocksBatchStatus)
 
+	// SEO Keyword Research Routes (Admin)
+	apiRouter.POST("/admin/seo/research", middleware.AdminAuth(), controller.ResearchSEOKeywords)
+	apiRouter.GET("/admin/seo/research/templates", middleware.AdminAuth(), controller.GetSEOQuickTemplates)
+
+	// SEO Audit & Internal Links Routes (Admin)
+	apiRouter.GET("/admin/seo/audit", middleware.AdminAuth(), controller.GetSEOAudit)
+	apiRouter.GET("/admin/seo/internal-links", middleware.AdminAuth(), controller.GetInternalLinkSuggestions)
+
+	// Google Indexing Routes (Admin)
+	apiRouter.POST("/admin/seo/indexing", middleware.AdminAuth(), controller.SubmitToGoogleIndexing)
+	apiRouter.POST("/admin/seo/indexing/batch", middleware.AdminAuth(), controller.BatchSubmitToGoogleIndexing)
+	apiRouter.GET("/admin/seo/indexing/status", middleware.AdminAuth(), controller.GetGoogleIndexingStatus)
+
+	// SEO Monitor Routes (Admin)
+	apiRouter.GET("/admin/seo/monitor", middleware.AdminAuth(), controller.GetSEOMonitorData)
+	apiRouter.GET("/admin/seo/monitor/history", middleware.AdminAuth(), controller.GetSEOMonitorHistory)
+	apiRouter.GET("/admin/seo/monitor/summary", middleware.AdminAuth(), controller.GetSEOHealthSummary)
+	apiRouter.POST("/admin/seo/monitor/simulate", middleware.AdminAuth(), controller.SimulateSEOMonitorData)
+	apiRouter.POST("/admin/seo/monitor/update", middleware.AdminAuth(), controller.UpdateSEOMonitorData)
+
+	// Content Generator Routes (Admin)
+	apiRouter.POST("/admin/content/generate", middleware.AdminAuth(), controller.GenerateContent)
+
 		// Article Admin Routes
 		apiRouter.GET("/admin/articles", middleware.AdminAuth(), controller.GetArticles)
 		apiRouter.POST("/admin/articles", middleware.AdminAuth(), controller.CreateArticle)
