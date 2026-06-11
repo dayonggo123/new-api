@@ -196,6 +196,8 @@ const KeywordResearchTab = ({ onAddKeyword, onAddAllKeywords }) => {
     }
     onAddAllKeywords(allKeywords);
   };
+
+  const columns = [
     { title: '关键词', dataIndex: 'keyword', width: 220 },
     { title: '月搜索量', dataIndex: 'search_volume', width: 90 },
     { title: '意图', dataIndex: 'intent', render: (v) => <Tag size="small">{getIntentLabel(v)}</Tag>, width: 90 },
