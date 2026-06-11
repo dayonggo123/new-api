@@ -25,6 +25,7 @@ const SEOTrends = () => {
   const [trends, setTrends] = useState([]);
   const [lowScores, setLowScores] = useState([]);
   const [stats, setStats] = useState(null);
+  const [translateStats, setTranslateStats] = useState(null);
 
   useEffect(() => {
     initVChartSemiTheme({ isWatchingThemeSwitch: true });
@@ -34,14 +35,16 @@ const SEOTrends = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [trendsRes, lowRes, statsRes] = await Promise.all([
+      const [trendsRes, lowRes, statsRes, translateRes] = await Promise.all([
         API.get('/api/prompt/seo/trends?days=30'),
         API.get('/api/prompt/seo/low-score?threshold=60&limit=20'),
         API.get('/api/prompt/seo/stats'),
+        API.get('/api/prompt/seo/all-translate-stats'),
       ]);
       if (trendsRes.data.success) setTrends(trendsRes.data.data || []);
       if (lowRes.data.success) setLowScores(lowRes.data.data || []);
       if (statsRes.data.success) setStats(statsRes.data.data);
+      if (translateRes.data.success) setTranslateStats(translateRes.data.data);
     } catch (error) {
       showError(error.message);
     }
@@ -161,6 +164,45 @@ const SEOTrends = () => {
                 <div className='text-sm text-gray-500 mb-1'>{t('低分数量')}</div>
                 <div className='text-2xl font-bold' style={{ color: lowScores.length === 0 ? '#52c41a' : '#f5222d' }}>
                   {lowScores.length}
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        )}
+
+        {/* 翻译统计卡片 */}
+        {translateStats && (
+          <Row gutter={12} className='mb-4'>
+            <Col span={8} xs={24} sm={24} md={8}>
+              <Card className='!rounded-2xl shadow-sm border-0' bodyStyle={{ padding: '16px' }}>
+                <div className='text-sm text-gray-500 mb-1'>{t('SEO 翻译进度')}</div>
+                <div className='text-2xl font-bold' style={{ color: translateStats.seo?.full_percent >= 80 ? '#52c41a' : translateStats.seo?.full_percent >= 50 ? '#faad14' : '#f5222d' }}>
+                  {translateStats.seo?.fully_translated || 0} / {translateStats.seo?.total || 0}
+                </div>
+                <div className='text-xs text-gray-400 mt-1'>
+                  {t('完全翻译')}: {translateStats.seo?.full_percent || 0}% · {t('部分翻译')}: {translateStats.seo?.coverage_percent || 0}%
+                </div>
+              </Card>
+            </Col>
+            <Col span={8} xs={24} sm={24} md={8}>
+              <Card className='!rounded-2xl shadow-sm border-0' bodyStyle={{ padding: '16px' }}>
+                <div className='text-sm text-gray-500 mb-1'>{t('内容翻译进度')}</div>
+                <div className='text-2xl font-bold' style={{ color: translateStats.content?.full_percent >= 80 ? '#52c41a' : translateStats.content?.full_percent >= 50 ? '#faad14' : '#f5222d' }}>
+                  {translateStats.content?.fully_translated || 0} / {translateStats.content?.total || 0}
+                </div>
+                <div className='text-xs text-gray-400 mt-1'>
+                  {t('完全翻译')}: {translateStats.content?.full_percent || 0}% · {t('部分翻译')}: {translateStats.content?.coverage_percent || 0}%
+                </div>
+              </Card>
+            </Col>
+            <Col span={8} xs={24} sm={24} md={8}>
+              <Card className='!rounded-2xl shadow-sm border-0' bodyStyle={{ padding: '16px' }}>
+                <div className='text-sm text-gray-500 mb-1'>{t('GEO 翻译进度')}</div>
+                <div className='text-2xl font-bold' style={{ color: translateStats.geo?.full_percent >= 80 ? '#52c41a' : translateStats.geo?.full_percent >= 50 ? '#faad14' : '#f5222d' }}>
+                  {translateStats.geo?.fully_translated || 0} / {translateStats.geo?.total || 0}
+                </div>
+                <div className='text-xs text-gray-400 mt-1'>
+                  {t('完全翻译')}: {translateStats.geo?.full_percent || 0}% · {t('部分翻译')}: {translateStats.geo?.coverage_percent || 0}%
                 </div>
               </Card>
             </Col>
