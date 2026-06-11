@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -92,18 +93,29 @@ func ResearchKeywords(req *SEOResearchRequest) (*model.SEOKeywordResearchResult,
 
 	var result model.SEOKeywordResearchResult
 	if err := common.Unmarshal([]byte(content), &result); err != nil {
-		logger.LogError(context.Background(), fmt.Sprintf("parse seo research json failed: %v, content=%s", err, content))
+		logger.LogError(context.Background(), fmt.Sprintf("parse seo research json failed: %v, content=%.500s", err, content))
 		// 尝试二次解析：AI 可能返回了不完全符合结构的数据
 		fallbackResult, fallbackErr := fallbackParseResearchResult(content, req.SeedKeyword, lang)
 		if fallbackErr != nil {
 			return nil, fallbackErr
 		}
 		result = *fallbackResult
+	} else {
+		// JSON 解析成功，记录原始数据量用于调试
+		logger.LogError(context.Background(), fmt.Sprintf("SEO research JSON OK: seed=%d ext=%d long=%d hroi=%d cluster=%d",
+			len(result.SeedKeywords), len(result.ExtendedKeywords), len(result.LongTailKeywords),
+			len(result.HighROIKeywords), len(result.TopicClusters)))
 	}
 
 	// 补全元数据
 	result.SeedKeyword = req.SeedKeyword
 	result.Language = lang
+
+	// === 防御性清洗：过滤所有关键词列表中的垃圾数据 ===
+	garbageCount := cleanupGarbageKeywords(&result)
+	if garbageCount > 0 {
+		logger.LogError(context.Background(), fmt.Sprintf("SEO research cleanup: removed %d garbage keyword entries", garbageCount))
+	}
 
 	// 自动补全高 ROI 关键词（若 AI 未生成或数据不完整）
 	if len(result.HighROIKeywords) == 0 || (len(result.HighROIKeywords) > 0 && result.HighROIKeywords[0].ROIScore == 0) {
@@ -139,6 +151,71 @@ func ResearchKeywords(req *SEOResearchRequest) (*model.SEOKeywordResearchResult,
 	result.ClusterCount = len(result.TopicClusters)
 
 	return &result, nil
+}
+
+// garbagePatterns 垃圾关键词黑名单（JSON 字段名、无意义词等）
+var garbagePatterns = []string{
+	"keyword", "keywords", "search_volume", "intent", "difficulty",
+	"business_value", "roi_score", "suggested_url", "content_type",
+	"priority", "name", "pillar_keyword", "cluster_keywords",
+	"pillar_volume", "seed_keywords", "extended_keywords",
+	"long_tail_keywords", "high_roi_keywords", "topic_clusters",
+	"content_gaps", "null", "none", "n/a", "undefined",
+}
+
+// cleanupGarbageKeywords 清洗所有关键词列表中的垃圾数据，返回删除数量
+func cleanupGarbageKeywords(r *model.SEOKeywordResearchResult) int {
+	removed := 0
+	r.SeedKeywords = cleanKeywordList(r.SeedKeywords, &removed)
+	r.ExtendedKeywords = cleanKeywordList(r.ExtendedKeywords, &removed)
+	r.LongTailKeywords = cleanKeywordList(r.LongTailKeywords, &removed)
+	r.HighROIKeywords = cleanKeywordList(r.HighROIKeywords, &removed)
+	return removed
+}
+
+func cleanKeywordList(items []model.KeywordItem, removed *int) []model.KeywordItem {
+	if items == nil {
+		return nil
+	}
+	cleaned := make([]model.KeywordItem, 0, len(items))
+	for _, item := range items {
+		kw := strings.TrimSpace(strings.ToLower(item.Keyword))
+		isGarbage := false
+
+		// 检查黑名单
+		for _, pattern := range garbagePatterns {
+			if kw == pattern {
+				isGarbage = true
+				break
+			}
+		}
+
+		// 检查长度
+		if len(item.Keyword) < 2 || len(item.Keyword) > 200 {
+			isGarbage = true
+		}
+
+		// 检查是否纯符号/数字
+		if !isGarbage {
+			hasAlpha := false
+			for _, c := range item.Keyword {
+				if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+					hasAlpha = true
+					break
+				}
+			}
+			if !hasAlpha {
+				isGarbage = true
+			}
+		}
+
+		if !isGarbage {
+			cleaned = append(cleaned, item)
+		} else {
+			*removed++
+		}
+	}
+	return cleaned
 }
 
 // buildSEOResearchSystemPrompt 构建关键词研究系统提示
@@ -219,15 +296,48 @@ Be specific and realistic with search volumes. Focus on keywords that a new/youn
 
 // fallbackParseResearchResult 当 JSON 解析失败时的降级处理
 func fallbackParseResearchResult(content, seedKeyword, lang string) (*model.SEOKeywordResearchResult, error) {
-	// 尝试提取关键词列表
 	result := &model.SEOKeywordResearchResult{
 		SeedKeyword: seedKeyword,
 		Language:    lang,
 	}
-
-	// 简单提取：按行分割，找包含 "keyword" 的行
-	lines := strings.Split(content, "\n")
 	var currentSection string
+	var lines []string
+
+	// 策略 1: 正则提取 "keyword": "value" 模式（最可靠）
+	keywordRegex := regexp.MustCompile(`"keyword"\s*:\s*"([^"]+)"`)
+	matches := keywordRegex.FindAllStringSubmatch(content, -1)
+	if len(matches) >= 3 {
+		for i, m := range matches {
+			kw := strings.TrimSpace(m[1])
+			if len(kw) < 2 || isGarbageKeyword(kw) {
+				continue
+			}
+			item := model.KeywordItem{
+				Keyword:       kw,
+				SearchVolume:  estimateVolume(kw),
+				Intent:        "informational",
+				Difficulty:    "medium",
+				BusinessValue: 5,
+				ROIScore:      50,
+			}
+			ratio := float64(i) / float64(len(matches))
+			if ratio < 0.3 {
+				result.SeedKeywords = append(result.SeedKeywords, item)
+			} else if ratio < 0.8 {
+				result.ExtendedKeywords = append(result.ExtendedKeywords, item)
+			} else {
+				result.LongTailKeywords = append(result.LongTailKeywords, item)
+			}
+		}
+		logger.LogError(context.Background(), fmt.Sprintf("SEO fallback regex: extracted %d keywords from %d matches", len(result.SeedKeywords)+len(result.ExtendedKeywords)+len(result.LongTailKeywords), len(matches)))
+
+		if len(result.SeedKeywords) > 0 || len(result.ExtendedKeywords) > 0 {
+			goto done
+		}
+	}
+
+	// 策略 2: 逐行提取（原始方法）
+	lines = strings.Split(content, "\n")
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -235,7 +345,6 @@ func fallbackParseResearchResult(content, seedKeyword, lang string) (*model.SEOK
 			continue
 		}
 
-		// 检测当前段落
 		lower := strings.ToLower(line)
 		if strings.Contains(lower, "seed") || strings.Contains(lower, "核心") {
 			currentSection = "seed"
@@ -254,19 +363,18 @@ func fallbackParseResearchResult(content, seedKeyword, lang string) (*model.SEOK
 			continue
 		}
 
-		// 提取关键词（简单模式：去除标点和数字前缀）
 		keyword := extractKeywordFromLine(line)
-		if keyword == "" {
+		if keyword == "" || isGarbageKeyword(keyword) {
 			continue
 		}
 
 		item := model.KeywordItem{
-			Keyword:      keyword,
-			SearchVolume: estimateVolume(keyword),
-			Intent:       "informational",
-			Difficulty:   "medium",
+			Keyword:       keyword,
+			SearchVolume:  estimateVolume(keyword),
+			Intent:        "informational",
+			Difficulty:    "medium",
 			BusinessValue: 5,
-			ROIScore:     50,
+			ROIScore:      50,
 		}
 
 		switch currentSection {
@@ -283,9 +391,9 @@ func fallbackParseResearchResult(content, seedKeyword, lang string) (*model.SEOK
 		}
 	}
 
-	// 确保至少有一些数据
+done:
+	// 最终保底：如果什么都没提取到，至少用种子词
 	if len(result.SeedKeywords) == 0 && len(result.ExtendedKeywords) == 0 {
-		// 完全无法解析，使用种子词生成基础数据
 		result.SeedKeywords = []model.KeywordItem{
 			{Keyword: seedKeyword, SearchVolume: 1000, Intent: "informational", Difficulty: "medium", BusinessValue: 8, ROIScore: 70},
 		}
@@ -295,6 +403,20 @@ func fallbackParseResearchResult(content, seedKeyword, lang string) (*model.SEOK
 	result.HighROICount = len(result.HighROIKeywords)
 
 	return result, nil
+}
+
+// isGarbageKeyword 快速判断是否为垃圾关键词
+func isGarbageKeyword(kw string) bool {
+	kwLower := strings.TrimSpace(strings.ToLower(kw))
+	for _, pattern := range garbagePatterns {
+		if kwLower == pattern {
+			return true
+		}
+	}
+	if len(kw) < 2 || len(kw) > 200 {
+		return true
+	}
+	return false
 }
 
 // extractKeywordFromLine 从行中提取关键词
