@@ -105,8 +105,8 @@ func ResearchKeywords(req *SEOResearchRequest) (*model.SEOKeywordResearchResult,
 	result.SeedKeyword = req.SeedKeyword
 	result.Language = lang
 
-	// 自动补全高 ROI 关键词（若 AI 未生成）
-	if len(result.HighROIKeywords) == 0 {
+	// 自动补全高 ROI 关键词（若 AI 未生成或数据不完整）
+	if len(result.HighROIKeywords) == 0 || (len(result.HighROIKeywords) > 0 && result.HighROIKeywords[0].ROIScore == 0) {
 		allKeywords := append(result.SeedKeywords, result.ExtendedKeywords...)
 		allKeywords = append(allKeywords, result.LongTailKeywords...)
 		// 按 ROI 分数降序选取前 10
@@ -117,6 +117,7 @@ func ResearchKeywords(req *SEOResearchRequest) (*model.SEOKeywordResearchResult,
 		if len(allKeywords) < limit {
 			limit = len(allKeywords)
 		}
+		result.HighROIKeywords = nil // 重置
 		for i := 0; i < limit; i++ {
 			allKeywords[i].BusinessValue = 8
 			if allKeywords[i].ROIScore < 60 {
@@ -124,11 +125,13 @@ func ResearchKeywords(req *SEOResearchRequest) (*model.SEOKeywordResearchResult,
 			}
 			result.HighROIKeywords = append(result.HighROIKeywords, allKeywords[i])
 		}
+		logger.LogError(context.Background(), fmt.Sprintf("SEO research auto-fill HighROI: filled %d keywords from %d total", len(result.HighROIKeywords), len(allKeywords)))
 	}
 
 	// 自动补全主题簇（若 AI 未生成）
 	if len(result.TopicClusters) == 0 {
 		result.TopicClusters = generateDefaultTopicClusters(result.SeedKeywords, result.ExtendedKeywords)
+		logger.LogError(context.Background(), fmt.Sprintf("SEO research auto-fill TopicClusters: generated %d clusters", len(result.TopicClusters)))
 	}
 
 	result.TotalCount = len(result.SeedKeywords) + len(result.ExtendedKeywords) + len(result.LongTailKeywords)
