@@ -11,6 +11,7 @@ SEO Center — 一站式 SEO 自动化中心
 */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -58,7 +59,7 @@ const StatCard = ({ title, value, suffix, precision }) => (
 
 // ==================== Tab 1: Keyword Research ====================
 
-const KeywordResearchTab = () => {
+const KeywordResearchTab = ({ onAddKeyword }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -123,13 +124,27 @@ const KeywordResearchTab = () => {
   };
 
   const columns = [
-    { title: '关键词', dataIndex: 'keyword', width: 250 },
-    { title: '月搜索量', dataIndex: 'search_volume', width: 100 },
-    { title: '意图', dataIndex: 'intent', render: (v) => <Tag size="small">{getIntentLabel(v)}</Tag>, width: 100 },
-    { title: '难度', dataIndex: 'difficulty', render: (v) => <Tag color={getDifficultyColor(v)} size="small">{v}</Tag>, width: 80 },
-    { title: '商业价值', dataIndex: 'business_value', width: 80 },
-    { title: 'ROI', dataIndex: 'roi_score', render: (v) => <Progress percent={v} size="small" showInfo={true} />, width: 120 },
-    { title: '建议URL', dataIndex: 'suggested_url', width: 200 },
+    { title: '关键词', dataIndex: 'keyword', width: 220 },
+    { title: '月搜索量', dataIndex: 'search_volume', width: 90 },
+    { title: '意图', dataIndex: 'intent', render: (v) => <Tag size="small">{getIntentLabel(v)}</Tag>, width: 90 },
+    { title: '难度', dataIndex: 'difficulty', render: (v) => <Tag color={getDifficultyColor(v)} size="small">{v}</Tag>, width: 70 },
+    { title: '商业价值', dataIndex: 'business_value', width: 70 },
+    { title: 'ROI', dataIndex: 'roi_score', render: (v) => <Progress percent={v} size="small" showInfo={true} />, width: 100 },
+    { title: '建议URL', dataIndex: 'suggested_url', width: 180 },
+    {
+      title: '操作',
+      key: 'action',
+      width: 110,
+      render: (_, record) => (
+        <Button
+          type="tertiary"
+          size="small"
+          onClick={() => onAddKeyword && onAddKeyword(record.keyword)}
+        >
+          添加到生成
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -226,14 +241,70 @@ const KeywordResearchTab = () => {
             />
           </Card>
 
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Col span={12}>
+              <Card title="种子词">
+                <Table
+                  columns={columns}
+                  dataSource={result.seed_keywords || []}
+                  pagination={{ pageSize: 5 }}
+                  size="small"
+                />
+              </Card>
+            </Col>
+            <Col span={12}>
+              <Card title="扩展词">
+                <Table
+                  columns={columns}
+                  dataSource={result.extended_keywords || []}
+                  pagination={{ pageSize: 5 }}
+                  size="small"
+                />
+              </Card>
+            </Col>
+          </Row>
+
           <Card title="主题聚类" style={{ marginBottom: 16 }}>
             <Row gutter={16}>
               {result.topic_clusters?.map((cluster, idx) => (
                 <Col span={12} key={idx} style={{ marginBottom: 12 }}>
-                  <Card size="small" title={cluster.name} extra={<Tag color={cluster.priority === 'P0' ? 'red' : cluster.priority === 'P1' ? 'orange' : 'grey'}>{cluster.priority}</Tag>}>
+                  <Card
+                    size="small"
+                    title={cluster.name}
+                    extra={
+                      <Space>
+                        <Button
+                          type="tertiary"
+                          size="small"
+                          onClick={() => onAddKeyword && onAddKeyword(cluster.pillar_keyword)}
+                        >
+                          添加 Pillar
+                        </Button>
+                        <Tag color={cluster.priority === 'P0' ? 'red' : cluster.priority === 'P1' ? 'orange' : 'grey'}>{cluster.priority}</Tag>
+                      </Space>
+                    }
+                  >
                     <Descriptions size="small" layout="vertical">
-                      <Descriptions.Item itemKey="Pillar 关键词">{cluster.pillar_keyword} ({cluster.pillar_volume}/月)</Descriptions.Item>
-                      <Descriptions.Item itemKey="簇内关键词">{cluster.cluster_keywords?.join(', ')}</Descriptions.Item>
+                      <Descriptions.Item itemKey="Pillar 关键词">
+                        {cluster.pillar_keyword} ({cluster.pillar_volume}/月)
+                      </Descriptions.Item>
+                      <Descriptions.Item itemKey="簇内关键词">
+                        {cluster.cluster_keywords?.join(', ')}
+                        {cluster.cluster_keywords?.length > 0 && (
+                          <Button
+                            type="tertiary"
+                            size="small"
+                            style={{ marginLeft: 8 }}
+                            onClick={() => {
+                              if (onAddKeyword) {
+                                cluster.cluster_keywords.forEach((kw) => onAddKeyword(kw));
+                              }
+                            }}
+                          >
+                            添加全部
+                          </Button>
+                        )}
+                      </Descriptions.Item>
                       <Descriptions.Item itemKey="内容类型">{cluster.content_type}</Descriptions.Item>
                     </Descriptions>
                   </Card>
@@ -245,12 +316,26 @@ const KeywordResearchTab = () => {
           <Card title="内容缺口">
             <Table
               columns={[
-                { title: '关键词', dataIndex: 'keyword' },
-                { title: '搜索量', dataIndex: 'volume' },
-                { title: '竞品覆盖', dataIndex: 'competitors' },
-                { title: '缺口类型', dataIndex: 'gap_type', render: (v) => <Tag size="small">{v}</Tag> },
-                { title: '优先级', dataIndex: 'priority', render: (v) => <Tag color={v === 'P0' ? 'red' : v === 'P1' ? 'orange' : 'grey'}>{v}</Tag> },
+                { title: '关键词', dataIndex: 'keyword', width: 180 },
+                { title: '搜索量', dataIndex: 'volume', width: 80 },
+                { title: '竞品覆盖', dataIndex: 'competitors', width: 100 },
+                { title: '缺口类型', dataIndex: 'gap_type', render: (v) => <Tag size="small">{v}</Tag>, width: 90 },
+                { title: '优先级', dataIndex: 'priority', render: (v) => <Tag color={v === 'P0' ? 'red' : v === 'P1' ? 'orange' : 'grey'}>{v}</Tag>, width: 70 },
                 { title: '建议行动', dataIndex: 'suggested_action' },
+                {
+                  title: '操作',
+                  key: 'action',
+                  width: 100,
+                  render: (_, record) => (
+                    <Button
+                      type="tertiary"
+                      size="small"
+                      onClick={() => onAddKeyword && onAddKeyword(record.keyword)}
+                    >
+                      添加到生成
+                    </Button>
+                  ),
+                },
               ]}
               dataSource={result.content_gaps || []}
               pagination={false}
@@ -265,10 +350,21 @@ const KeywordResearchTab = () => {
 
 // ==================== Tab 2: Content Generator ====================
 
-const ContentGeneratorTab = () => {
+const ContentGeneratorTab = ({ generatorKeywords }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [queue, setQueue] = useState([]);
+  const [genFormApi, setGenFormApi] = useState(null);
+
+  // 当从关键词研究页面添加关键词时，自动填充到输入框
+  useEffect(() => {
+    if (genFormApi && generatorKeywords) {
+      const current = genFormApi.getValue('keywords') || '';
+      const newValue = current ? `${current}, ${generatorKeywords}` : generatorKeywords;
+      genFormApi.setValue('keywords', newValue);
+    }
+  }, [generatorKeywords, genFormApi]);
 
   const handleGenerate = async (values) => {
     if (!values.keywords) {
@@ -350,7 +446,7 @@ const ContentGeneratorTab = () => {
   return (
     <div>
       <Card style={{ marginBottom: 16 }}>
-        <Form layout="vertical" onSubmit={handleGenerate}>
+        <Form layout="vertical" onSubmit={handleGenerate} getFormApi={setGenFormApi}>
           <Row gutter={16}>
             <Col span={8}>
               <Form.Select field="type" label="内容类型" initValue="article" style={{ width: '100%' }}>
@@ -403,7 +499,24 @@ const ContentGeneratorTab = () => {
                   </Space>
                 </Col>
                 <Col>
-                  <Text type="secondary">{task.message}</Text>
+                  <Space>
+                    <Text type="secondary">{task.message}</Text>
+                    {task.status === 'completed' && task.recordId && (
+                      <Button
+                        type="tertiary"
+                        size="small"
+                        onClick={() => {
+                          if (task.type === 'article') {
+                            navigate(`/console/article/editor/${task.recordId}`);
+                          } else {
+                            navigate('/console/prompt');
+                          }
+                        }}
+                      >
+                        查看
+                      </Button>
+                    )}
+                  </Space>
                 </Col>
               </Row>
               {task.status === 'generating' && (
@@ -565,16 +678,28 @@ const MonitorTab = () => {
 const SEOCenter = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('research');
+  const [generatorKeywords, setGeneratorKeywords] = useState('');
+
+  const handleAddKeyword = (keyword) => {
+    setGeneratorKeywords((prev) => {
+      const existing = prev ? prev.split(/[,，]/).map((k) => k.trim()).filter(Boolean) : [];
+      if (existing.includes(keyword)) {
+        return prev;
+      }
+      return prev ? `${prev}, ${keyword}` : keyword;
+    });
+    setActiveTab('generator');
+  };
 
   return (
     <div style={{ padding: 20 }}>
       <Title heading={3} style={{ marginBottom: 20 }}>SEO Center</Title>
       <Tabs activeKey={activeTab} onChange={setActiveTab} type="line">
         <TabPane tab={<span><IconSearch style={{ marginRight: 4 }} />关键词研究</span>} itemKey="research">
-          <KeywordResearchTab />
+          <KeywordResearchTab onAddKeyword={handleAddKeyword} />
         </TabPane>
         <TabPane tab={<span><IconBolt style={{ marginRight: 4 }} />内容生成</span>} itemKey="generator">
-          <ContentGeneratorTab />
+          <ContentGeneratorTab generatorKeywords={generatorKeywords} />
         </TabPane>
         <TabPane tab={<span><IconEyeOpened style={{ marginRight: 4 }} />监控仪表盘</span>} itemKey="monitor">
           <MonitorTab />
