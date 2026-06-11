@@ -664,10 +664,17 @@ func extractWords(s string) []string {
 	return result
 }
 
+// SEOAuditCategory 兼容旧 Prompt SEO 审计的维度分类
+type SEOAuditCategory struct {
+	Score       int      `json:"score"`
+	Issues      []string `json:"issues"`
+	Suggestions []string `json:"suggestions"`
+}
+
 // AuditPromptSEO 对 Prompt 进行 SEO 审计（供外部调用，如翻译完成后触发）
-func AuditPromptSEO(prompt *model.Prompt) {
+func AuditPromptSEO(prompt *model.Prompt) (*SEOAuditResult, error) {
 	if prompt == nil {
-		return
+		return nil, fmt.Errorf("prompt is nil")
 	}
-	_, _ = auditPrompt(prompt.Id)
+	return auditPrompt(prompt.Id)
 }

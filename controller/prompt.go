@@ -736,65 +736,41 @@ func GetPromptSEOReport(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	latestAudit, err := model.GetLatestPromptSEOAudit(id)
+
+	result, err := service.AuditPromptSEO(prompt.Prompt)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	var categories map[string]service.SEOAuditCategory
-	var criticalIssues, quickWins []string
-	common.Unmarshal([]byte(latestAudit.Categories), &categories)
-	common.Unmarshal([]byte(latestAudit.CriticalIssues), &criticalIssues)
-	common.Unmarshal([]byte(latestAudit.QuickWins), &quickWins)
-
 	markdown := fmt.Sprintf("# SEO 审计报告：%s\n\n", prompt.Title)
 	markdown += fmt.Sprintf("- **Prompt ID**: %d\n", id)
-	markdown += fmt.Sprintf("- **审计日期**: %s\n", time.Unix(latestAudit.CreatedAt, 0).Format("2006-01-02 15:04:05"))
-	markdown += fmt.Sprintf("- **总分**: %d / 100\n\n", latestAudit.OverallScore)
+	markdown += fmt.Sprintf("- **审计日期**: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	markdown += fmt.Sprintf("- **总分**: %d / 100\n\n", result.OverallScore)
 
 	markdown += "## 维度评分\n\n"
-	for key, cat := range categories {
-		labelMap := map[string]string{
-			"completeness":    "完整性",
-			"keyword_quality": "关键词质量",
-			"intro_quality":   "介绍文案",
-			"faq_quality":     "FAQ 质量",
-			"structured_data": "结构化数据",
-		}
-		label := labelMap[key]
-		if label == "" {
-			label = key
-		}
-		markdown += fmt.Sprintf("### %s: %d/100\n\n", label, cat.Score)
-		if len(cat.Issues) > 0 {
-			markdown += "**问题**:\n"
-			for _, issue := range cat.Issues {
-				markdown += fmt.Sprintf("- %s\n", issue)
-			}
-			markdown += "\n"
-		}
-		if len(cat.Suggestions) > 0 {
-			markdown += "**建议**:\n"
-			for _, s := range cat.Suggestions {
-				markdown += fmt.Sprintf("- %s\n", s)
-			}
-			markdown += "\n"
+	for _, dim := range result.DimensionScores {
+		markdown += fmt.Sprintf("### %s: %d/100 (权重 %d%%)\n\n", dim.Name, dim.Score, dim.Weight)
+		if dim.Description != "" {
+			markdown += fmt.Sprintf("> %s\n\n", dim.Description)
 		}
 	}
 
-	if len(criticalIssues) > 0 {
-		markdown += "## 关键问题\n\n"
-		for _, issue := range criticalIssues {
-			markdown += fmt.Sprintf("- %s\n", issue)
+	if len(result.Issues) > 0 {
+		markdown += "## 发现的问题\n\n"
+		for _, issue := range result.Issues {
+			markdown += fmt.Sprintf("- **[%s]** %s: %s\n", issue.Type, issue.Field, issue.Message)
+			if issue.Suggestion != "" {
+				markdown += fmt.Sprintf("  - 建议: %s\n", issue.Suggestion)
+			}
 		}
 		markdown += "\n"
 	}
 
-	if len(quickWins) > 0 {
-		markdown += "## 快速改进\n\n"
-		for _, win := range quickWins {
-			markdown += fmt.Sprintf("- %s\n", win)
+	if len(result.Suggestions) > 0 {
+		markdown += "## 改进建议\n\n"
+		for _, s := range result.Suggestions {
+			markdown += fmt.Sprintf("- %s\n", s)
 		}
 		markdown += "\n"
 	}
@@ -900,7 +876,7 @@ func BatchAuditPromptSEO(c *gin.Context) {
 			if err != nil {
 				continue
 			}
-			service.AuditPromptSEO(prompt.Prompt)
+			_, _ = service.AuditPromptSEO(prompt.Prompt)
 		}
 	}(req.Ids)
 
