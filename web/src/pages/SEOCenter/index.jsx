@@ -43,6 +43,7 @@ import {
   IconAlertTriangle,
   IconInfoCircle,
   IconHistory,
+  IconPlus,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -63,7 +64,7 @@ const StatCard = ({ title, value, suffix, precision }) => (
 
 // ==================== Tab 1: Keyword Research ====================
 
-const KeywordResearchTab = ({ onAddKeyword }) => {
+const KeywordResearchTab = ({ onAddKeyword, onAddAllKeywords }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -173,7 +174,28 @@ const KeywordResearchTab = ({ onAddKeyword }) => {
     return map[i] || i;
   };
 
-  const columns = [
+  const collectAllKeywords = () => {
+    const all = new Set();
+    (result.high_roi_keywords || []).forEach((item) => all.add(item.keyword));
+    (result.seed_keywords || []).forEach((item) => all.add(item.keyword));
+    (result.extended_keywords || []).forEach((item) => all.add(item.keyword));
+    (result.content_gaps || []).forEach((item) => all.add(item.keyword));
+    (result.topic_clusters || []).forEach((cluster) => {
+      all.add(cluster.pillar_keyword);
+      (cluster.cluster_keywords || []).forEach((kw) => all.add(kw));
+    });
+    return Array.from(all);
+  };
+
+  const handleAddAll = () => {
+    if (!onAddAllKeywords) return;
+    const allKeywords = collectAllKeywords();
+    if (allKeywords.length === 0) {
+      showError('没有可添加的关键词');
+      return;
+    }
+    onAddAllKeywords(allKeywords);
+  };
     { title: '关键词', dataIndex: 'keyword', width: 220 },
     { title: '月搜索量', dataIndex: 'search_volume', width: 90 },
     { title: '意图', dataIndex: 'intent', render: (v) => <Tag size="small">{getIntentLabel(v)}</Tag>, width: 90 },
@@ -308,6 +330,16 @@ const KeywordResearchTab = ({ onAddKeyword }) => {
             <Col span={6}>
               <Card>
                 <StatCard title="主题簇" value={result.topic_clusters?.length || 0} />
+                <div style={{ textAlign: 'center', marginTop: 8 }}>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<IconPlus />}
+                    onClick={handleAddAll}
+                  >
+                    全部添加到生成
+                  </Button>
+                </div>
               </Card>
             </Col>
           </Row>
@@ -483,12 +515,17 @@ const ContentGeneratorTab = ({ generatorKeywords }) => {
   const [queue, setQueue] = useState([]);
   const [genFormApi, setGenFormApi] = useState(null);
 
-  // 当从关键词研究页面添加关键词时，自动填充到输入框
+  // 当从关键词研究页面添加关键词时，自动填充到输入框（自动去重，只追加新增关键词）
   useEffect(() => {
     if (genFormApi && generatorKeywords) {
       const current = genFormApi.getValue('keywords') || '';
-      const newValue = current ? `${current}, ${generatorKeywords}` : generatorKeywords;
-      genFormApi.setValue('keywords', newValue);
+      const currentList = current.split(/[,，]/).map((k) => k.trim()).filter(Boolean);
+      const newList = generatorKeywords.split(/[,，]/).map((k) => k.trim()).filter(Boolean);
+      const toAdd = newList.filter((k) => !currentList.includes(k));
+      if (toAdd.length > 0) {
+        const newValue = current ? `${current}, ${toAdd.join(', ')}` : toAdd.join(', ');
+        genFormApi.setValue('keywords', newValue);
+      }
     }
   }, [generatorKeywords, genFormApi]);
 
@@ -818,12 +855,22 @@ const SEOCenter = () => {
     setActiveTab('generator');
   };
 
+  const handleAddAllKeywords = (keywords) => {
+    setGeneratorKeywords((prev) => {
+      const existing = prev ? prev.split(/[,，]/).map((k) => k.trim()).filter(Boolean) : [];
+      const toAdd = keywords.filter((k) => !existing.includes(k));
+      if (toAdd.length === 0) return prev;
+      return prev ? `${prev}, ${toAdd.join(', ')}` : toAdd.join(', ');
+    });
+    setActiveTab('generator');
+  };
+
   return (
     <div style={{ padding: 20 }}>
       <Title heading={3} style={{ marginBottom: 20 }}>SEO Center</Title>
       <Tabs activeKey={activeTab} onChange={setActiveTab} type="line">
         <TabPane tab={<span><IconSearch style={{ marginRight: 4 }} />关键词研究</span>} itemKey="research">
-          <KeywordResearchTab onAddKeyword={handleAddKeyword} />
+          <KeywordResearchTab onAddKeyword={handleAddKeyword} onAddAllKeywords={handleAddAllKeywords} />
         </TabPane>
         <TabPane tab={<span><IconBolt style={{ marginRight: 4 }} />内容生成</span>} itemKey="generator">
           <ContentGeneratorTab generatorKeywords={generatorKeywords} />
