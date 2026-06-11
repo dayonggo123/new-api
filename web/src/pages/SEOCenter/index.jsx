@@ -63,6 +63,7 @@ const KeywordResearchTab = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [templates, setTemplates] = useState([]);
+  const [formApi, setFormApi] = useState(null);
 
   useEffect(() => {
     loadTemplates();
@@ -134,7 +135,7 @@ const KeywordResearchTab = () => {
   return (
     <div>
       <Card style={{ marginBottom: 16 }}>
-        <Form layout="horizontal" onSubmit={handleResearch}>
+        <Form layout="horizontal" onSubmit={handleResearch} getFormApi={setFormApi}>
           <Row gutter={16} align="middle">
             <Col span={12}>
               <Form.Input
@@ -172,10 +173,8 @@ const KeywordResearchTab = () => {
                   key={tmpl.id}
                   style={{ cursor: 'pointer' }}
                   onClick={() => {
-                    const form = document.querySelector('form');
-                    if (form) {
-                      const input = form.querySelector('input[name="seed_keyword"]');
-                      if (input) input.value = tmpl.seed_keyword;
+                    if (formApi) {
+                      formApi.setValue('seed_keyword', tmpl.seed_keyword);
                     }
                   }}
                 >
@@ -189,7 +188,7 @@ const KeywordResearchTab = () => {
 
       {loading && (
         <Card style={{ textAlign: 'center', padding: 40 }}>
-          <Spin size="large" tip="AI 正在进行关键词研究，请稍候..." />
+          <Spin size="large" tip={<span style={{ whiteSpace: 'nowrap' }}>AI 正在进行关键词研究，请稍候...</span>} />
         </Card>
       )}
 

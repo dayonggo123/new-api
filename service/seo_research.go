@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -99,6 +100,33 @@ func ResearchKeywords(req *SEOResearchRequest) (*model.SEOKeywordResearchResult,
 	// 补全元数据
 	result.SeedKeyword = req.SeedKeyword
 	result.Language = lang
+
+	// 自动补全高 ROI 关键词（若 AI 未生成）
+	if len(result.HighROIKeywords) == 0 {
+		allKeywords := append(result.SeedKeywords, result.ExtendedKeywords...)
+		allKeywords = append(allKeywords, result.LongTailKeywords...)
+		// 按 ROI 分数降序选取前 10
+		sort.Slice(allKeywords, func(i, j int) bool {
+			return allKeywords[i].ROIScore > allKeywords[j].ROIScore
+		})
+		limit := 10
+		if len(allKeywords) < limit {
+			limit = len(allKeywords)
+		}
+		for i := 0; i < limit; i++ {
+			allKeywords[i].BusinessValue = 8
+			if allKeywords[i].ROIScore < 60 {
+				allKeywords[i].ROIScore = 70
+			}
+			result.HighROIKeywords = append(result.HighROIKeywords, allKeywords[i])
+		}
+	}
+
+	// 自动补全主题簇（若 AI 未生成）
+	if len(result.TopicClusters) == 0 {
+		result.TopicClusters = generateDefaultTopicClusters(result.SeedKeywords, result.ExtendedKeywords)
+	}
+
 	result.TotalCount = len(result.SeedKeywords) + len(result.ExtendedKeywords) + len(result.LongTailKeywords)
 	result.HighROICount = len(result.HighROIKeywords)
 	result.ClusterCount = len(result.TopicClusters)
@@ -315,4 +343,71 @@ func estimateVolume(keyword string) int {
 	}
 	// 默认
 	return 1200 + len(keyword)*30
+}
+
+// generateDefaultTopicClusters 当 AI 未返回主题簇时，基于关键词自动生成
+func generateDefaultTopicClusters(seed, extended []model.KeywordItem) []model.TopicCluster {
+	all := append(seed, extended...)
+	if len(all) == 0 {
+		return nil
+	}
+
+	// 简单分组策略：按关键词中的常见主题词分组
+	groups := map[string][]model.KeywordItem{}
+	for _, kw := range all {
+		k := strings.ToLower(kw.Keyword)
+		matched := false
+		for _, tag := range []string{"prompt", "workflow", "canvas", "sora", "kling", "template", "tool", "guide", "tutorial"} {
+			if strings.Contains(k, tag) {
+				groups[tag] = append(groups[tag], kw)
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			groups["general"] = append(groups["general"], kw)
+		}
+	}
+
+	var clusters []model.TopicCluster
+	idx := 0
+	for tag, items := range groups {
+		if len(items) == 0 {
+			continue
+		}
+		pillar := items[0]
+		var clusterKws []string
+		for i := 1; i < len(items) && i < 6; i++ {
+			clusterKws = append(clusterKws, items[i].Keyword)
+		}
+		priority := "P1"
+		if idx == 0 {
+			priority = "P0"
+		}
+		clusters = append(clusters, model.TopicCluster{
+			Name:           strings.Title(tag) + " Cluster",
+			PillarKeyword:  pillar.Keyword,
+			PillarVolume:   pillar.SearchVolume,
+			ClusterKeywords: clusterKws,
+			ContentType:    "article",
+			Priority:       priority,
+		})
+		idx++
+		if idx >= 5 {
+			break
+		}
+	}
+
+	if len(clusters) == 0 {
+		clusters = append(clusters, model.TopicCluster{
+			Name:           "General",
+			PillarKeyword:  all[0].Keyword,
+			PillarVolume:   all[0].SearchVolume,
+			ClusterKeywords: []string{},
+			ContentType:    "article",
+			Priority:       "P0",
+		})
+	}
+
+	return clusters
 }
