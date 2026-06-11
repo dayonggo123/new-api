@@ -70,6 +70,7 @@ import ArticleSEOManagement from '../ArticleSEOManagement';
 import { ITEMS_PER_PAGE } from '../../constants';
 import MarkdownRenderer from '../../components/common/markdown/MarkdownRenderer';
 import { openViewGeoBlocksModal } from '../../components/modals/ViewGeoBlocksModal';
+import AutoTranslateToggle from '../../components/AutoTranslateToggle';
 // wangEditor
 import '@wangeditor/editor/dist/css/style.css';
 import { Editor, Toolbar } from '@wangeditor/editor-for-react';
@@ -1751,6 +1752,7 @@ const ArticleManagement = () => {
           <strong>如何操作：</strong>点击「新建文章」创建，填写基本信息/正文/SEO/多语言，可使用「AI 生成 SEO」和「AI 审核 SEO」优化 SEO，「AI 生成」按钮可生成封面图
         </Text>
       </div>
+      <AutoTranslateToggle />
       <EditArticleModal
         visible={showEdit}
         onCancel={() => {

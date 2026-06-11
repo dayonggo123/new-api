@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -328,4 +329,63 @@ func UpdateOption(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+// AutoTranslateStatus 自动翻译开关状态
+type AutoTranslateStatus struct {
+	Enabled        bool   `json:"enabled"`         // 是否启用（运行时开关）
+	EnvDisabled    bool   `json:"env_disabled"`     // 是否被环境变量强制禁用
+	DisableReason  string `json:"disable_reason,omitempty"` // 禁用原因
+}
+
+// GetAutoTranslateToggleStatus 获取自动翻译开关状态
+func GetAutoTranslateToggleStatus(c *gin.Context) {
+	envDisabled := os.Getenv("DISABLE_SEO_AUTO_TRANSLATE") == "true"
+	status := &AutoTranslateStatus{
+		EnvDisabled: envDisabled,
+	}
+
+	if envDisabled {
+		status.Enabled = false
+		status.DisableReason = "环境变量 DISABLE_SEO_AUTO_TRANSLATE=true 强制禁用"
+	} else {
+		// 从 OptionMap 读取运行时开关，默认启用
+		common.OptionMapRWMutex.Lock()
+		val := common.OptionMap["AutoTranslateEnabled"]
+		common.OptionMapRWMutex.Unlock()
+		status.Enabled = val != "false" // 默认启用
+	}
+
+	common.ApiSuccess(c, status)
+}
+
+// SetAutoTranslateToggleStatus 设置自动翻译开关
+func SetAutoTranslateToggleStatus(c *gin.Context) {
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效的参数"})
+		return
+	}
+
+	// 检查环境变量是否强制禁用
+	if os.Getenv("DISABLE_SEO_AUTO_TRANSLATE") == "true" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message":  "环境变量 DISABLE_SEO_AUTO_TRANSLATE=true 已强制禁用自动翻译，无法通过界面开启",
+		})
+		return
+	}
+
+	val := "true"
+	if !req.Enabled {
+		val = "false"
+	}
+	if err := model.UpdateOption("AutoTranslateEnabled", val); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{"enabled": req.Enabled})
 }

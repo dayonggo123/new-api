@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import PromptsPage from '../../components/table/prompts';
 import SEOManagement from '../SEOManagement';
+import AutoTranslateToggle from '../../components/AutoTranslateToggle';
 
 const { Text, Title } = Typography;
 
@@ -303,6 +304,7 @@ const Prompt = () => {
 
   return (
     <div className="mt-[60px] px-2">
+      <AutoTranslateToggle compact />
       <Tabs
         type="line"
         activeKey={activeTab}

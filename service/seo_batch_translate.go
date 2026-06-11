@@ -503,6 +503,17 @@ func startSEOAutoRetryPoller() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		// 检查运行时开关（环境变量优先，其次检查 Option 表）
+		if os.Getenv("DISABLE_SEO_AUTO_TRANSLATE") == "true" {
+			continue // 环境变量强制禁用
+		}
+		common.OptionMapRWMutex.Lock()
+		optionEnabled := common.OptionMap["AutoTranslateEnabled"] != "false"
+		common.OptionMapRWMutex.Unlock()
+		if !optionEnabled {
+			continue // 运行时开关已关闭
+		}
+
 		cfg := operation_setting.GetTranslateSetting()
 		if !cfg.TranslateAIEnabled || cfg.TranslateAIApiKey == "" || cfg.TranslateAIBaseURL == "" {
 			common.SysLog("SEOAutoTranslate poller: skipped — AI translation not configured")

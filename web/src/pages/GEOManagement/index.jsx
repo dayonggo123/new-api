@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { openViewGeoBlocksModal } from '../../components/modals/ViewGeoBlocksModal';
+import AutoTranslateToggle from '../../components/AutoTranslateToggle';
 
 const { Text, Title } = Typography;
 const { TabPane } = Tabs;
@@ -389,6 +390,8 @@ const GEOManagement = () => {
       <Title heading={3} style={{ marginBottom: 24 }}>
         {t('GEO 管理')}
       </Title>
+
+      <AutoTranslateToggle compact />
 
       <Tabs activeKey={activeTab} onChange={setActiveTab} type='line'>
         <TabPane itemKey='prompt' tab={t('提示词 GEO')}>
