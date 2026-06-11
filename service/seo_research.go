@@ -94,7 +94,11 @@ func ResearchKeywords(req *SEOResearchRequest) (*model.SEOKeywordResearchResult,
 	if err := common.Unmarshal([]byte(content), &result); err != nil {
 		logger.LogError(context.Background(), fmt.Sprintf("parse seo research json failed: %v, content=%s", err, content))
 		// 尝试二次解析：AI 可能返回了不完全符合结构的数据
-		return fallbackParseResearchResult(content, req.SeedKeyword, lang)
+		fallbackResult, fallbackErr := fallbackParseResearchResult(content, req.SeedKeyword, lang)
+		if fallbackErr != nil {
+			return nil, fallbackErr
+		}
+		result = *fallbackResult
 	}
 
 	// 补全元数据
