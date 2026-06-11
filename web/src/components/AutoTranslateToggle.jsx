@@ -26,7 +26,7 @@ const AutoTranslateToggle = ({ compact = false }) => {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await API.get('/api/option/auto-translate-status');
+      const res = await API.get('/api/admin/auto-translate-status');
       if (res.data.success) {
         const data = res.data.data;
         setEnabled(data.enabled);
@@ -47,7 +47,7 @@ const AutoTranslateToggle = ({ compact = false }) => {
   const handleToggle = async (checked) => {
     setLoading(true);
     try {
-      const res = await API.put('/api/option/auto-translate-status', { enabled: checked });
+      const res = await API.put('/api/admin/auto-translate-status', { enabled: checked });
       if (res.data.success) {
         setEnabled(checked);
         showSuccess(checked ? t('系统自动翻译已开启') : t('系统自动翻译已关闭'));
