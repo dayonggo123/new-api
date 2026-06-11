@@ -397,6 +397,7 @@ func SetApiRouter(router *gin.Engine) {
 			seoRoute.GET("/:id/report", controller.GetPromptSEOReport)
 			seoRoute.GET("/stats", controller.GetPromptSEOStats)
 			seoRoute.GET("/translate-stats", controller.GetPromptTranslateStats)
+			seoRoute.GET("/all-translate-stats", controller.GetPromptAllTranslateStats)
 			seoRoute.GET("/trends", controller.GetPromptSEOTrends)
 			seoRoute.GET("/low-score", controller.GetLowScorePrompts)
 		seoRoute.GET("/report-all", controller.GetAllSEOReport)
@@ -456,6 +457,7 @@ func SetApiRouter(router *gin.Engine) {
 			articleSEORoute.GET("/:id/report", controller.GetArticleSEOReport)
 			articleSEORoute.GET("/stats", controller.GetAllArticleSEOReport)
 			articleSEORoute.GET("/translate-stats", controller.GetArticleTranslateStats)
+			articleSEORoute.GET("/all-translate-stats", controller.GetArticleAllTranslateStats)
 			articleSEORoute.GET("/low-score", controller.GetLowScoreArticlesHandler)
 		}
 

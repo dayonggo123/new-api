@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"time"
 
@@ -238,11 +239,64 @@ type LowScorePrompt struct {
 
 // TranslateStats 翻译统计
 type TranslateStats struct {
-	Total            int64 `json:"total"`
-	WithTranslation  int64 `json:"with_translation"`  // 有 seo_i18n 的记录数
-	FullyTranslated  int64 `json:"fully_translated"`  // 全部 11 种语言都翻译完成的记录数
+	Total            int64   `json:"total"`
+	WithTranslation  int64   `json:"with_translation"`  // 有 i18n 的记录数
+	FullyTranslated  int64   `json:"fully_translated"`  // 全部语言都翻译完成的记录数
 	CoveragePercent  float64 `json:"coverage_percent"`
 	FullPercent      float64 `json:"full_percent"`
+}
+
+// AllTranslateStats 全维度翻译统计（SEO + 内容 + GEO）
+type AllTranslateStats struct {
+	Seo  *TranslateStats `json:"seo"`
+	Content *TranslateStats `json:"content"` // i18n（文章/提示词内容翻译）
+	Geo  *TranslateStats `json:"geo"`        // geo_blocks_i18n（GEO 翻译）
+}
+
+// GetPromptAllTranslateStats 获取 Prompt 全维度翻译统计
+func GetPromptAllTranslateStats() (*AllTranslateStats, error) {
+	seo, _ := GetPromptTranslateStats()
+	content, _ := GetPromptContentTranslateStats()
+	geo, _ := GetPromptGeoTranslateStats()
+	return &AllTranslateStats{
+		Seo:     seo,
+		Content: content,
+		Geo:     geo,
+	}, nil
+}
+
+// GetArticleAllTranslateStats 获取 Article 全维度翻译统计
+func GetArticleAllTranslateStats() (*AllTranslateStats, error) {
+	seo, _ := GetArticleTranslateStats()
+	content, _ := GetArticleContentTranslateStats()
+	geo, _ := GetArticleGeoTranslateStats()
+	return &AllTranslateStats{
+		Seo:     seo,
+		Content: content,
+		Geo:     geo,
+	}, nil
+}
+
+// --- 内容翻译统计 (i18n 字段) ---
+
+func countFullyTranslated(tableName, i18nColumn string) (int64, error) {
+	var fullyTranslated int64
+	rows, err := DB.Raw(fmt.Sprintf("SELECT %s FROM %s WHERE %s IS NOT NULL AND %s != '' AND %s != '{}' AND %s != 'null'", i18nColumn, tableName, i18nColumn, i18nColumn, i18nColumn, i18nColumn)).Rows()
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var val string
+		if err := rows.Scan(&val); err != nil {
+			continue
+		}
+		var parsed map[string]interface{}
+		if json.Unmarshal([]byte(val), &parsed) == nil && len(parsed) >= 11 {
+			fullyTranslated++
+		}
+	}
+	return fullyTranslated, nil
 }
 
 // GetPromptTranslateStats 获取 Prompt SEO 翻译统计
@@ -318,6 +372,93 @@ func GetArticleTranslateStats() (*TranslateStats, error) {
 		CoveragePercent: math.Round(float64(withTranslation)/float64(total)*100*100) / 100,
 		FullPercent:     math.Round(float64(fullyTranslated)/float64(total)*100*100) / 100,
 	}, nil
+}
+
+// --- Prompt 内容翻译统计 (i18n) ---
+
+func GetPromptContentTranslateStats() (*TranslateStats, error) {
+	var total int64
+	DB.Model(&Prompt{}).Count(&total)
+
+	var withTranslation int64
+	DB.Model(&Prompt{}).Where("i18n IS NOT NULL AND i18n != '' AND i18n != '{}' AND i18n != 'null'").Count(&withTranslation)
+
+	fullyTranslated, _ := countFullyTranslated("prompts", "i18n")
+
+	return &TranslateStats{
+		Total:           total,
+		WithTranslation: withTranslation,
+		FullyTranslated: fullyTranslated,
+		CoveragePercent: pct(withTranslation, total),
+		FullPercent:     pct(fullyTranslated, total),
+	}, nil
+}
+
+// --- Prompt GEO 翻译统计 (geo_blocks_i18n) ---
+
+func GetPromptGeoTranslateStats() (*TranslateStats, error) {
+	var total int64
+	DB.Model(&Prompt{}).Where("geo_blocks IS NOT NULL AND geo_blocks != '' AND geo_blocks != 'null'").Count(&total)
+
+	var withTranslation int64
+	DB.Model(&Prompt{}).Where("geo_blocks_i18n IS NOT NULL AND geo_blocks_i18n != '' AND geo_blocks_i18n != '{}' AND geo_blocks_i18n != 'null'").Count(&withTranslation)
+
+	fullyTranslated, _ := countFullyTranslated("prompts", "geo_blocks_i18n")
+
+	return &TranslateStats{
+		Total:           total,
+		WithTranslation: withTranslation,
+		FullyTranslated: fullyTranslated,
+		CoveragePercent: pct(withTranslation, total),
+		FullPercent:     pct(fullyTranslated, total),
+	}, nil
+}
+
+// --- Article 内容翻译统计 (i18n) ---
+
+func GetArticleContentTranslateStats() (*TranslateStats, error) {
+	var total int64
+	DB.Model(&Article{}).Count(&total)
+
+	var withTranslation int64
+	DB.Model(&Article{}).Where("i18n IS NOT NULL AND i18n != '' AND i18n != '{}' AND i18n != 'null'").Count(&withTranslation)
+
+	fullyTranslated, _ := countFullyTranslated("articles", "i18n")
+
+	return &TranslateStats{
+		Total:           total,
+		WithTranslation: withTranslation,
+		FullyTranslated: fullyTranslated,
+		CoveragePercent: pct(withTranslation, total),
+		FullPercent:     pct(fullyTranslated, total),
+	}, nil
+}
+
+// --- Article GEO 翻译统计 (geo_blocks_i18n) ---
+
+func GetArticleGeoTranslateStats() (*TranslateStats, error) {
+	var total int64
+	DB.Model(&Article{}).Where("geo_blocks IS NOT NULL AND geo_blocks != '' AND geo_blocks != 'null'").Count(&total)
+
+	var withTranslation int64
+	DB.Model(&Article{}).Where("geo_blocks_i18n IS NOT NULL AND geo_blocks_i18n != '' AND geo_blocks_i18n != '{}' AND geo_blocks_i18n != 'null'").Count(&withTranslation)
+
+	fullyTranslated, _ := countFullyTranslated("articles", "geo_blocks_i18n")
+
+	return &TranslateStats{
+		Total:           total,
+		WithTranslation: withTranslation,
+		FullyTranslated: fullyTranslated,
+		CoveragePercent: pct(withTranslation, total),
+		FullPercent:     pct(fullyTranslated, total),
+	}, nil
+}
+
+func pct(part, total int64) float64 {
+	if total == 0 {
+		return 0
+	}
+	return math.Round(float64(part)/float64(total)*100*100) / 100
 }
 
 // GetLowScorePrompts 获取最新审计分低于阈值的提示词

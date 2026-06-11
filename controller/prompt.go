@@ -679,6 +679,16 @@ func GetPromptTranslateStats(c *gin.Context) {
 	common.ApiSuccess(c, stats)
 }
 
+// GetPromptAllTranslateStats 获取 Prompt 全维度翻译统计（SEO + 内容 + GEO）
+func GetPromptAllTranslateStats(c *gin.Context) {
+	stats, err := model.GetPromptAllTranslateStats()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, stats)
+}
+
 // GetPromptSEOTrends 获取 SEO 审计趋势
 func GetPromptSEOTrends(c *gin.Context) {
 	daysStr := c.DefaultQuery("days", "30")
