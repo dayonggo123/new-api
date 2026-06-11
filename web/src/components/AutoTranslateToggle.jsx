@@ -7,7 +7,7 @@ Copyright (C) 2025 QuantumNous
 import React, { useState, useEffect, useCallback } from 'react';
 import { Switch, Tag, Banner, Space, Typography } from '@douyinfe/semi-ui';
 import { IconPlay, IconPause, IconAlertTriangle } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess } from '../../helpers';
+import { API, showError, showSuccess } from '@/helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
