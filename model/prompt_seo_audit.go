@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"math"
 	"time"
 
@@ -233,6 +234,90 @@ type LowScorePrompt struct {
 	AuditScore   int    `json:"audit_score"`
 	AuditDate    int64  `json:"audit_date"`
 	CategoryName string `json:"category_name"`
+}
+
+// TranslateStats 翻译统计
+type TranslateStats struct {
+	Total            int64 `json:"total"`
+	WithTranslation  int64 `json:"with_translation"`  // 有 seo_i18n 的记录数
+	FullyTranslated  int64 `json:"fully_translated"`  // 全部 11 种语言都翻译完成的记录数
+	CoveragePercent  float64 `json:"coverage_percent"`
+	FullPercent      float64 `json:"full_percent"`
+}
+
+// GetPromptTranslateStats 获取 Prompt SEO 翻译统计
+func GetPromptTranslateStats() (*TranslateStats, error) {
+	var total int64
+	if err := DB.Model(&Prompt{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var withTranslation int64
+	if err := DB.Model(&Prompt{}).Where("seo_i18n IS NOT NULL AND seo_i18n != '' AND seo_i18n != '{}' AND seo_i18n != 'null'").Count(&withTranslation).Error; err != nil {
+		return nil, err
+	}
+
+	// 查询所有有 seo_i18n 的记录，统计有多少条包含全部 11 种语言
+	var fullyTranslated int64
+	if withTranslation > 0 {
+		var prompts []Prompt
+		if err := DB.Select("id", "seo_i18n").Where("seo_i18n IS NOT NULL AND seo_i18n != '' AND seo_i18n != '{}' AND seo_i18n != 'null'").Find(&prompts).Error; err != nil {
+			return nil, err
+		}
+		for _, p := range prompts {
+			var parsed map[string]interface{}
+			if err := json.Unmarshal([]byte(p.SeoI18n), &parsed); err == nil {
+				if len(parsed) >= 11 {
+					fullyTranslated++
+				}
+			}
+		}
+	}
+
+	return &TranslateStats{
+		Total:           total,
+		WithTranslation: withTranslation,
+		FullyTranslated: fullyTranslated,
+		CoveragePercent: math.Round(float64(withTranslation)/float64(total)*100*100) / 100,
+		FullPercent:     math.Round(float64(fullyTranslated)/float64(total)*100*100) / 100,
+	}, nil
+}
+
+// GetArticleTranslateStats 获取 Article SEO 翻译统计
+func GetArticleTranslateStats() (*TranslateStats, error) {
+	var total int64
+	if err := DB.Model(&Article{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var withTranslation int64
+	if err := DB.Model(&Article{}).Where("seo_i18n IS NOT NULL AND seo_i18n != '' AND seo_i18n != '{}' AND seo_i18n != 'null'").Count(&withTranslation).Error; err != nil {
+		return nil, err
+	}
+
+	var fullyTranslated int64
+	if withTranslation > 0 {
+		var articles []Article
+		if err := DB.Select("id", "seo_i18n").Where("seo_i18n IS NOT NULL AND seo_i18n != '' AND seo_i18n != '{}' AND seo_i18n != 'null'").Find(&articles).Error; err != nil {
+			return nil, err
+		}
+		for _, a := range articles {
+			var parsed map[string]interface{}
+			if err := json.Unmarshal([]byte(a.SeoI18n), &parsed); err == nil {
+				if len(parsed) >= 11 {
+					fullyTranslated++
+				}
+			}
+		}
+	}
+
+	return &TranslateStats{
+		Total:           total,
+		WithTranslation: withTranslation,
+		FullyTranslated: fullyTranslated,
+		CoveragePercent: math.Round(float64(withTranslation)/float64(total)*100*100) / 100,
+		FullPercent:     math.Round(float64(fullyTranslated)/float64(total)*100*100) / 100,
+	}, nil
 }
 
 // GetLowScorePrompts 获取最新审计分低于阈值的提示词

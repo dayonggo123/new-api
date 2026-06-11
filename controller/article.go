@@ -643,6 +643,16 @@ func GetAllArticleSEOReport(c *gin.Context) {
 	})
 }
 
+// GetArticleTranslateStats 获取 Article SEO 翻译统计
+func GetArticleTranslateStats(c *gin.Context) {
+	stats, err := model.GetArticleTranslateStats()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, stats)
+}
+
 func GetLowScoreArticlesHandler(c *gin.Context) {
 	threshold, _ := strconv.Atoi(c.Query("threshold"))
 	if threshold <= 0 {
