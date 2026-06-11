@@ -32,7 +32,7 @@ import {
 import {
   IconSearch,
   IconBolt,
-  IconMonitor,
+  IconBarChart,
   IconLanguage,
   IconTickCircle,
   IconAlertTriangle,
@@ -470,7 +470,7 @@ const MonitorTab = () => {
     <div>
       <Row justify="end" style={{ marginBottom: 16 }}>
         <Button onClick={simulateData} size="small">模拟数据</Button>
-        <Button onClick={loadData} icon={<IconMonitor />} size="small" style={{ marginLeft: 8 }}>刷新</Button>
+        <Button onClick={loadData} icon={<IconBarChart />} size="small" style={{ marginLeft: 8 }}>刷新</Button>
       </Row>
 
       {loading && !data && (
@@ -576,7 +576,7 @@ const SEOCenter = () => {
         <TabPane tab={<span><IconBolt style={{ marginRight: 4 }} />内容生成</span>} itemKey="generator">
           <ContentGeneratorTab />
         </TabPane>
-        <TabPane tab={<span><IconMonitor style={{ marginRight: 4 }} />监控仪表盘</span>} itemKey="monitor">
+        <TabPane tab={<span><IconBarChart style={{ marginRight: 4 }} />监控仪表盘</span>} itemKey="monitor">
           <MonitorTab />
         </TabPane>
       </Tabs>
