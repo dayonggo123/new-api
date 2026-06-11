@@ -1,5 +1,7 @@
 package model
 
+import "github.com/QuantumNous/new-api/common"
+
 // SEOKeywordResearchResult AI 关键词研究结果
 type SEOKeywordResearchResult struct {
 	SeedKeyword       string            `json:"seed_keyword"`        // 用户输入的种子关键词
@@ -93,5 +95,114 @@ func GetSEOQuickTemplates() []SEOQuickTemplate {
 			Description: "可灵 AI 视频创作关键词研究",
 			SeedKeyword: "Kling AI video generation prompts",
 		},
+		{
+			ID:          "runway-gen3",
+			Name:        "Runway Gen-3 Prompts",
+			Description: "Runway Gen-3 提示词关键词研究",
+			SeedKeyword: "Runway Gen-3 prompt examples",
+		},
+		{
+			ID:          "veo-ai-video",
+			Name:        "Veo AI Video Guide",
+			Description: "Google Veo AI 视频指南关键词研究",
+			SeedKeyword: "Google Veo AI video generator",
+		},
+		{
+			ID:          "ai-video-editor",
+			Name:        "AI Video Editor Comparison",
+			Description: "AI 视频编辑器对比关键词研究",
+			SeedKeyword: "AI video editor comparison",
+		},
+		{
+			ID:          "text-to-video",
+			Name:        "Text to Video AI Tools",
+			Description: "文本转视频工具关键词研究",
+			SeedKeyword: "text to video AI tools free",
+		},
+		{
+			ID:          "ai-video-workflow",
+			Name:        "AI Video Workflow Automation",
+			Description: "AI 视频工作流自动化关键词研究",
+			SeedKeyword: "AI video workflow automation",
+		},
+		{
+			ID:          "stable-video",
+			Name:        "Stable Video Diffusion",
+			Description: "Stable Video Diffusion 关键词研究",
+			SeedKeyword: "Stable Video Diffusion tutorial",
+		},
+		{
+			ID:          "prompt-engineering",
+			Name:        "Prompt Engineering for Video",
+			Description: "视频提示词工程关键词研究",
+			SeedKeyword: "prompt engineering for AI video",
+		},
+		{
+			ID:          "ai-video-marketing",
+			Name:        "AI Video Marketing",
+			Description: "AI 视频营销关键词研究",
+			SeedKeyword: "AI video marketing strategy",
+		},
+		{
+			ID:          "node-video-editor",
+			Name:        "Node-based Video Editor",
+			Description: "节点式视频编辑器关键词研究",
+			SeedKeyword: "node based video editor free",
+		},
 	}
+}
+
+// SEOResearchHistory 关键词研究历史记录
+type SEOResearchHistory struct {
+	Id          int    `json:"id"`
+	SeedKeyword string `json:"seed_keyword" gorm:"index"`
+	Language    string `json:"language"`
+	ResultJSON  string `json:"result_json" gorm:"type:longtext"`
+	TotalCount  int    `json:"total_count"`
+	CreatedTime int64  `json:"created_time" gorm:"bigint"`
+}
+
+// SaveSEOResearchHistory 保存研究历史
+func SaveSEOResearchHistory(seedKeyword, language string, result *SEOKeywordResearchResult) error {
+	jsonData, err := common.Marshal(result)
+	if err != nil {
+		return err
+	}
+	history := &SEOResearchHistory{
+		SeedKeyword: seedKeyword,
+		Language:    language,
+		ResultJSON:  string(jsonData),
+		TotalCount:  result.TotalCount,
+		CreatedTime: common.GetTimestamp(),
+	}
+	return DB.Create(history).Error
+}
+
+// GetSEOResearchHistories 获取研究历史列表（分页）
+func GetSEOResearchHistories(page, pageSize int) ([]SEOResearchHistory, int64, error) {
+	var histories []SEOResearchHistory
+	var total int64
+	offset := (page - 1) * pageSize
+
+	if err := DB.Model(&SEOResearchHistory{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := DB.Order("created_time DESC").Limit(pageSize).Offset(offset).Find(&histories).Error; err != nil {
+		return nil, 0, err
+	}
+	return histories, total, nil
+}
+
+// GetSEOResearchHistoryByID 根据 ID 获取历史记录
+func GetSEOResearchHistoryByID(id int) (*SEOResearchHistory, error) {
+	var history SEOResearchHistory
+	if err := DB.First(&history, id).Error; err != nil {
+		return nil, err
+	}
+	return &history, nil
+}
+
+// DeleteSEOResearchHistory 删除研究历史
+func DeleteSEOResearchHistory(id int) error {
+	return DB.Delete(&SEOResearchHistory{}, id).Error
 }

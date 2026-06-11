@@ -29,6 +29,9 @@ import {
   Space,
   Descriptions,
   Badge,
+  Modal,
+  Pagination,
+  List,
 } from '@douyinfe/semi-ui';
 import {
   IconSearch,
@@ -39,6 +42,7 @@ import {
   IconTickCircle,
   IconAlertTriangle,
   IconInfoCircle,
+  IconHistory,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -65,6 +69,11 @@ const KeywordResearchTab = ({ onAddKeyword }) => {
   const [result, setResult] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [formApi, setFormApi] = useState(null);
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [histories, setHistories] = useState([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const historyPageSize = 10;
 
   useEffect(() => {
     loadTemplates();
@@ -78,6 +87,47 @@ const KeywordResearchTab = ({ onAddKeyword }) => {
       }
     } catch (e) {
       console.error('load templates failed', e);
+    }
+  };
+
+  const loadHistoryList = async (page = 1) => {
+    try {
+      const res = await API.get(`/api/admin/seo/research/history?page=${page}&page_size=${historyPageSize}`);
+      if (res.data.success) {
+        setHistories(res.data.data.histories || []);
+        setHistoryTotal(res.data.data.total || 0);
+        setHistoryPage(res.data.data.page || 1);
+      }
+    } catch (e) {
+      console.error('load history failed', e);
+    }
+  };
+
+  const loadHistoryDetail = async (id) => {
+    try {
+      const res = await API.get(`/api/admin/seo/research/history/${id}`);
+      if (res.data.success && res.data.data) {
+        const history = res.data.data;
+        if (history.result_json) {
+          setResult(JSON.parse(history.result_json));
+          setHistoryVisible(false);
+          showSuccess('已加载历史研究记录');
+        }
+      }
+    } catch (e) {
+      showError(e.message);
+    }
+  };
+
+  const deleteHistory = async (id) => {
+    try {
+      const res = await API.delete(`/api/admin/seo/research/history/${id}`);
+      if (res.data.success) {
+        showSuccess('已删除');
+        loadHistoryList(historyPage);
+      }
+    } catch (e) {
+      showError(e.message);
     }
   };
 
@@ -172,31 +222,61 @@ const KeywordResearchTab = ({ onAddKeyword }) => {
               </Form.Select>
             </Col>
             <Col span={6}>
-              <Button type="primary" htmlType="submit" icon={<IconSearch />} loading={loading} style={{ marginTop: 28 }}>
-                开始研究
-              </Button>
+              <Space style={{ marginTop: 28 }}>
+                <Button type="primary" htmlType="submit" icon={<IconSearch />} loading={loading}>
+                  开始研究
+                </Button>
+                <Button
+                  type="tertiary"
+                  icon={<IconHistory />}
+                  onClick={() => {
+                    setHistoryVisible(true);
+                    loadHistoryList(1);
+                  }}
+                >
+                  历史记录
+                </Button>
+              </Space>
             </Col>
           </Row>
         </Form>
 
         {templates.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            <Text type="secondary">快速模板：</Text>
-            <Space wrap>
-              {templates.map((tmpl) => (
-                <Tag
-                  key={tmpl.id}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => {
-                    if (formApi) {
-                      formApi.setValue('seed_keyword', tmpl.seed_keyword);
-                    }
-                  }}
-                >
-                  {tmpl.name}
-                </Tag>
-              ))}
-            </Space>
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <Text type="secondary" style={{ marginRight: 8, flexShrink: 0 }}>快速模板：</Text>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  overflowX: 'auto',
+                  paddingBottom: 4,
+                  scrollbarWidth: 'thin',
+                }}
+              >
+                {templates.map((tmpl) => (
+                  <Tag
+                    key={tmpl.id}
+                    type="light"
+                    style={{
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      padding: '4px 12px',
+                      fontSize: 13,
+                    }}
+                    onClick={() => {
+                      if (formApi) {
+                        formApi.setValue('seed_keyword', tmpl.seed_keyword);
+                      }
+                    }}
+                    title={tmpl.description}
+                  >
+                    {tmpl.name}
+                  </Tag>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </Card>
@@ -344,6 +424,52 @@ const KeywordResearchTab = ({ onAddKeyword }) => {
           </Card>
         </>
       )}
+
+      <Modal
+        title="研究历史记录"
+        visible={historyVisible}
+        onCancel={() => setHistoryVisible(false)}
+        footer={null}
+        width={720}
+      >
+        <List
+          dataSource={histories}
+          renderItem={(item) => (
+            <List.Item
+              main={
+                <div>
+                  <Text strong>{item.seed_keyword}</Text>
+                  <div>
+                    <Text type="secondary" size="small">
+                      {item.language} · {item.total_count} 个关键词 · {new Date(item.created_time * 1000).toLocaleString()}
+                    </Text>
+                  </div>
+                </div>
+              }
+              extra={
+                <Space>
+                  <Button type="primary" size="small" onClick={() => loadHistoryDetail(item.id)}>
+                    加载
+                  </Button>
+                  <Button type="danger" size="small" onClick={() => deleteHistory(item.id)}>
+                    删除
+                  </Button>
+                </Space>
+              }
+            />
+          )}
+        />
+        {historyTotal > historyPageSize && (
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <Pagination
+              currentPage={historyPage}
+              pageSize={historyPageSize}
+              total={historyTotal}
+              onChange={(page) => loadHistoryList(page)}
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
@@ -451,6 +577,7 @@ const ContentGeneratorTab = ({ generatorKeywords }) => {
             <Col span={8}>
               <Form.Select field="type" label="内容类型" initValue="article" style={{ width: '100%' }}>
                 <Form.Select.Option value="article">文章 (Article)</Form.Select.Option>
+                <Form.Select.Option value="tutorial">教程 (Tutorial)</Form.Select.Option>
                 <Form.Select.Option value="prompt">提示词 (Prompt)</Form.Select.Option>
               </Form.Select>
             </Col>

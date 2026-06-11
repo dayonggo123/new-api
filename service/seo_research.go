@@ -150,6 +150,11 @@ func ResearchKeywords(req *SEOResearchRequest) (*model.SEOKeywordResearchResult,
 	result.HighROICount = len(result.HighROIKeywords)
 	result.ClusterCount = len(result.TopicClusters)
 
+	// 异步保存研究历史
+	go func() {
+		_ = model.SaveSEOResearchHistory(req.SeedKeyword, lang, &result)
+	}()
+
 	return &result, nil
 }
 

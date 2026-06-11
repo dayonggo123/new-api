@@ -307,6 +307,7 @@ func migrateDB() error {
 		&EcommerceCaseDetail{},
 		&PromptMedia{},
 		&ArticleMedia{},
+		&SEOResearchHistory{},
 		&Popup{},
 		&MarketingBanner{},
 	)

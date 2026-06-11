@@ -430,6 +430,9 @@ func SetApiRouter(router *gin.Engine) {
 	// SEO Keyword Research Routes (Admin)
 	apiRouter.POST("/admin/seo/research", middleware.AdminAuth(), controller.ResearchSEOKeywords)
 	apiRouter.GET("/admin/seo/research/templates", middleware.AdminAuth(), controller.GetSEOQuickTemplates)
+	apiRouter.GET("/admin/seo/research/history", middleware.AdminAuth(), controller.ListSEOResearchHistories)
+	apiRouter.GET("/admin/seo/research/history/:id", middleware.AdminAuth(), controller.GetSEOResearchHistory)
+	apiRouter.DELETE("/admin/seo/research/history/:id", middleware.AdminAuth(), controller.DeleteSEOResearchHistory)
 
 	// SEO Audit & Internal Links Routes (Admin)
 	apiRouter.GET("/admin/seo/audit", middleware.AdminAuth(), controller.GetSEOAudit)

@@ -22,6 +22,7 @@ type ContentGenerationType string
 const (
 	ContentTypeArticle ContentGenerationType = "article"
 	ContentTypePrompt  ContentGenerationType = "prompt"
+	ContentTypeTutorial ContentGenerationType = "tutorial"
 )
 
 // ContentGenerationRequest 内容生成请求
@@ -63,6 +64,8 @@ func GenerateContent(req *ContentGenerationRequest) (*ContentGenerationResult, e
 		return generateArticleContent(req, lang)
 	case ContentTypePrompt:
 		return generatePromptContent(req, lang)
+	case ContentTypeTutorial:
+		return generateTutorialContent(req, lang)
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", req.Type)
 	}
@@ -144,6 +147,89 @@ func generateArticleContent(req *ContentGenerationRequest, lang string) (*Conten
 	}
 
 	// Step 7: 自动发布（如果启用）
+	if req.AutoPublish {
+		model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Update("status", 1)
+	}
+
+	return result, nil
+}
+
+// generateTutorialContent 生成教程并保存
+func generateTutorialContent(req *ContentGenerationRequest, lang string) (*ContentGenerationResult, error) {
+	keywordsStr := strings.Join(req.Keywords, ", ")
+	mainKeyword := req.Keywords[0]
+
+	// Step 1: AI 生成教程
+	tutorialResult, err := callAIForTutorial(mainKeyword, keywordsStr, lang)
+	if err != nil {
+		return &ContentGenerationResult{
+			Type:         string(ContentTypeTutorial),
+			Status:       "failed",
+			ErrorMessage: err.Error(),
+		}, err
+	}
+
+	// Step 2: 生成 slug
+	slug := model.GenerateSlug(tutorialResult.Title)
+
+	// Step 3: 创建文章记录（教程也存为文章，标记为教程类型）
+	article := &model.Article{
+		Title:         tutorialResult.Title,
+		Slug:          slug,
+		Content:       tutorialResult.Content,
+		Summary:       tutorialResult.Summary,
+		Author:        "AI Generator",
+		Status:        0, // 草稿
+		CreatedTime:   common.GetTimestamp(),
+		UpdatedTime:   common.GetTimestamp(),
+		SeoKeywords:   tutorialResult.SeoKeywords,
+		Intro:         tutorialResult.Intro,
+	}
+
+	if err := model.DB.Create(article).Error; err != nil {
+		return &ContentGenerationResult{
+			Type:         string(ContentTypeTutorial),
+			Status:       "failed",
+			ErrorMessage: fmt.Sprintf("save tutorial failed: %v", err),
+		}, err
+	}
+
+	result := &ContentGenerationResult{
+		Type:     string(ContentTypeTutorial),
+		RecordID: article.Id,
+		Title:    article.Title,
+		Content:  article.Content,
+		Slug:     article.Slug,
+		Status:   "completed",
+	}
+
+	// Step 4: 自动 SEO
+	if req.AutoSEO {
+		go func() {
+			if seoResult, err := GenerateSEOForArticle(article); err == nil {
+				updates := map[string]interface{}{
+					"seo_keywords": seoResult.SeoKeywords,
+					"intro":        seoResult.Intro,
+					"faq":          seoResult.Faq,
+				}
+				model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Updates(updates)
+			}
+		}()
+	}
+
+	// Step 5: 自动 GEO
+	if req.AutoGEO {
+		go func() {
+			_ = GenerateArticleGeoBlocks(article.Id)
+		}()
+	}
+
+	// Step 6: 自动翻译
+	if req.AutoTranslate {
+		go StartAutoTranslate("article", article.Id)
+	}
+
+	// Step 7: 自动发布
 	if req.AutoPublish {
 		model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Update("status", 1)
 	}
@@ -317,6 +403,46 @@ Make the prompt detailed enough to produce high-quality, consistent results acro
 		Description: rawResult.Summary,
 		Example:     rawResult.Intro,
 	}, nil
+}
+
+// callAIForTutorial 调用 AI 生成教程
+func callAIForTutorial(mainKeyword, allKeywords, lang string) (*articleAIResult, error) {
+	cfg := operation_setting.GetSEOSetting()
+
+	systemPrompt := fmt.Sprintf(`You are an expert technical tutorial writer specializing in AI video creation and prompt engineering. Write a comprehensive, step-by-step tutorial in %s.
+
+Requirements:
+1. Write 1500-2500 words of high-quality tutorial content
+2. Use the main keyword naturally throughout (1-2%% density)
+3. Structure as a tutorial with clear step-by-step instructions:
+   - Introduction: what the tutorial covers and who it's for
+   - Prerequisites: what users need to know or have
+   - Step 1, Step 2, Step 3... with clear headings
+   - Each step should have: objective, instructions, expected outcome
+   - Tips & Troubleshooting section
+   - Next Steps / Further Reading
+4. Include screenshots placeholders like [Screenshot: ...]
+5. Write in a friendly, encouraging, instructional tone
+6. Target audience: beginners to intermediate video creators
+
+Return ONLY valid JSON with this exact structure:
+{"title":"...","content":"...","summary":"...","seo_keywords":"kw1, kw2, kw3, kw4, kw5","intro":"..."}
+
+- title: compelling tutorial title under 60 chars, include main keyword
+- content: full tutorial in markdown, with ## headings for each section
+- summary: 1-paragraph summary (max 200 chars)
+- seo_keywords: 8-12 keywords separated by commas
+- intro: compelling intro paragraph (max 300 chars)`, lang)
+
+	userPrompt := fmt.Sprintf(`Write a step-by-step tutorial targeting the keyword: "%s"
+
+Related keywords to include naturally: %s
+
+The tutorial should be for harse.tv — an AI creative workspace offering node-based canvas video creation and AI video prompt library (supports Sora, Kling, Veo, Runway, and more).
+
+Focus on teaching readers HOW TO do something practical. Use real examples and specific instructions.`, mainKeyword, allKeywords)
+
+	return callAIForContent(systemPrompt, userPrompt, cfg)
 }
 
 // callAIForContent 通用 AI 调用
