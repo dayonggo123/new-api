@@ -251,12 +251,12 @@ func GetPublicArticlesForSitemap(startIdx int, num int) (items []*ArticleSitemap
 		Select("id", "slug", "updated_time", "created_time").
 		Where("status = ?", 1)
 
-	err = query.Count(&total).Error
+	err = query.Session(&gorm.Session{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	err = query.Order("updated_time desc, id desc").
+	err = query.Session(&gorm.Session{}).Order("updated_time desc, id desc").
 		Limit(num).Offset(startIdx).
 		Find(&items).Error
 	if err != nil {
@@ -286,13 +286,13 @@ func GetPublicArticles(categoryId int, keyword string, startIdx int, num int) (a
 		query = query.Where("title LIKE ? OR summary LIKE ?", like, like)
 	}
 
-	err = query.Count(&total).Error
+	err = query.Session(&gorm.Session{}).Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	err = query.Order("is_featured desc, id desc").Limit(num).Offset(startIdx).Find(&articles).Error
+	err = query.Session(&gorm.Session{}).Order("is_featured desc, id desc").Limit(num).Offset(startIdx).Find(&articles).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err

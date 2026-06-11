@@ -216,13 +216,13 @@ func GetPublicPrompts(categoryId int, keyword string, startIdx int, num int) (pr
 		query = query.Where("title LIKE ?", "%"+keyword+"%")
 	}
 
-	err = query.Count(&total).Error
+	err = query.Session(&gorm.Session{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var rawPrompts []*Prompt
-	err = query.Order("sort_order asc, usage_count desc, id desc").Limit(num).Offset(startIdx).Find(&rawPrompts).Error
+	err = query.Session(&gorm.Session{}).Order("sort_order asc, usage_count desc, id desc").Limit(num).Offset(startIdx).Find(&rawPrompts).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -282,12 +282,12 @@ func GetPublicPromptsForSitemap(startIdx int, num int) (items []*PromptSitemapIt
 		Select("id", "title", "slug", "updated_time", "created_time").
 		Where("status = ?", 1)
 
-	err = query.Count(&total).Error
+	err = query.Session(&gorm.Session{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	err = query.Order("updated_time desc, id desc").
+	err = query.Session(&gorm.Session{}).Order("updated_time desc, id desc").
 		Limit(num).Offset(startIdx).
 		Find(&items).Error
 	if err != nil {

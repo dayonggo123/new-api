@@ -40,17 +40,20 @@ func (p *PageInfo) SetItems(items any) {
 
 func GetPageQuery(c *gin.Context) *PageInfo {
 	pageInfo := &PageInfo{}
-	// 手动获取并处理每个参数
-	if page, err := strconv.Atoi(c.Query("p")); err == nil {
+	// 优先读取 "page"，兼容旧参数 "p"
+	if page, err := strconv.Atoi(c.Query("page")); err == nil {
+		pageInfo.Page = page
+	} else if page, err := strconv.Atoi(c.Query("p")); err == nil {
 		pageInfo.Page = page
 	}
 	if pageSize, err := strconv.Atoi(c.Query("page_size")); err == nil {
 		pageInfo.PageSize = pageSize
 	}
 	if pageInfo.Page < 1 {
-		// 兼容
-		page, _ := strconv.Atoi(c.Query("p"))
-		if page != 0 {
+		// 兼容：依次尝试 page → p
+		if page, _ := strconv.Atoi(c.Query("page")); page > 0 {
+			pageInfo.Page = page
+		} else if page, _ := strconv.Atoi(c.Query("p")); page > 0 {
 			pageInfo.Page = page
 		} else {
 			pageInfo.Page = 1
