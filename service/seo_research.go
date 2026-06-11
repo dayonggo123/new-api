@@ -308,19 +308,54 @@ func extractKeywordFromLine(line string) string {
 	line = strings.TrimPrefix(line, "3.")
 	line = strings.TrimSpace(line)
 
-	// 移除 JSON 语法
+	// JSON 字段名黑名单（避免把 schema 字段当成关键词）
+	blacklist := map[string]bool{
+		"keyword": true, "search_volume": true, "intent": true, "difficulty": true,
+		"business_value": true, "roi_score": true, "suggested_url": true,
+		"content_type": true, "priority": true, "name": true,
+		"pillar_keyword": true, "cluster_keywords": true, "pillar_volume": true,
+		"seed_keywords": true, "extended_keywords": true, "long_tail_keywords": true,
+		"high_roi_keywords": true, "topic_clusters": true, "content_gaps": true,
+	}
+
+	// 尝试提取冒号后面的值（JSON value 部分）
+	if colonIdx := strings.Index(line, ":"); colonIdx != -1 {
+		valuePart := strings.TrimSpace(line[colonIdx+1:])
+		// 尝试提取引号内的值
+		if strings.HasPrefix(valuePart, `"`) && strings.HasSuffix(valuePart, `"`) {
+			inner := valuePart[1 : len(valuePart)-1]
+			inner = strings.TrimSpace(inner)
+			if len(inner) > 2 && !blacklist[strings.ToLower(inner)] {
+				return inner
+			}
+		}
+		// 尝试提取数组元素
+		if strings.HasPrefix(valuePart, "[") {
+			valuePart = strings.TrimPrefix(valuePart, "[")
+			valuePart = strings.TrimSuffix(valuePart, "]")
+			items := strings.Split(valuePart, ",")
+			for _, item := range items {
+				item = strings.TrimSpace(item)
+				item = strings.Trim(item, `"`)
+				if len(item) > 2 && !blacklist[strings.ToLower(item)] {
+					return item
+				}
+			}
+		}
+	}
+
+	// 移除 JSON 语法（按引号分割时跳过黑名单字段）
 	if idx := strings.Index(line, `"`); idx != -1 {
-		// 尝试提取引号内的内容
 		parts := strings.Split(line, `"`)
 		for _, part := range parts {
 			part = strings.TrimSpace(part)
-			if len(part) > 3 && !strings.Contains(part, ":") && !strings.Contains(part, "{") {
+			if len(part) > 3 && !strings.Contains(part, ":") && !strings.Contains(part, "{") && !strings.Contains(part, "}") && !blacklist[strings.ToLower(part)] {
 				return part
 			}
 		}
 	}
 
-	// 移除冒号后的内容
+	// 移除冒号后的内容（如果还有的话）
 	if idx := strings.Index(line, ":"); idx != -1 {
 		line = line[:idx]
 	}
