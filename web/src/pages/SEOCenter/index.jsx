@@ -24,7 +24,6 @@ import {
   Progress,
   Row,
   Col,
-  Statistic,
   Empty,
   Space,
   Descriptions,
@@ -44,6 +43,17 @@ import { API, showError, showSuccess } from '../../helpers';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
+
+// 简单统计卡片（Semi UI 无 Statistic 组件，用 Typography 模拟）
+const StatCard = ({ title, value, suffix, precision }) => (
+  <div style={{ textAlign: 'center' }}>
+    <Title heading={2} style={{ margin: 0 }}>
+      {precision !== undefined ? Number(value).toFixed(precision) : value}
+      {suffix}
+    </Title>
+    <Text type="secondary" size="small">{title}</Text>
+  </div>
+);
 
 // ==================== Tab 1: Keyword Research ====================
 
@@ -187,22 +197,22 @@ const KeywordResearchTab = () => {
           <Row gutter={16} style={{ marginBottom: 16 }}>
             <Col span={6}>
               <Card>
-                <Statistic title="种子词" value={result.seed_keywords?.length || 0} />
+                <StatCard title="种子词" value={result.seed_keywords?.length || 0} />
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic title="扩展词" value={result.extended_keywords?.length || 0} />
+                <StatCard title="扩展词" value={result.extended_keywords?.length || 0} />
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic title="高 ROI 词" value={result.high_roi_keywords?.length || 0} />
+                <StatCard title="高 ROI 词" value={result.high_roi_keywords?.length || 0} />
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic title="主题簇" value={result.topic_clusters?.length || 0} />
+                <StatCard title="主题簇" value={result.topic_clusters?.length || 0} />
               </Card>
             </Col>
           </Row>
@@ -474,7 +484,7 @@ const MonitorTab = () => {
           <Row gutter={16} style={{ marginBottom: 16 }}>
             <Col span={6}>
               <Card>
-                <Statistic
+                <StatCard
                   title="自然搜索流量"
                   value={data.organic_traffic || 0}
                   suffix={summary?.traffic_change > 0 ? <Tag color="green">+{summary.traffic_change.toFixed(1)}%</Tag> : summary?.traffic_change < 0 ? <Tag color="red">{summary.traffic_change.toFixed(1)}%</Tag> : null}
@@ -483,17 +493,17 @@ const MonitorTab = () => {
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic title="已索引页面" value={data.indexed_pages || 0} />
+                <StatCard title="已索引页面" value={data.indexed_pages || 0} />
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic title="排名关键词" value={data.ranking_keywords || 0} />
+                <StatCard title="排名关键词" value={data.ranking_keywords || 0} />
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic title="平均排名" value={data.avg_position || 0} precision={1} />
+                <StatCard title="平均排名" value={data.avg_position || 0} precision={1} />
               </Card>
             </Col>
           </Row>
