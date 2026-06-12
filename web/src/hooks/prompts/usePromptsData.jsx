@@ -191,6 +191,12 @@ export const usePromptsData = () => {
   // Batch translate state
   const [batchTranslating, setBatchTranslating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const translatePollIntervalRef = useRef(null);
+  const activePageRef = useRef(activePage);
+
+  useEffect(() => {
+    activePageRef.current = activePage;
+  }, [activePage]);
 
   // Batch SEO translate state
   const [batchSEOTranslating, setBatchSEOTranslating] = useState(false);
@@ -536,8 +542,27 @@ export const usePromptsData = () => {
       if (geoBlocksPollIntervalRef.current) {
         clearInterval(geoBlocksPollIntervalRef.current);
       }
+      if (translatePollIntervalRef.current) {
+        clearInterval(translatePollIntervalRef.current);
+      }
     };
   }, []);
+
+  // Auto-refresh prompts list when some records are still being translated
+  useEffect(() => {
+    if (!prompts || prompts.length === 0) return;
+    const hasTranslating = prompts.some(
+      (p) => !p.is_translated || (p.translation_error && p.translation_error.startsWith('partial:'))
+    );
+    if (hasTranslating && !translatePollIntervalRef.current) {
+      translatePollIntervalRef.current = setInterval(() => {
+        refresh(activePageRef.current);
+      }, 10000); // 每 10 秒刷新一次
+    } else if (!hasTranslating && translatePollIntervalRef.current) {
+      clearInterval(translatePollIntervalRef.current);
+      translatePollIntervalRef.current = null;
+    }
+  }, [prompts]);
 
   // Close edit modal
   const closeEdit = () => {

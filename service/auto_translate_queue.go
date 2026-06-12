@@ -266,6 +266,10 @@ func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
 	updates := map[string]interface{}{
 		"translation_error": "", // 成功时清空错误
 	}
+	if len(failedLangs) > 0 {
+		// 部分语言失败：记录缺失语言，便于前端展示和轮询重试
+		updates["translation_error"] = "partial: " + strings.Join(failedLangs, ",")
+	}
 	if task.Type == "prompt" {
 		if len(existingTitleI18n) > 0 {
 			titleI18nJSON, _ := common.Marshal(existingTitleI18n)
@@ -610,7 +614,7 @@ func pollAndAutoTranslate() {
 	}
 
 	const batchSize = 20
-	cooldown := time.Now().Add(-30 * time.Minute).Unix()
+	cooldown := time.Now().Add(-5 * time.Minute).Unix()
 
 	// 1. 扫描从未翻译过的 Prompts
 	var promptIDs []int

@@ -1274,6 +1274,7 @@ const ArticleManagement = () => {
   const [batchTranslating, setBatchTranslating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const autoFaqPollIntervalRef = useRef(null);
+  const translatePollIntervalRef = useRef(null);
 
   // Auto FAQ state
   const [batchAutoFAQTranslating, setBatchAutoFAQTranslating] = useState(false);
@@ -1344,8 +1345,27 @@ const ArticleManagement = () => {
       if (geoBlocksPollIntervalRef.current) {
         clearInterval(geoBlocksPollIntervalRef.current);
       }
+      if (translatePollIntervalRef.current) {
+        clearInterval(translatePollIntervalRef.current);
+      }
     };
   }, []);
+
+  // Auto-refresh article list when some records are still being translated
+  useEffect(() => {
+    if (!articles || articles.length === 0) return;
+    const hasTranslating = articles.some(
+      (a) => !a.is_translated || (a.translation_error && a.translation_error.startsWith('partial:'))
+    );
+    if (hasTranslating && !translatePollIntervalRef.current) {
+      translatePollIntervalRef.current = setInterval(() => {
+        loadArticles();
+      }, 10000);
+    } else if (!hasTranslating && translatePollIntervalRef.current) {
+      clearInterval(translatePollIntervalRef.current);
+      translatePollIntervalRef.current = null;
+    }
+  }, [articles]);
 
   useEffect(() => {
     loadArticles(1, articlePageSize);
@@ -1669,10 +1689,19 @@ const ArticleManagement = () => {
       dataIndex: 'is_translated',
       width: 90,
       render: (text, record) => {
+        const partialMatch = record.translation_error && record.translation_error.match(/^partial:\s*(.+)$/i);
+        const partialLangs = partialMatch ? partialMatch[1].split(',').map((l) => l.trim()).filter(Boolean) : [];
         if (text) {
           return (
             <Tag color='green' size='small'>
               {t('是')}
+            </Tag>
+          );
+        }
+        if (partialLangs.length > 0) {
+          return (
+            <Tag color='orange' size='small' title={`${t('缺失语言')}: ${partialLangs.join(', ')}`}>
+              {t('部分失败')}
             </Tag>
           );
         }

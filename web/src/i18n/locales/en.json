@@ -1088,6 +1088,8 @@
     "天": "day",
     "天前": "days ago",
     "失败": "Failed",
+    "部分失败": "Partial",
+    "缺失语言": "Missing languages",
     "失败原因": "Failure Reason",
     "失败后不重试": "No Retry on Failure",
     "失败后是否重试": "Retry on Failure",

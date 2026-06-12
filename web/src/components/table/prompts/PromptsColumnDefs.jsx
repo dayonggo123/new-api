@@ -55,6 +55,17 @@ const formatTime = (ts) => {
 };
 
 /**
+ * Parse partial translation error like "partial: en,fr" into missing languages array
+ */
+const getPartialError = (error) => {
+  if (!error || typeof error !== 'string') return null;
+  const match = error.match(/^partial:\s*(.+)$/i);
+  if (!match) return null;
+  const langs = match[1].split(',').map((l) => l.trim()).filter(Boolean);
+  return langs.length > 0 ? { langs } : null;
+};
+
+/**
  * Calculate translation progress from title_i18n / i18n / content_en
  * Returns "X/11"
  */
@@ -142,10 +153,18 @@ export const getPromptsColumns = ({
       dataIndex: 'is_translated',
       width: 90,
       render: (text, record) => {
+        const partialError = getPartialError(record.translation_error);
         if (text) {
           return (
             <Tag color='green' size='small'>
               {t('是')}
+            </Tag>
+          );
+        }
+        if (partialError) {
+          return (
+            <Tag color='orange' size='small' title={`${t('缺失语言')}: ${partialError.langs.join(', ')}`}>
+              {t('部分失败')}
             </Tag>
           );
         }
@@ -171,9 +190,14 @@ export const getPromptsColumns = ({
         const progress = getTranslationProgress(record);
         const [completed] = progress.split('/').map(Number);
         const isDone = completed === 11;
-        const hasError = !!record.translation_error;
+        const partialError = getPartialError(record.translation_error);
+        const hasRealError = !!record.translation_error && !partialError;
         return (
-          <Tag color={hasError ? 'red' : isDone ? 'green' : 'blue'} size='small'>
+          <Tag
+            color={hasRealError ? 'red' : partialError ? 'orange' : isDone ? 'green' : 'blue'}
+            size='small'
+            title={partialError ? `${t('缺失语言')}: ${partialError.langs.join(', ')}` : record.translation_error}
+          >
             {progress}
           </Tag>
         );
