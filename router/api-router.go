@@ -419,6 +419,7 @@ func SetApiRouter(router *gin.Engine) {
 
 	// Auto Translate Status (Admin)
 	apiRouter.GET("/admin/auto-translate/:task_id", middleware.AdminAuth(), controller.GetAutoTranslateStatus)
+	apiRouter.GET("/admin/auto-translate-queue", middleware.AdminAuth(), controller.GetAutoTranslateQueueStatus)
 
 	// GEO Blocks Generation Routes (Admin)
 	apiRouter.POST("/admin/articles/:id/geo-blocks", middleware.AdminAuth(), controller.GenerateArticleGeoBlocks)

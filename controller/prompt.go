@@ -961,3 +961,13 @@ func GetAutoTranslateStatus(c *gin.Context) {
 
 	common.ApiSuccess(c, task)
 }
+
+// GetAutoTranslateQueueStatus 查询自动翻译队列状态
+func GetAutoTranslateQueueStatus(c *gin.Context) {
+	pending, running, workers := service.GetAutoTranslateQueueStats()
+	common.ApiSuccess(c, gin.H{
+		"pending": pending,
+		"running": running,
+		"workers": workers,
+	})
+}

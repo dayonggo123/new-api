@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -51,17 +52,14 @@ var (
 	autoTranslateRunning = make(map[string]bool) // 防止同一记录重复翻译
 	autoTranslateRunMu   sync.Mutex
 	autoTranslateQueue   = make(chan autoTranslateQueueItem, 1000)
+	autoTranslateWorkers = common.GetEnvOrDefault("AUTO_TRANSLATE_WORKERS", 3) // 并发 worker 数
+	autoTranslateActive  int32                                                  // 当前运行中的记录数
 )
 
 type autoTranslateQueueItem struct {
 	taskID string
 	task   *AutoTranslateTask
 	key    string
-}
-
-func init() {
-	go cleanupAutoTranslateTasks()
-	go autoTranslateWorker()
 }
 
 func cleanupAutoTranslateTasks() {
@@ -119,13 +117,20 @@ func GetAutoTranslateTask(taskID string) *AutoTranslateTask {
 	return autoTranslateTasks[taskID]
 }
 
+// GetAutoTranslateQueueStats 返回队列统计：待处理数、运行中数、worker 总数
+func GetAutoTranslateQueueStats() (pending, running, workers int) {
+	return len(autoTranslateQueue), int(atomic.LoadInt32(&autoTranslateActive)), autoTranslateWorkers
+}
+
 // ========== 处理逻辑 ==========
 
 // ========== 处理逻辑 ==========
 
 func autoTranslateWorker() {
 	for item := range autoTranslateQueue {
+		atomic.AddInt32(&autoTranslateActive, 1)
 		processAutoTranslateWithRetry(item.task, item.key)
+		atomic.AddInt32(&autoTranslateActive, -1)
 	}
 }
 
@@ -676,6 +681,9 @@ func callAutoTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, 
 
 func init() {
 	go cleanupAutoTranslateTasks()
+	for i := 0; i < autoTranslateWorkers; i++ {
+		go autoTranslateWorker()
+	}
 	go startAutoTranslatePoller()
 	go fixIncompleteTranslationStatus()
 }
