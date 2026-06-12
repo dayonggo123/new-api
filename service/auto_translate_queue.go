@@ -137,13 +137,14 @@ func processAutoTranslateWithRetry(task *AutoTranslateTask, runningKey string) {
 		autoTranslateRunMu.Unlock()
 	}()
 
-	const maxRetries = 3
+	const maxRetries = 1
+	const retryInterval = 2 * time.Second
 	var lastError string
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			common.SysLog(fmt.Sprintf("AutoTranslate retry: %s %d attempt=%d/%d", task.Type, task.RecordID, attempt, maxRetries))
-			time.Sleep(time.Duration(attempt) * 5 * time.Second)
+			time.Sleep(retryInterval)
 		}
 
 		// 重置任务状态，准备新一轮翻译
