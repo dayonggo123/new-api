@@ -113,10 +113,29 @@
     return { zh: zh.join('\n'), en: en.join('\n') };
   }
 
-  // 从 URL 提取来源平台名
+  // 从 URL 提取来源平台名（兜底）
   function extractSource(hostname) {
     const match = hostname.replace(/^www\./, '').match(/^([^.]+)/);
     return match ? match[1] : hostname;
+  }
+
+  // 提取来源作者（优先从页面内容抓 @username）
+  function extractAuthor(doc = document) {
+    const pageText = (doc.body?.textContent || doc.textContent || '');
+
+    // 策略1：匹配 "来源：@xxx" / "来源: @xxx" / "来源 @xxx"
+    const sourceMatch = pageText.match(/来源[\s:：]+(@[A-Za-z0-9_\-.]+)/);
+    if (sourceMatch) return sourceMatch[1].trim();
+
+    // 策略2：匹配 "作者：@xxx" / "作者: @xxx"
+    const authorMatch = pageText.match(/作者[\s:：]+(@[A-Za-z0-9_\-.]+)/);
+    if (authorMatch) return authorMatch[1].trim();
+
+    // 策略3：匹配 "By @xxx" / "by @xxx"
+    const byMatch = pageText.match(/\bby\s+(@[A-Za-z0-9_\-.]+)/i);
+    if (byMatch) return byMatch[1].trim();
+
+    return '';
   }
 
   // 获取卡片详情页 URL
@@ -347,7 +366,7 @@
       description: title,
       cover_image_url: coverImageUrl,
       video_url: videoUrl,
-      source: extractSource(new URL(sourceUrl).hostname),
+      source: extractAuthor(modal) || extractSource(new URL(sourceUrl).hostname),
       model,
       media_type: sourceUrl.includes('video') ? 'video' : 'image',
       tags: JSON.stringify(tags.slice(0, 10)),

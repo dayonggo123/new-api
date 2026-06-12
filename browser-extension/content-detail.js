@@ -185,7 +185,26 @@
     return tags.slice(0, 10);
   }
 
-  // 从 URL 提取来源平台名
+  // 提取来源（优先从页面内容抓作者名，如 @Mrpinecone888）
+  function extractAuthor(doc = document) {
+    const pageText = (doc.body?.textContent || doc.textContent || '');
+
+    // 策略1：匹配 "来源：@xxx" / "来源: @xxx" / "来源 @xxx"
+    const sourceMatch = pageText.match(/来源[\s:：]+(@[A-Za-z0-9_\-.]+)/);
+    if (sourceMatch) return sourceMatch[1].trim();
+
+    // 策略2：匹配 "作者：@xxx" / "作者: @xxx"
+    const authorMatch = pageText.match(/作者[\s:：]+(@[A-Za-z0-9_\-.]+)/);
+    if (authorMatch) return authorMatch[1].trim();
+
+    // 策略3：匹配 "By @xxx" / "by @xxx"
+    const byMatch = pageText.match(/\bby\s+(@[A-Za-z0-9_\-.]+)/i);
+    if (byMatch) return byMatch[1].trim();
+
+    return '';
+  }
+
+  // 从 URL 提取来源平台名（兜底）
   function extractSource(hostname) {
     const match = hostname.replace(/^www\./, '').match(/^([^.]+)/);
     return match ? match[1] : hostname;
@@ -201,6 +220,7 @@
     const model = extractModel();
     const mediaType = extractMediaType();
     const tags = extractTags();
+    const author = extractAuthor() || extractSource(window.location.hostname);
 
     // 提取视频链接
     const video = document.querySelector('video');
@@ -212,7 +232,7 @@
       description: title,
       cover_image_url: coverImageUrl,
       video_url: videoUrl,
-      source: extractSource(window.location.hostname),
+      source: author,
       model,
       media_type: mediaType,
       tags: JSON.stringify(tags),
