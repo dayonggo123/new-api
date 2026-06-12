@@ -3,24 +3,31 @@ package service
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
+// SEOAuditCategory 单维度审计分类（兼容前端 categories 对象格式）
+type SEOAuditCategory struct {
+	Score       int      `json:"score"`
+	Issues      []string `json:"issues"`
+	Suggestions []string `json:"suggestions"`
+}
+
 // SEOAuditResult SEO 审计结果
 type SEOAuditResult struct {
-	OverallScore    int              `json:"overall_score"`    // 0-100 总分
-	RecordID        int              `json:"record_id"`
-	RecordType      string           `json:"record_type"`      // article / prompt
-	Title           string           `json:"title"`
-	DimensionScores []DimensionScore `json:"dimension_scores"` // 各维度得分
-	Issues          []SEOIssue       `json:"issues"`           // 发现的问题
-	Suggestions     []string         `json:"suggestions"`      // 改进建议
-	// 兼容 article_seo_audit.go 的字段
-	Categories     []string `json:"categories"`      // 内容分类
-	CriticalIssues []string `json:"critical_issues"` // 关键问题
-	QuickWins      []string `json:"quick_wins"`      // 快速优化项
+	OverallScore    int                         `json:"overall_score"`    // 0-100 总分
+	RecordID        int                         `json:"record_id"`
+	RecordType      string                      `json:"record_type"`      // article / prompt
+	Title           string                      `json:"title"`
+	DimensionScores []DimensionScore            `json:"dimension_scores"` // 各维度得分
+	Issues          []SEOIssue                  `json:"issues"`           // 发现的问题
+	Suggestions     []string                    `json:"suggestions"`      // 改进建议
+	Categories      map[string]SEOAuditCategory `json:"categories"`       // 前端兼容：各维度分类评分
+	CriticalIssues  []string                    `json:"critical_issues"`  // 关键问题
+	QuickWins       []string                    `json:"quick_wins"`       // 快速优化项
 }
 
 // DimensionScore 维度评分
@@ -138,9 +145,9 @@ func auditArticle(recordID int) (*SEOAuditResult, error) {
 
 	result.DimensionScores = dimensions
 	result.OverallScore = calculateOverallScore(dimensions)
-
-	// 生成改进建议
 	result.Suggestions = generateSuggestions(result.Issues)
+	result.Categories = buildCategoriesFromDimensions(dimensions, result.Issues, result.Suggestions)
+	result.CriticalIssues, result.QuickWins = buildCriticalIssuesAndQuickWins(result.Issues)
 
 	return result, nil
 }
@@ -231,6 +238,11 @@ func auditPrompt(recordID int) (*SEOAuditResult, error) {
 	result.DimensionScores = dimensions
 	result.OverallScore = calculateOverallScore(dimensions)
 	result.Suggestions = generateSuggestions(result.Issues)
+	result.Categories = buildCategoriesFromDimensions(dimensions, result.Issues, result.Suggestions)
+	result.CriticalIssues, result.QuickWins = buildCriticalIssuesAndQuickWins(result.Issues)
+
+	// 异步保存审计结果
+	go savePromptSEOAuditResult(recordID, result)
 
 	return result, nil
 }
@@ -664,11 +676,94 @@ func extractWords(s string) []string {
 	return result
 }
 
-// SEOAuditCategory 兼容旧 Prompt SEO 审计的维度分类
-type SEOAuditCategory struct {
-	Score       int      `json:"score"`
-	Issues      []string `json:"issues"`
-	Suggestions []string `json:"suggestions"`
+// buildCategoriesFromDimensions 将 DimensionScores + Issues 转换为前端兼容的 categories 对象
+func buildCategoriesFromDimensions(dimensions []DimensionScore, issues []SEOIssue, suggestions []string) map[string]SEOAuditCategory {
+	categories := make(map[string]SEOAuditCategory)
+
+	// 维度名称到 category key 的映射
+	dimKeyMap := map[string]string{
+		"Title":          "title_quality",
+		"Content":        "completeness",
+		"SEO Fields":     "keyword_quality",
+		"URL/Slug":       "technical",
+		"Multi-language": "structured_data",
+		"GEO Blocks":     "structured_data",
+	}
+
+	for _, dim := range dimensions {
+		key, ok := dimKeyMap[dim.Name]
+		if !ok {
+			key = strings.ToLower(strings.ReplaceAll(dim.Name, " ", "_"))
+		}
+		cat := categories[key]
+		cat.Score = dim.Score
+		categories[key] = cat
+	}
+
+	// 将 issues 按 field 分组到对应 category
+	for _, issue := range issues {
+		key := "technical"
+		switch issue.Field {
+		case "title":
+			key = "title_quality"
+		case "content":
+			key = "completeness"
+		case "seo_keywords", "intro", "faq":
+			key = "keyword_quality"
+		case "slug":
+			key = "technical"
+		case "i18n":
+			key = "structured_data"
+		case "geo_blocks":
+			key = "structured_data"
+		}
+		cat := categories[key]
+		cat.Issues = append(cat.Issues, issue.Message)
+		if issue.Suggestion != "" {
+			cat.Suggestions = append(cat.Suggestions, issue.Suggestion)
+		}
+		categories[key] = cat
+	}
+
+	return categories
+}
+
+// buildCriticalIssuesAndQuickWins 从 Issues 中提取关键问题和快速改进项
+func buildCriticalIssuesAndQuickWins(issues []SEOIssue) (critical []string, quickWins []string) {
+	seenCritical := make(map[string]bool)
+	seenQuick := make(map[string]bool)
+	for _, issue := range issues {
+		if issue.Type == "error" {
+			if !seenCritical[issue.Message] {
+				critical = append(critical, issue.Message)
+				seenCritical[issue.Message] = true
+			}
+		}
+		if issue.AutoFixable && issue.Suggestion != "" {
+			if !seenQuick[issue.Suggestion] {
+				quickWins = append(quickWins, issue.Suggestion)
+				seenQuick[issue.Suggestion] = true
+			}
+		}
+	}
+	return critical, quickWins
+}
+
+// savePromptSEOAuditResult 保存 Prompt SEO 审计结果到数据库
+func savePromptSEOAuditResult(promptId int, result *SEOAuditResult) {
+	categoriesJSON, _ := common.Marshal(result.Categories)
+	criticalJSON, _ := common.Marshal(result.CriticalIssues)
+	quickWinsJSON, _ := common.Marshal(result.QuickWins)
+
+	audit := &model.PromptSEOAudit{
+		PromptId:       promptId,
+		OverallScore:   result.OverallScore,
+		Categories:     string(categoriesJSON),
+		CriticalIssues: string(criticalJSON),
+		QuickWins:      string(quickWinsJSON),
+		CreatedAt:      time.Now().Unix(),
+	}
+	_ = model.CreatePromptSEOAudit(audit)
 }
 
 // AuditPromptSEO 对 Prompt 进行 SEO 审计（供外部调用，如翻译完成后触发）

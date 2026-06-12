@@ -1086,6 +1086,9 @@ const ArticleSEOManagement = () => {
                     title_quality: t('标题质量'),
                     description_quality: t('描述质量'),
                     technical: t('技术规范'),
+                    structured_data: t('结构化数据'),
+                    intro_quality: t('介绍文案'),
+                    faq_quality: t('FAQ 质量'),
                   };
                   return (
                     <div key={key}>
@@ -1152,6 +1155,9 @@ const ArticleSEOManagement = () => {
                     title_quality: t('标题质量'),
                     description_quality: t('描述质量'),
                     technical: t('技术规范'),
+                    structured_data: t('结构化数据'),
+                    intro_quality: t('介绍文案'),
+                    faq_quality: t('FAQ 质量'),
                   };
                   const hasContent = (cat.issues?.length > 0) || (cat.suggestions?.length > 0);
                   if (!hasContent) return null;
