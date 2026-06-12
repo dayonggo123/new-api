@@ -161,6 +161,8 @@ const PromptsPage = () => {
             <PromptsActions
               setEditingPrompt={setEditingPrompt}
               setShowEdit={setShowEdit}
+              autoRefreshEnabled={promptsData.autoRefreshEnabled}
+              setAutoRefreshEnabled={promptsData.setAutoRefreshEnabled}
               t={t}
             />
 

@@ -1275,6 +1275,7 @@ const ArticleManagement = () => {
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const autoFaqPollIntervalRef = useRef(null);
   const translatePollIntervalRef = useRef(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   // Auto FAQ state
   const [batchAutoFAQTranslating, setBatchAutoFAQTranslating] = useState(false);
@@ -1353,6 +1354,13 @@ const ArticleManagement = () => {
 
   // Auto-refresh article list when some records are still being translated
   useEffect(() => {
+    if (!autoRefreshEnabled) {
+      if (translatePollIntervalRef.current) {
+        clearInterval(translatePollIntervalRef.current);
+        translatePollIntervalRef.current = null;
+      }
+      return;
+    }
     if (!articles || articles.length === 0) return;
     const hasTranslating = articles.some(
       (a) => !a.is_translated || (a.translation_error && a.translation_error.startsWith('partial:'))
@@ -1365,7 +1373,7 @@ const ArticleManagement = () => {
       clearInterval(translatePollIntervalRef.current);
       translatePollIntervalRef.current = null;
     }
-  }, [articles]);
+  }, [articles, autoRefreshEnabled]);
 
   useEffect(() => {
     loadArticles(1, articlePageSize);
@@ -1912,6 +1920,15 @@ const ArticleManagement = () => {
               <Button type='tertiary' size='small' icon={<IconRefresh />} onClick={() => loadArticles(1)}>
                 {t('刷新')}
               </Button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Switch
+                  size='small'
+                  checked={autoRefreshEnabled}
+                  onChange={(checked) => setAutoRefreshEnabled(checked)}
+                  aria-label={t('自动刷新')}
+                />
+                <Text size='small' type='tertiary'>{t('自动刷新')}</Text>
+              </div>
             </div>
 
             {selectedArticleKeys.length > 0 && (

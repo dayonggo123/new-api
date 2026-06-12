@@ -1090,6 +1090,7 @@
     "失败": "Failed",
     "部分失败": "Partial",
     "缺失语言": "Missing languages",
+    "自动刷新": "Auto Refresh",
     "失败原因": "Failure Reason",
     "失败后不重试": "No Retry on Failure",
     "失败后是否重试": "Retry on Failure",

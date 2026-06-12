@@ -18,11 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button, Switch } from '@douyinfe/semi-ui';
 
 const PromptsActions = ({
   setEditingPrompt,
   setShowEdit,
+  autoRefreshEnabled,
+  setAutoRefreshEnabled,
   t,
 }) => {
   // Add new prompt
@@ -34,7 +36,7 @@ const PromptsActions = ({
   };
 
   return (
-    <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
+    <div className='flex flex-wrap items-center gap-2 w-full md:w-auto order-2 md:order-1'>
       <Button
         type='primary'
         className='flex-1 md:flex-initial'
@@ -43,6 +45,15 @@ const PromptsActions = ({
       >
         {t('添加提示词')}
       </Button>
+      <div className='flex items-center gap-2 text-sm'>
+        <Switch
+          size='small'
+          checked={autoRefreshEnabled}
+          onChange={(checked) => setAutoRefreshEnabled(checked)}
+          aria-label={t('自动刷新')}
+        />
+        <span className='text-gray-500'>{t('自动刷新')}</span>
+      </div>
     </div>
   );
 };

@@ -193,6 +193,7 @@ export const usePromptsData = () => {
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const translatePollIntervalRef = useRef(null);
   const activePageRef = useRef(activePage);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   useEffect(() => {
     activePageRef.current = activePage;
@@ -550,6 +551,13 @@ export const usePromptsData = () => {
 
   // Auto-refresh prompts list when some records are still being translated
   useEffect(() => {
+    if (!autoRefreshEnabled) {
+      if (translatePollIntervalRef.current) {
+        clearInterval(translatePollIntervalRef.current);
+        translatePollIntervalRef.current = null;
+      }
+      return;
+    }
     if (!prompts || prompts.length === 0) return;
     const hasTranslating = prompts.some(
       (p) => !p.is_translated || (p.translation_error && p.translation_error.startsWith('partial:'))
@@ -562,7 +570,7 @@ export const usePromptsData = () => {
       clearInterval(translatePollIntervalRef.current);
       translatePollIntervalRef.current = null;
     }
-  }, [prompts]);
+  }, [prompts, autoRefreshEnabled]);
 
   // Close edit modal
   const closeEdit = () => {
@@ -620,6 +628,8 @@ export const usePromptsData = () => {
     // UI state
     compactMode,
     setCompactMode,
+    autoRefreshEnabled,
+    setAutoRefreshEnabled,
 
     // Data operations
     loadPrompts,
