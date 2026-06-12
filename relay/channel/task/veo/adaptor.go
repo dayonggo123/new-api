@@ -221,6 +221,7 @@ var taskModelToPath = map[string]string{
 	"veo-3.1-fast": "/uapi/v1/video-gen/veo",
 	"veo-2":         "/uapi/v1/video-gen/veo",
 	"veo-3.1-lite":  "/uapi/v1/video-gen/veo",
+	"omni-flash":     "/uapi/v1/video-gen/veo",
 	"grok-3":        "/uapi/v1/video-gen/grok",
 	"grok-video":    "/uapi/v1/video-gen/grok",
 	"seedance-2":       "/uapi/v1/video-gen/seedance",
@@ -605,7 +606,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{"veo-3.1", "veo-3.1-fast", "veo-2", "veo-3.1-lite", "grok-3", "grok-video", "seedance-2", "seedance-2-remix", "seedance-2-omni", "kling"}
+	return []string{"veo-3.1", "veo-3.1-fast", "veo-2", "veo-3.1-lite", "omni-flash", "grok-3", "grok-video", "seedance-2", "seedance-2-remix", "seedance-2-omni", "kling"}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {

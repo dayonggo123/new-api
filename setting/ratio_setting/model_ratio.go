@@ -302,6 +302,7 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	"omni-flash":                      0.15,
 }
 
 var defaultAudioRatio = map[string]float64{
