@@ -50,10 +50,18 @@ var (
 	autoTranslateTTL     = 2 * time.Hour
 	autoTranslateRunning = make(map[string]bool) // 防止同一记录重复翻译
 	autoTranslateRunMu   sync.Mutex
+	autoTranslateQueue   = make(chan autoTranslateQueueItem, 1000)
 )
+
+type autoTranslateQueueItem struct {
+	taskID string
+	task   *AutoTranslateTask
+	key    string
+}
 
 func init() {
 	go cleanupAutoTranslateTasks()
+	go autoTranslateWorker()
 }
 
 func cleanupAutoTranslateTasks() {
@@ -73,7 +81,7 @@ func cleanupAutoTranslateTasks() {
 // ========== 公共接口 ==========
 
 // StartAutoTranslate 启动自动翻译任务（创建/更新记录后调用）
-// 同一记录短时间内不会重复触发
+// 同一记录短时间内不会重复触发，任务进入 FIFO 队列按顺序处理
 func StartAutoTranslate(recordType string, recordID int) string {
 	key := fmt.Sprintf("%s-%d", recordType, recordID)
 
@@ -99,7 +107,8 @@ func StartAutoTranslate(recordType string, recordID int) string {
 	autoTranslateTasks[taskID] = task
 	autoTranslateMu.Unlock()
 
-	go processAutoTranslate(task, key)
+	autoTranslateQueue <- autoTranslateQueueItem{taskID: taskID, task: task, key: key}
+	common.SysLog(fmt.Sprintf("AutoTranslate queued: %s %d task=%s", recordType, recordID, taskID))
 	return taskID
 }
 
@@ -112,30 +121,109 @@ func GetAutoTranslateTask(taskID string) *AutoTranslateTask {
 
 // ========== 处理逻辑 ==========
 
-func processAutoTranslate(task *AutoTranslateTask, runningKey string) {
+// ========== 处理逻辑 ==========
+
+func autoTranslateWorker() {
+	for item := range autoTranslateQueue {
+		processAutoTranslateWithRetry(item.task, item.key)
+	}
+}
+
+// processAutoTranslateWithRetry 顺序执行单个翻译任务，直到 11/11 完成或达到最大重试次数
+func processAutoTranslateWithRetry(task *AutoTranslateTask, runningKey string) {
 	defer func() {
 		autoTranslateRunMu.Lock()
 		delete(autoTranslateRunning, runningKey)
 		autoTranslateRunMu.Unlock()
 	}()
 
-	// defer 中统一处理失败状态写入数据库
-	defer func() {
-		if task.Status == AutoTranslateStatusFailed && task.Error != "" {
-			failUpdates := map[string]interface{}{
-				"is_translated":     false,
-				"translation_error": task.Error,
-				"updated_time":      common.GetTimestamp(),
-			}
-			if task.Type == "prompt" {
-				model.DB.Model(&model.Prompt{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error", "updated_time").Updates(failUpdates)
-			} else {
-				model.DB.Model(&model.Article{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error", "updated_time").Updates(failUpdates)
+	const maxRetries = 3
+	var lastError string
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			common.SysLog(fmt.Sprintf("AutoTranslate retry: %s %d attempt=%d/%d", task.Type, task.RecordID, attempt, maxRetries))
+			time.Sleep(time.Duration(attempt) * 5 * time.Second)
+		}
+
+		// 重置任务状态，准备新一轮翻译
+		task.Status = AutoTranslateStatusRunning
+		task.Error = ""
+		task.Progress = 0
+
+		processAutoTranslateOnce(task)
+		lastError = task.Error
+
+		if task.Status == AutoTranslateStatusCompleted && isRecordFullyTranslated(task.Type, task.RecordID) {
+			common.SysLog(fmt.Sprintf("AutoTranslate fully translated: %s %d", task.Type, task.RecordID))
+			task.Error = ""
+			return
+		}
+
+		// 未完成或失败：继续重试
+		common.SysLog(fmt.Sprintf("AutoTranslate not complete, will retry: %s %d error=%s", task.Type, task.RecordID, lastError))
+	}
+
+	// 达到最大重试次数仍无法 11/11
+	task.Status = AutoTranslateStatusFailed
+	if lastError == "" {
+		task.Error = "max retries exceeded: translation still incomplete"
+	} else {
+		task.Error = "max retries exceeded: " + lastError
+	}
+
+	failUpdates := map[string]interface{}{
+		"is_translated":     false,
+		"translation_error": task.Error,
+		"updated_time":      common.GetTimestamp(),
+	}
+	if task.Type == "prompt" {
+		model.DB.Model(&model.Prompt{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error", "updated_time").Updates(failUpdates)
+	} else {
+		model.DB.Model(&model.Article{}).Where("id = ?", task.RecordID).Select("is_translated", "translation_error", "updated_time").Updates(failUpdates)
+	}
+}
+
+func isRecordFullyTranslated(recordType string, recordID int) bool {
+	if recordType == "prompt" {
+		pwc, err := model.GetPromptById(recordID)
+		if err != nil || pwc == nil || pwc.Prompt == nil {
+			return false
+		}
+		var titleMap, contentMap map[string]string
+		if pwc.Prompt.TitleI18n != "" {
+			common.Unmarshal([]byte(pwc.Prompt.TitleI18n), &titleMap)
+		}
+		if pwc.Prompt.I18n != "" {
+			common.Unmarshal([]byte(pwc.Prompt.I18n), &contentMap)
+		}
+		for _, lang := range autoTranslateTargetLangs {
+			if titleMap[lang] == "" || contentMap[lang] == "" {
+				return false
 			}
 		}
-	}()
+		return true
+	}
 
-	task.Status = AutoTranslateStatusRunning
+	article, err := model.GetArticleById(recordID)
+	if err != nil || article == nil {
+		return false
+	}
+	var articleI18n map[string]model.ArticleContent18n
+	if article.I18n != "" {
+		common.Unmarshal([]byte(article.I18n), &articleI18n)
+	}
+	for _, lang := range autoTranslateTargetLangs {
+		data, ok := articleI18n[lang]
+		if !ok || data.Title == "" || data.Content == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// processAutoTranslateOnce 单次翻译处理：加载记录、调用 AI、保存结果
+func processAutoTranslateOnce(task *AutoTranslateTask) {
 
 	var title, content string
 	var recordExists bool
@@ -645,7 +733,7 @@ func pollAndAutoTranslate() {
 
 	for _, id := range promptIDs {
 		StartAutoTranslate("prompt", id)
-		time.Sleep(2 * time.Second) // 间隔避免并发过高
+		time.Sleep(200 * time.Millisecond) // 轻量间隔，顺序队列会控制实际并发
 	}
 	if len(promptIDs) > 0 {
 		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d prompts (%d retry)", len(promptIDs), len(promptIDs)-len(retryPromptIDs)))
@@ -680,7 +768,7 @@ func pollAndAutoTranslate() {
 
 	for _, id := range articleIDs {
 		StartAutoTranslate("article", id)
-		time.Sleep(2 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 	}
 	if len(articleIDs) > 0 {
 		common.SysLog(fmt.Sprintf("AutoTranslate poller: triggered %d articles (%d retry)", len(articleIDs), len(articleIDs)-len(retryArticleIDs)))
