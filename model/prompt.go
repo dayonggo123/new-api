@@ -335,6 +335,19 @@ func (prompt *Prompt) Insert() error {
 	if prompt.Slug == "" {
 		prompt.Slug = fmt.Sprintf("prompt-%d", time.Now().Unix())
 	}
+	// 保证 slug 唯一性：冲突时追加时间戳后缀
+	baseSlug := prompt.Slug
+	for i := 0; i < 10; i++ {
+		var count int64
+		err := DB.Model(&Prompt{}).Where("slug = ?", prompt.Slug).Count(&count).Error
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			break
+		}
+		prompt.Slug = fmt.Sprintf("%s-%d%d", baseSlug, time.Now().Unix(), i)
+	}
 	return DB.Create(prompt).Error
 }
 
