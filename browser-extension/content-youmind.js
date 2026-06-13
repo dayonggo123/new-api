@@ -438,26 +438,77 @@
   function extractYouMindTags() {
     const tags = [];
     const seen = new Set();
-    const cssJunk = new Set(['nprogress', 'organization', 'website', 'breadcrumb', 'creativew', 'navbar', 'header', 'footer', 'container', 'wrapper', 'content', 'main', 'section', 'page', 'home', 'index', 'active', 'selected', 'disabled', 'loading', 'hidden', 'visible']);
+
+    // 噪音词：CSS 类名、schema.org 类型、无意义词
+    const junk = new Set([
+      'nprogress', 'organization', 'website', 'breadcrumb', 'creativew', 'creativework', 'creativeworks',
+      'webpage', 'webpageelement', 'videoobject', 'imageobject', 'article', 'person', 'thing', 'product',
+      'navbar', 'header', 'footer', 'container', 'wrapper', 'content', 'main', 'section', 'page', 'home',
+      'index', 'active', 'selected', 'disabled', 'loading', 'hidden', 'visible', 'stylesheet', 'script'
+    ]);
+
     const add = (text) => {
       const t = text.trim().replace(/^#/, '');
       if (!t || t.length < 2 || t.length > 30) return;
       const lower = t.toLowerCase();
-      if (cssJunk.has(lower)) return;
-      if (/^[a-f0-9]{6,}$/i.test(t)) return;
+      if (junk.has(lower)) return;
+      // 过滤颜色代码：FF6B6B_0 / FF6B6B_100 / #FF6B6B
+      if (/^[a-f0-9]{3,8}(_\d+)?$/i.test(t)) return;
+      if (/^#[a-f0-9]{3,8}$/i.test(t)) return;
+      // 过滤纯数字/下划线组合
+      if (/^[0-9_]+$/.test(t)) return;
       if (!seen.has(lower)) {
         seen.add(lower);
         tags.push(t);
       }
     };
 
+    // 策略 1：优先从"分类"区域附近的胶囊标签提取（YouMind 详情页常见）
+    const catSection = findCategorySection();
+    if (catSection) {
+      catSection.querySelectorAll('a, button, span, div').forEach(el => add(el.textContent));
+      if (tags.length > 0) return tags.slice(0, 20);
+    }
+
+    // 策略 2：显式 tag 元素
     document.querySelectorAll('a[href*="/tag/"], [class*="tag"]:not([class*="tagline"])').forEach(el => add(el.textContent));
 
+    // 策略 3：hashtag
     const bodyText = document.body?.textContent || '';
     const hashes = bodyText.match(/#[A-Za-z0-9_\u4e00-\u9fa5]+/g);
     if (hashes) hashes.forEach(h => add(h));
 
     return tags.slice(0, 20);
+  }
+
+  // 找 YouMind 的"分类"区块（含黄色胶囊标签）
+  function findCategorySection() {
+    const labels = Array.from(document.querySelectorAll('*')).filter(el => {
+      for (const node of el.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const t = cleanText(node.textContent);
+          if (t === '分类' || t.toLowerCase() === 'category') return true;
+        }
+      }
+      return false;
+    });
+
+    for (const label of labels) {
+      let cur = label.parentElement;
+      for (let depth = 0; depth < 5 && cur; depth++, cur = cur.parentElement) {
+        // 找包含多个胶囊状子元素的容器
+        const children = cur.querySelectorAll('a, button, span, div');
+        let tagLikeCount = 0;
+        for (const c of children) {
+          const t = cleanText(c.textContent);
+          if (t && t.length >= 2 && t.length <= 15 && !/^[a-f0-9]{6,8}$/i.test(t)) {
+            tagLikeCount++;
+          }
+        }
+        if (tagLikeCount >= 3) return cur;
+      }
+    }
+    return null;
   }
 
   async function extractPageData() {
