@@ -8,12 +8,44 @@ const BATCH_KEY = 'promptCollectorBatch';
 const FETCH_TIMEOUT_MS = 10000; // API 请求超时 10s（从 15s 降低，更快反馈）
 const FETCH_RETRY_DELAY_MS = 2000; // 网络错误重试间隔 2s
 const FETCH_MAX_RETRIES = 1; // 网络错误最多重试 1 次
-const SW_VERSION = '1.4.2';
+const SW_VERSION = '1.4.6';
 const HEARTBEAT_ALARM = 'promptCollectorHeartbeat';
 const STATS_KEY = 'promptCollectorStats';
 
 // 启动日志（每次 SW 启动都打一条，便于排查失效问题）
 console.log(`[PromptCollector] SW v${SW_VERSION} starting at ${new Date().toISOString()}`);
+
+// ===== 上下文菜单懒注册（v1.4.6 修复右键无反应）=====
+// 根因：MV3 SW 休眠后被 onClicked 唤醒时，onInstalled/onStartup 不再触发，
+//       导致 contextMenus 监听器没绑 / 菜单没注册，"右键无反应"
+// 修法：每次 SW 文件顶层执行时（即 SW 启动/被唤醒），都尝试注册一次
+//       用 ensureContextMenu() 幂等保护，不会重复创建报错
+function ensureContextMenu() {
+  try {
+    chrome.contextMenus.removeAll(() => {
+      try {
+        chrome.contextMenus.create({
+          id: 'collectPrompt',
+          title: '🎯 采集此页面提示词',
+          contexts: ['page', 'selection', 'link', 'image', 'video']
+        }, () => {
+          if (chrome.runtime.lastError) {
+            console.debug('[Background] contextMenu create 跳过:', chrome.runtime.lastError.message);
+          } else {
+            console.log('[Background] contextMenu 注册成功');
+          }
+        });
+      } catch (e) {
+        console.warn('[Background] contextMenu create 失败:', e?.message);
+      }
+    });
+  } catch (e) {
+    console.warn('[Background] contextMenu removeAll 失败:', e?.message);
+  }
+}
+
+// 启动时立即注册一次
+ensureContextMenu();
 
 // ===== 全局 unhandledrejection 处理（防止 Extension context invalidated 漏出）=====
 self.addEventListener('unhandledrejection', (event) => {
@@ -563,13 +595,8 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 
   try {
-    chrome.contextMenus.removeAll(() => {
-      chrome.contextMenus.create({
-        id: 'collectPrompt',
-        title: '🎯 采集此页面提示词',
-        contexts: ['page', 'selection']
-      });
-    });
+    // v1.4.6: 复用懒注册函数
+    ensureContextMenu();
   } catch (e) {
     console.warn('[Background] 上下文菜单注册失败:', e?.message);
   }
@@ -578,26 +605,73 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.runtime.onStartup.addListener(() => {
   console.log(`[PromptCollector] v${SW_VERSION} browser startup`);
   bumpStat('starts', 1);
+  // v1.4.6: 浏览器启动时也确保菜单存在
+  ensureContextMenu();
 });
 
 // ===== 上下文菜单点击 =====
+// v1.4.6: 加详细日志 + 失败时给用户 toast 反馈（不再"无反应"）
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  console.log(`[Background] contextMenus.onClicked 触发 menuItemId=${info.menuItemId}, tab.id=${tab?.id}`);
   if (info.menuItemId === 'collectPrompt' && tab?.id) {
-    const res = await extractFromTab(tab.id);
-    console.log('[Background] 右键采集结果 video_url:', res?.data?.video_url);
-    if (res.success && res.data) {
-      // 自动加入批量库，这样侧边栏打开后就能看到
-      if (res.data.content && res.data.content.length > 30) {
-        await appendToBatch(res.data);
+    try {
+      // 保险：万一菜单丢了，这里再注册一次
+      ensureContextMenu();
+
+      const res = await extractFromTab(tab.id);
+      console.log('[Background] 右键采集结果:', res?.success ? 'success' : 'fail', res?.data?.video_url || res?.message);
+
+      if (res.success && res.data) {
+        // 自动加入批量库，这样侧边栏打开后就能看到
+        if (res.data.content && res.data.content.length > 30) {
+          await appendToBatch(res.data);
+        }
+        try {
+          await chrome.sidePanel.open({ windowId: tab.windowId });
+        } catch (e) {
+          console.warn('[Background] 打开侧边栏失败:', e.message);
+        }
+        // v1.4.6: 给用户一个 toast 反馈采集结果
+        showToast(tab.id, res.data.content && res.data.content.length > 30
+          ? `✅ 已采集：${(res.data.title || '提示词').slice(0, 30)}`
+          : `⚠️ 未提取到提示词正文（${res.data._meta?.strategy || 'unknown'}）`);
+      } else {
+        // 失败也提示
+        showToast(tab.id, `❌ 采集失败：${res.message || '未知错误'}（${res.errorType || 'UNKNOWN'}）`);
       }
-      try {
-        await chrome.sidePanel.open({ windowId: tab.windowId });
-      } catch (e) {
-        console.warn('[Background] 打开侧边栏失败:', e.message);
-      }
+    } catch (e) {
+      console.error('[Background] contextMenus.onClicked 异常:', e);
+      showToast(tab.id, `❌ 采集异常：${e.message}`);
     }
   }
 });
+
+// v1.4.6: 通过 content script 注入 toast 给用户即时反馈
+async function showToast(tabId, message) {
+  try {
+    // 先尝试发消息
+    const sent = await chrome.tabs.sendMessage(tabId, {
+      action: '__showToast__',
+      message
+    }).catch(() => null);
+    if (sent) return;
+
+    // 没 content script（chrome://、PDF 等）→ 动态注入一个最小脚本
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (msg) => {
+        const div = document.createElement('div');
+        div.textContent = msg;
+        div.style.cssText = 'position:fixed;top:20px;right:20px;background:#1f2937;color:#fff;padding:12px 20px;border-radius:8px;z-index:2147483647;font:14px/1.4 system-ui;box-shadow:0 4px 12px rgba(0,0,0,.3);max-width:360px;';
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 3500);
+      },
+      args: [message]
+    });
+  } catch (e) {
+    console.debug('[Background] showToast 跳过:', e?.message);
+  }
+}
 
 // ===== 从指定 tab 提取数据 =====
 async function extractFromTab(tabId) {
