@@ -72,6 +72,7 @@ const EditPromptModal = (props) => {
   const { t } = useTranslation();
   const isEdit = props.editingPrompt.id !== undefined;
   const [loading, setLoading] = useState(isEdit);
+  const [formValues, setFormValues] = useState(null);
   const [translating, setTranslating] = useState(false);
   const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0 });
   const [activeLang, setActiveLang] = useState(DEFAULT_LANG);
@@ -237,6 +238,7 @@ const EditPromptModal = (props) => {
         setTitleI18nData(parsedTitle);
         setActiveLang(DEFAULT_LANG);
         formApiRef.current?.setValues({ ...getInitValues(), ...values });
+        setFormValues({ ...getInitValues(), ...values });
       } else {
         showError(message);
       }
@@ -253,6 +255,7 @@ const EditPromptModal = (props) => {
       } else {
         setMediaType('image');
         formApiRef.current.setValues(getInitValues());
+        setFormValues(getInitValues());
         setI18nData({});
         setActiveLang(DEFAULT_LANG);
       }
@@ -529,7 +532,8 @@ const EditPromptModal = (props) => {
       >
         <Spin spinning={loading}>
           <Form
-            initValues={getInitValues()}
+            key={isEdit ? `edit-${props.editingPrompt.id}` : 'new'}
+            initValues={formValues || getInitValues()}
             getFormApi={(api) => (formApiRef.current = api)}
             onSubmit={submit}
             onValueChange={(values) => {
