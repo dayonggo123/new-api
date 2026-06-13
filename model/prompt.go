@@ -25,7 +25,7 @@ type Prompt struct {
 	ContentEn     string         `json:"content_en" gorm:"type:text"`
 	Description   string         `json:"description"`
 	CoverImageUrl string         `json:"cover_image_url"`
-	VideoUrl      string         `json:"video_url" gorm:"type:longtext"`
+	VideoUrl      string         `json:"video_url" gorm:"->;<-:migration"`
 	Author        string         `json:"author"`                     // 来源/作者，如 @username
 	Source        string         `json:"source"`                     // 采集来源平台，如 opennana / tiktok
 	Model         string         `json:"model"`                      // 使用的AI模型，如 ChatGPT
