@@ -5,13 +5,24 @@
 const STORAGE_KEY = 'promptCollectorConfig';
 const EXTRACTED_KEY = 'promptCollectorExtracted';
 const BATCH_KEY = 'promptCollectorBatch';
-const FETCH_TIMEOUT_MS = 15000; // API 请求超时 15s
-const SW_VERSION = '1.4.0';
+const FETCH_TIMEOUT_MS = 10000; // API 请求超时 10s（从 15s 降低，更快反馈）
+const FETCH_RETRY_DELAY_MS = 2000; // 网络错误重试间隔 2s
+const FETCH_MAX_RETRIES = 1; // 网络错误最多重试 1 次
+const SW_VERSION = '1.4.1';
 const HEARTBEAT_ALARM = 'promptCollectorHeartbeat';
 const STATS_KEY = 'promptCollectorStats';
 
 // 启动日志（每次 SW 启动都打一条，便于排查失效问题）
 console.log(`[PromptCollector] SW v${SW_VERSION} starting at ${new Date().toISOString()}`);
+
+// ===== 全局 unhandledrejection 处理（防止 Extension context invalidated 漏出）=====
+self.addEventListener('unhandledrejection', (event) => {
+  const msg = event.reason?.message || String(event.reason);
+  if (msg.includes('Extension context') || msg.includes('context invalidated')) {
+    event.preventDefault(); // 吞掉，不显示在扩展错误页
+    console.debug('[Background] swallowed context-invalidated rejection');
+  }
+});
 
 // ===== 统计与诊断 =====
 async function bumpStat(key, val = 1) {
@@ -83,6 +94,15 @@ if (chrome.alarms) {
   });
 }
 
+// ===== 安全广播（防止 Extension context invalidated 漏出 unhandled rejection）=====
+function safeBroadcast(msg) {
+  try {
+    chrome.runtime.sendMessage(msg).catch(() => {});
+  } catch (e) {
+    // SW context 已失效时 sendMessage 本身会 throw
+  }
+}
+
 // ===== 消息路由 =====
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 参数校验
@@ -103,7 +123,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'saveExtractedData': {
           await chrome.storage.local.set({ [EXTRACTED_KEY]: message.data });
-          chrome.runtime.sendMessage({ action: 'dataExtracted', data: message.data }).catch(() => {});
+          safeBroadcast({ action: 'dataExtracted', data: message.data });
           sendResponse({ success: true });
           break;
         }
@@ -116,7 +136,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'clearExtractedData': {
           await chrome.storage.local.remove(EXTRACTED_KEY);
-          chrome.runtime.sendMessage({ action: 'dataCleared' }).catch(() => {});
+          safeBroadcast({ action: 'dataCleared' });
           sendResponse({ success: true });
           break;
         }
@@ -133,7 +153,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           };
           batch.unshift(item);
           await chrome.storage.local.set({ [BATCH_KEY]: batch });
-          chrome.runtime.sendMessage({ action: 'batchUpdated', batch }).catch(() => {});
+          safeBroadcast({ action: 'batchUpdated', batch });
           sendResponse({ success: true, item });
           break;
         }
@@ -161,7 +181,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           let batch = result[BATCH_KEY] || [];
           batch = batch.filter(i => i.id !== message.id);
           await chrome.storage.local.set({ [BATCH_KEY]: batch });
-          chrome.runtime.sendMessage({ action: 'batchUpdated', batch }).catch(() => {});
+          safeBroadcast({ action: 'batchUpdated', batch });
           sendResponse({ success: true });
           break;
         }
@@ -171,14 +191,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           let batch = result[BATCH_KEY] || [];
           batch = batch.filter(i => !i.submitted);
           await chrome.storage.local.set({ [BATCH_KEY]: batch });
-          chrome.runtime.sendMessage({ action: 'batchUpdated', batch }).catch(() => {});
+          safeBroadcast({ action: 'batchUpdated', batch });
           sendResponse({ success: true });
           break;
         }
 
         case 'clearBatchData': {
           await chrome.storage.local.remove(BATCH_KEY);
-          chrome.runtime.sendMessage({ action: 'batchUpdated', batch: [] }).catch(() => {});
+          safeBroadcast({ action: 'batchUpdated', batch: [] });
           sendResponse({ success: true });
           break;
         }
@@ -255,6 +275,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'testConnection': {
+          // 诊断接口：测试 API 连通性，返回详细时序
+          const config = await chrome.storage.local.get(STORAGE_KEY);
+          const cfg = config[STORAGE_KEY] || {};
+          const baseUrl = (cfg.apiBaseUrl || '').replace(/\/$/, '');
+          if (!baseUrl) {
+            sendResponse({ success: false, message: '请先配置 API Base URL', errorType: 'NO_CONFIG' });
+            return;
+          }
+          const apiBase = baseUrl + (baseUrl.includes('/api') ? '' : '/api');
+          const testUrl = `${apiBase}/prompt-category/all`;
+          const t0 = Date.now();
+          try {
+            const resp = await fetchWithTimeout(testUrl, {
+              method: 'GET',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
+            }, 8000);
+            const elapsed = Date.now() - t0;
+            const text = await resp.text();
+            sendResponse({
+              success: true,
+              url: testUrl,
+              status: resp.status,
+              ok: resp.ok,
+              latencyMs: elapsed,
+              bodyPreview: text.slice(0, 300),
+              tip: resp.ok ? '✅ API 连通正常' : (resp.status === 401 ? '⚠️ API 可达但需认证（Token 可能过期）' : `⚠️ HTTP ${resp.status}`)
+            });
+          } catch (e) {
+            sendResponse({
+              success: false,
+              url: testUrl,
+              latencyMs: Date.now() - t0,
+              errorType: e.errorType || 'NETWORK',
+              message: friendlyApiError(e, testUrl),
+              tip: e.errorType === 'TIMEOUT'
+                ? '❌ 连接超时（heharse.cloud 不通或被墙，建议开全局代理）'
+                : e.errorType === 'NETWORK'
+                ? '❌ 网络不可达（DNS 解析失败或服务器无响应）'
+                : `❌ ${e.errorType}: ${e.message}`
+            });
+          }
+          break;
+        }
+
         case 'apiRequest': {
           const config = await chrome.storage.local.get(STORAGE_KEY);
           const cfg = config[STORAGE_KEY] || {};
@@ -270,6 +336,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const url = `${apiBase}${message.path}`;
           const options = {
             method: message.method || 'GET',
+            credentials: 'include', // 携带 heharse.cloud 的 session cookie
             headers: {
               'Content-Type': 'application/json',
               'New-API-User': message.userId || cfg.userId || '',
@@ -284,15 +351,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           bumpStat('apiCalls', 1);
           console.log('[Background] API Request:', options.method, url);
 
+          // ===== 带重试的 fetch =====
           let resp;
-          try {
-            resp = await fetchWithTimeout(url, options);
-          } catch (e) {
+          let lastError;
+          for (let attempt = 0; attempt <= FETCH_MAX_RETRIES; attempt++) {
+            try {
+              resp = await fetchWithTimeout(url, options);
+              lastError = null;
+              break; // 成功，跳出重试
+            } catch (e) {
+              lastError = e;
+              const canRetry = (e.errorType === 'TIMEOUT' || e.errorType === 'NETWORK') && attempt < FETCH_MAX_RETRIES;
+              console.warn(`[Background] API attempt ${attempt + 1} failed:`, e.errorType, e.message, canRetry ? '→ 重试中...' : '→ 不再重试');
+              if (canRetry) {
+                await new Promise(r => setTimeout(r, FETCH_RETRY_DELAY_MS));
+                continue;
+              }
+            }
+          }
+
+          if (lastError) {
             bumpStat('apiErrors', 1);
-            bumpStat('errorByType.' + (e.errorType || 'UNKNOWN'), 1);
-            const msg = friendlyApiError(e, url);
-            console.error('[Background] API fetch error:', e.errorType, e.message);
-            sendResponse({ success: false, message: msg, errorType: e.errorType || 'NETWORK' });
+            bumpStat('errorByType.' + (lastError.errorType || 'UNKNOWN'), 1);
+            const msg = friendlyApiError(lastError, url);
+            console.error('[Background] API 最终失败:', lastError.errorType, lastError.message, '| URL:', url);
+            sendResponse({ success: false, message: msg, errorType: lastError.errorType || 'NETWORK', url });
             return;
           }
 
@@ -303,7 +386,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } catch (e) {
             data = { raw: text };
           }
-          console.log('[Background] API Response:', resp.status, data);
+          console.log('[Background] API Response:', resp.status, `(${Date.now() - start}ms)`, data);
 
           if (!resp.ok) {
             bumpStat('apiErrors', 1);
@@ -314,11 +397,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                        : resp.status === 404 ? 'NOT_FOUND'
                        : resp.status >= 500 ? 'SERVER'
                        : 'HTTP_ERROR',
-              status: resp.status
+              status: resp.status,
+              url
             });
             return;
           }
-          sendResponse({ success: true, data, latencyMs: Date.now() - start });
+          sendResponse({ success: true, data, latencyMs: Date.now() - start, url });
           break;
         }
 

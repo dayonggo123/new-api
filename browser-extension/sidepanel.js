@@ -13,6 +13,7 @@
     autoSubmit: document.getElementById('autoSubmit'),
     categoryMapping: document.getElementById('categoryMapping'),
     saveConfigBtn: document.getElementById('saveConfigBtn'),
+    testConnBtn: document.getElementById('testConnBtn'),
     configStatus: document.getElementById('configStatus'),
 
     batchStats: document.getElementById('batchStats'),
@@ -78,6 +79,7 @@
     // === 第1步：同步绑定所有事件（无论后台是否就绪，点击必须立即响应）===
     els.configToggle.addEventListener('click', toggleConfig);
     els.saveConfigBtn.addEventListener('click', saveConfig);
+    els.testConnBtn.addEventListener('click', testConnection);
     els.checkAll.addEventListener('change', onCheckAll);
     els.batchSubmitBtn.addEventListener('click', batchSubmit);
     els.clearSubmittedBtn.addEventListener('click', clearSubmitted);
@@ -519,6 +521,33 @@
       await loadCategories();
     } else {
       showStatus(els.configStatus, '❌ 保存失败', 'error');
+    }
+  }
+
+  // 测试 API 连通性
+  async function testConnection() {
+    els.testConnBtn.disabled = true;
+    els.testConnBtn.textContent = '测试中...';
+    showStatus(els.configStatus, '⏳ 正在测试 API 连通性...', 'info');
+    try {
+      const res = await safeMsg({ action: 'testConnection' });
+      if (res.success) {
+        const d = res;
+        if (d.ok) {
+          showStatus(els.configStatus, `✅ API 连通正常（${d.latencyMs}ms, HTTP ${d.status}）`, 'success');
+        } else if (d.status === 401) {
+          showStatus(els.configStatus, `⚠️ API 可达但需认证（HTTP 401, ${d.latencyMs}ms）— 请检查 Token`, 'error');
+        } else {
+          showStatus(els.configStatus, `⚠️ HTTP ${d.status}（${d.latencyMs}ms）`, 'error');
+        }
+      } else {
+        showStatus(els.configStatus, `${d.tip || res.message}`, 'error');
+      }
+    } catch (e) {
+      showStatus(els.configStatus, `❌ 测试失败: ${e.message}`, 'error');
+    } finally {
+      els.testConnBtn.disabled = false;
+      els.testConnBtn.textContent = '🔌 测试连接';
     }
   }
 
