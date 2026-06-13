@@ -54,6 +54,25 @@
   let categoriesCache = [];
   let editingId = null;
 
+  // 安全消息发送：自动重试，处理 SW 失活 / context invalidated
+  async function safeMsg(msg) {
+    for (let i = 0; i < 3; i++) {
+      try {
+        return await chrome.runtime.sendMessage(msg);
+      } catch (e) {
+        const isContextErr = e.message?.includes('context invalidated') ||
+                            e.message?.includes('Extension context') ||
+                            e.message?.includes('Receiving end does not exist');
+        if (i < 2 && isContextErr) {
+          await new Promise(r => setTimeout(r, 400 * (i + 1)));
+          continue;
+        }
+        return { success: false, message: e.message, errorType: 'CONTEXT_INVALIDATED' };
+      }
+    }
+    return null;
+  }
+
   // 初始化
   async function init() {
     // === 第1步：同步绑定所有事件（无论后台是否就绪，点击必须立即响应）===
@@ -84,22 +103,6 @@
 
     // === 第2步：异步加载数据（失败不影响交互）===
     try {
-      // 安全发送消息（自动唤醒 service worker）
-      async function safeMsg(msg) {
-        for (let i = 0; i < 3; i++) {
-          try {
-            return await chrome.runtime.sendMessage(msg);
-          } catch (e) {
-            if (i < 2 && (e.message?.includes('connection') || e.message?.includes('Receiving'))) {
-              await new Promise(r => setTimeout(r, 400));
-              continue;
-            }
-            return null;
-          }
-        }
-        return null;
-      }
-
       const configRes = await safeMsg({ action: 'getConfig' });
       if (configRes && configRes.success) {
         config = configRes.data || {};
@@ -130,7 +133,7 @@
   async function loadCategories() {
     if (!config.apiBaseUrl) return;
     try {
-      const res = await chrome.runtime.sendMessage({
+      const res = await safeMsg({
         action: 'apiRequest',
         method: 'GET',
         path: '/prompt-category/all',
@@ -182,7 +185,7 @@
   // 加载批量数据
   async function loadBatchData() {
     try {
-      const res = await chrome.runtime.sendMessage({ action: 'getBatchData' });
+      const res = await safeMsg({ action: 'getBatchData' });
       if (res && res.success) {
         batchData = res.batch || [];
         renderBatchList();
@@ -319,7 +322,7 @@
       } else {
         failCount++;
       }
-      await chrome.runtime.sendMessage({ action: 'updateBatchItem', id, updates: { submitted: item.submitted, error: item.error } });
+      await safeMsg({ action: 'updateBatchItem', id, updates: { submitted: item.submitted, error: item.error } });
       renderBatchList();
     }
 
@@ -350,7 +353,7 @@
       item.error = '';
       showGlobalStatus(`✅ 「${item.title || ''}」提交成功`, 'success');
     }
-    await chrome.runtime.sendMessage({ action: 'updateBatchItem', id, updates: { submitted: item.submitted, error: item.error } });
+    await safeMsg({ action: 'updateBatchItem', id, updates: { submitted: item.submitted, error: item.error } });
     renderBatchList();
   }
 
@@ -379,7 +382,7 @@
     };
 
     try {
-      const res = await chrome.runtime.sendMessage({
+      const res = await safeMsg({
         action: 'apiRequest',
         method: 'POST',
         path: '/prompt/',
@@ -401,14 +404,14 @@
 
   // 删除单条
   async function deleteOne(id) {
-    await chrome.runtime.sendMessage({ action: 'removeBatchItem', id });
+    await safeMsg({ action: 'removeBatchItem', id });
     batchData = batchData.filter(i => i.id !== id);
     renderBatchList();
   }
 
   // 清空已提交
   async function clearSubmitted() {
-    await chrome.runtime.sendMessage({ action: 'clearSubmittedBatch' });
+    await safeMsg({ action: 'clearSubmittedBatch' });
     batchData = batchData.filter(i => !i.submitted);
     renderBatchList();
     showGlobalStatus('✅ 已清空已提交的提示词', 'success');
@@ -417,7 +420,7 @@
   // 清空全部
   async function clearAll() {
     if (!confirm('确定要清空所有采集的数据吗？')) return;
-    await chrome.runtime.sendMessage({ action: 'clearBatchData' });
+    await safeMsg({ action: 'clearBatchData' });
     batchData = [];
     renderBatchList();
     showGlobalStatus('✅ 已清空全部', 'success');
@@ -467,7 +470,7 @@
       source_url: els.editSourceUrl.value.trim(),
     };
 
-    await chrome.runtime.sendMessage({ action: 'updateBatchItem', id: editingId, updates });
+    await safeMsg({ action: 'updateBatchItem', id: editingId, updates });
     const idx = batchData.findIndex(i => i.id === editingId);
     if (idx >= 0) {
       batchData[idx] = { ...batchData[idx], ...updates };
@@ -509,7 +512,7 @@
       autoSubmit: els.autoSubmit ? els.autoSubmit.checked : false,
       categoryMapping: els.categoryMapping ? els.categoryMapping.value.trim() : ''
     };
-    const res = await chrome.runtime.sendMessage({ action: 'saveConfig', data });
+    const res = await safeMsg({ action: 'saveConfig', data });
     if (res.success) {
       config = data;
       showStatus(els.configStatus, '✅ 配置已保存', 'success');
@@ -527,7 +530,7 @@
     btn.textContent = '获取中...';
     showStatus(els.configStatus, '⏳ 正在从管理后台获取 Token...', 'info');
     try {
-      const res = await chrome.runtime.sendMessage({ action: 'fetchTokenFromTab' });
+      const res = await safeMsg({ action: 'fetchTokenFromTab' });
       if (res.success && res.token) {
         els.apiToken.value = res.isAccessToken ? `Bearer ${res.token}` : res.token;
         showStatus(els.configStatus, '✅ Token 已获取，请保存配置', 'success');
@@ -566,7 +569,7 @@
 
     try {
       // 先保存当前配置（确保 API URL 已存在）
-      await chrome.runtime.sendMessage({
+      await safeMsg({
         action: 'saveConfig',
         data: {
           apiBaseUrl: els.apiBaseUrl.value.trim().replace(/\/$/, ''),
@@ -578,7 +581,7 @@
         }
       });
 
-      const res = await chrome.runtime.sendMessage({ action: 'fetchTokenFromTab' });
+      const res = await safeMsg({ action: 'fetchTokenFromTab' });
       if (res.success && res.token) {
         els.apiToken.value = res.isAccessToken ? `Bearer ${res.token}` : res.token;
         if (res.isAccessToken && els.userId && !els.userId.value) {

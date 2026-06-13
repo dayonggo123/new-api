@@ -234,26 +234,26 @@
   function extractPromptText() {
     // 策略1：带标签的 prompt
     const labeled = extractLabeledPrompt();
-    if (labeled) return { content: labeled, lang: detectLang(labeled) };
+    if (labeled) return { content: labeled, lang: detectLang(labeled), strategy: 'labeled' };
 
     // 策略2：CSS 选择器匹配
     const selectorPrompt = extractSelectorPrompt();
-    if (selectorPrompt) return { content: selectorPrompt, lang: detectLang(selectorPrompt) };
+    if (selectorPrompt) return { content: selectorPrompt, lang: detectLang(selectorPrompt), strategy: 'selector' };
 
     // 策略3：最长且像提示词的文本
     const longest = extractLongestPromptLike();
-    if (longest) return { content: longest, lang: detectLang(longest) };
+    if (longest) return { content: longest, lang: detectLang(longest), strategy: 'longest' };
 
     // 策略4：兜底 main/article 内容
     const main = document.querySelector('article, main, [role="main"]');
     if (main) {
       const text = cleanText(main.textContent);
       if (text.length > 50) {
-        return { content: text.substring(0, 3000), lang: detectLang(text) };
+        return { content: text.substring(0, 3000), lang: detectLang(text), strategy: 'main' };
       }
     }
 
-    return { content: '', lang: 'unknown' };
+    return { content: '', lang: 'unknown', strategy: 'none' };
   }
 
   function extractLabeledPrompt() {
@@ -343,7 +343,14 @@
       source_url: url,
       platform: domain,
       extracted_by: 'content-universal',
-      extracted_at: new Date().toISOString()
+      extracted_at: new Date().toISOString(),
+      _meta: {
+        strategy: promptResult.strategy,
+        lang: promptResult.lang,
+        contentLength: promptResult.content?.length || 0,
+        hasTitle: !!extractTitle(),
+        isEmpty: !promptResult.content
+      }
     };
 
     return data;
@@ -360,7 +367,18 @@
             const data = await extractPageData();
             await chrome.storage.local.set({ [STORAGE_KEY]: data });
             chrome.runtime.sendMessage({ action: 'dataExtracted', data }).catch(() => {});
-            sendResponse({ success: true, data });
+
+            // 区分「成功空结果」与「成功抓到数据」
+            if (!data.content || data.content.length < 30) {
+              sendResponse({
+                success: true,
+                data,
+                reason: 'NO_PROMPT_DETECTED',
+                message: '未在页面识别到提示词文本（页面可能是导航页/营销页/列表页，请进入具体提示词详情页后重试）'
+              });
+            } else {
+              sendResponse({ success: true, data });
+            }
             break;
           }
           case 'getExtractedPrompt': {

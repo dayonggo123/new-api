@@ -43,6 +43,26 @@
   let extractedData = null;
   let categoriesCache = [];
 
+  // 安全消息发送：自动重试，处理 SW 失活 / context invalidated
+  async function safeMsg(msg) {
+    for (let i = 0; i < 3; i++) {
+      try {
+        return await chrome.runtime.sendMessage(msg);
+      } catch (e) {
+        const isContextErr = e.message?.includes('context invalidated') ||
+                            e.message?.includes('Extension context') ||
+                            e.message?.includes('Receiving end does not exist');
+        if (i < 2 && isContextErr) {
+          // 等待 SW 重启
+          await new Promise(r => setTimeout(r, 400 * (i + 1)));
+          continue;
+        }
+        return { success: false, message: e.message, errorType: 'CONTEXT_INVALIDATED' };
+      }
+    }
+    return null;
+  }
+
   // 初始化
   async function init() {
     // === 第1步：同步绑定事件 ===
@@ -58,21 +78,6 @@
 
     // === 第2步：异步加载数据 ===
     try {
-      async function safeMsg(msg) {
-        for (let i = 0; i < 3; i++) {
-          try {
-            return await chrome.runtime.sendMessage(msg);
-          } catch (e) {
-            if (i < 2 && (e.message?.includes('connection') || e.message?.includes('Receiving'))) {
-              await new Promise(r => setTimeout(r, 400));
-              continue;
-            }
-            return null;
-          }
-        }
-        return null;
-      }
-
       const configRes = await safeMsg({ action: 'getConfig' });
       if (configRes && configRes.success) {
         config = configRes.data || {};
@@ -100,7 +105,7 @@
   async function loadCategories() {
     if (!config.apiBaseUrl) return;
     try {
-      const res = await chrome.runtime.sendMessage({
+      const res = await safeMsg({
         action: 'apiRequest',
         method: 'GET',
         path: '/prompt-category/all',
@@ -135,7 +140,7 @@
 
   // 加载提取的数据
   async function loadExtractedData() {
-    const res = await chrome.runtime.sendMessage({ action: 'getExtractedData' });
+    const res = await safeMsg({ action: 'getExtractedData' });
     if (res.success && res.data) {
       extractedData = res.data;
       renderData();
@@ -199,12 +204,13 @@
     els.extractBtn.disabled = true;
     els.extractBtn.textContent = '提取中...';
     try {
-      const res = await chrome.runtime.sendMessage({ action: 'extractFromActiveTab' });
+      const res = await safeMsg({ action: 'extractFromActiveTab' });
       if (res && res.success && res.data) {
         extractedData = res.data;
-        await chrome.runtime.sendMessage({ action: 'saveExtractedData', data: extractedData });
+        await safeMsg({ action: 'saveExtractedData', data: extractedData });
         renderData();
-        showStatus(els.submitStatus, '✅ 提取成功', 'success');
+        const tip = res.reason === 'NO_PROMPT_DETECTED' ? '⚠️ 已抓取但未识别到提示词正文' : '✅ 提取成功';
+        showStatus(els.submitStatus, tip, res.reason === 'NO_PROMPT_DETECTED' ? 'error' : 'success');
       } else {
         showStatus(els.submitStatus, `❌ ${res?.message || '未能提取到提示词'}`, 'error');
       }
@@ -250,7 +256,7 @@
       return;
     }
     try {
-      const res = await chrome.runtime.sendMessage({ action: 'appendBatchData', data });
+      const res = await safeMsg({ action: 'appendBatchData', data });
       if (res && res.success) {
         showStatus(els.submitStatus, '✅ 已加入批量库', 'success');
       } else {
@@ -264,7 +270,7 @@
   // 打开批量库侧边栏
   async function openBatchPanel() {
     try {
-      await chrome.runtime.sendMessage({ action: 'openSidePanel' });
+      await safeMsg({ action: 'openSidePanel' });
     } catch (err) {
       console.error('[Popup] 打开侧边栏失败:', err);
     }
@@ -286,7 +292,7 @@
       defaultCategoryId: els.defaultCategoryId.value.trim()
     };
 
-    const res = await chrome.runtime.sendMessage({ action: 'saveConfig', data });
+    const res = await safeMsg({ action: 'saveConfig', data });
     if (res.success) {
       config = data;
       showStatus(els.configStatus, '✅ 配置已保存', 'success');
@@ -351,7 +357,7 @@
     showStatus(els.submitStatus, '⏳ 正在提交...', 'info');
 
     try {
-      const res = await chrome.runtime.sendMessage({
+      const res = await safeMsg({
         action: 'apiRequest',
         method: 'POST',
         path: '/prompt/',
@@ -362,7 +368,7 @@
       if (res.success && res.data && res.data.success) {
         showStatus(els.submitStatus, '✅ 提交成功！已入库', 'success');
         // 清空提取数据
-        await chrome.runtime.sendMessage({ action: 'clearExtractedData' });
+        await safeMsg({ action: 'clearExtractedData' });
         extractedData = null;
         setTimeout(() => {
           showEmpty();
@@ -384,7 +390,7 @@
 
   // 清空数据
   async function clearData() {
-    await chrome.runtime.sendMessage({ action: 'clearExtractedData' });
+    await safeMsg({ action: 'clearExtractedData' });
     extractedData = null;
     showEmpty();
     showStatus(els.submitStatus, '', 'info');
@@ -410,7 +416,7 @@
     btn.textContent = '获取中...';
     showStatus(els.configStatus, '⏳ 正在从管理后台获取 Token...', 'info');
     try {
-      const res = await chrome.runtime.sendMessage({ action: 'fetchTokenFromTab' });
+      const res = await safeMsg({ action: 'fetchTokenFromTab' });
       if (res.success && res.token) {
         els.apiToken.value = res.isAccessToken ? `Bearer ${res.token}` : res.token;
         showStatus(els.configStatus, '✅ Token 已获取，请保存配置', 'success');
