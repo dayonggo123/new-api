@@ -61,52 +61,26 @@
   // 提取提示词文本（YouMind 通常在特定 section/div 中放置）
   function extractYouMindPrompt() {
     console.log('[Content-YouMind] extractYouMindPrompt() 开始');
-    // 策略 A：查找带"提示词"或"prompt"标签的块
-    const labelKeywords = ['提示词', 'Prompt', 'prompt', '正文', '描述', '咒语', '指令'];
-    const allEls = document.querySelectorAll('h1, h2, h3, h4, h5, h6, strong, b, span, div, p');
 
-    for (const label of allEls) {
-      const labelText = cleanText(label.textContent).toLowerCase();
-      if (labelKeywords.some(kw => labelText === kw.toLowerCase() || labelText.startsWith(kw.toLowerCase()))) {
-        // 找下一个兄弟/邻接元素
-        const next = label.nextElementSibling;
-        if (next) {
-          const t = cleanText(next.textContent);
-          if (t.length > 30) return { content: t, strategy: 'labeled-sibling' };
-        }
-        // 找父元素下的所有段落
-        const parent = label.parentElement;
-        if (parent) {
-          const ps = parent.querySelectorAll('p, pre, code, div');
-          for (const p of ps) {
-            if (p === label) continue;
-            const t = cleanText(p.textContent);
-            if (t.length > 30) return { content: t, strategy: 'labeled-parent-p' };
-          }
-        }
-      }
+    // 先收集页面中所有模型名称标签（YouMind 经常把模型名做成 tab/按钮）
+    // 如果一段文字里集中出现多个模型名，它很可能是 tab 栏，不是 prompt 正文
+    const modelNames = ['nano banana pro', 'nano banana', 'gpt image 2', 'gpt-4o', 'gpt 4o', 'sora', 'veo 3', 'veo-3', 'veo3', 'veo', 'kling', 'runway', 'pika', 'luma', 'midjourney', 'stable diffusion', 'sdxl', 'flux', 'claude', 'gemini', 'grok', 'seedance', 'seedream'];
+    function looksLikeModelTabs(text) {
+      const lower = text.toLowerCase();
+      let hits = 0;
+      for (const m of modelNames) if (lower.includes(m)) hits++;
+      return hits >= 3;
     }
 
-    // 策略 B：article / main 中的最长段落
-    const main = document.querySelector('article, main, [role="main"]');
-    if (main) {
-      const candidates = main.querySelectorAll('p, pre, code, div, section');
-      let best = '';
-      for (const c of candidates) {
-        const t = cleanText(c.textContent);
-        if (t.length > best.length && t.length > 80) best = t;
-      }
-      if (best) return { content: best, strategy: 'main-longest' };
-    }
-
-    // 策略 C：白名单 css class
+    // 策略 A：白名单 css class / 标签，最可能放 prompt 正文
     const selectors = [
+      'pre.whitespace-pre-wrap',
+      '[class*="whitespace-pre-wrap"]',
       '[class*="prompt-content"]',
       '[class*="prompt-text"]',
       '[class*="prompt-body"]',
       '[class*="prompt-detail"]',
       '[class*="description"]',
-      '.whitespace-pre-wrap',
       'pre code',
       'pre'
     ];
@@ -114,19 +88,67 @@
       const el = document.querySelector(sel);
       if (el) {
         const t = cleanText(el.textContent);
-        if (t.length > 50) return { content: t, strategy: 'selector-' + sel };
+        if (t.length > 50 && !looksLikeModelTabs(t)) return { content: t, strategy: 'selector-' + sel };
       }
+    }
+
+    // 策略 B：查找带"提示词"或"prompt"标签的块（取最长有效段落）
+    const labelKeywords = ['提示词', 'prompt', '正文', '描述', '咒语', '指令'];
+    const allEls = document.querySelectorAll('h1, h2, h3, h4, h5, h6, strong, b, span, div, p, button');
+    let bestLabeled = '';
+    let bestStrategy = '';
+
+    for (const label of allEls) {
+      const labelText = cleanText(label.textContent).toLowerCase();
+      if (!labelKeywords.some(kw => labelText === kw || labelText.startsWith(kw))) continue;
+
+      // 找下一个兄弟/邻接元素
+      const next = label.nextElementSibling;
+      if (next) {
+        const t = cleanText(next.textContent);
+        if (t.length > bestLabeled.length && t.length > 30 && !looksLikeModelTabs(t)) {
+          bestLabeled = t;
+          bestStrategy = 'labeled-sibling';
+        }
+      }
+      // 找父元素下的所有段落
+      const parent = label.parentElement;
+      if (parent) {
+        const ps = parent.querySelectorAll('p, pre, code, div');
+        for (const p of ps) {
+          if (p === label) continue;
+          const t = cleanText(p.textContent);
+          if (t.length > bestLabeled.length && t.length > 30 && !looksLikeModelTabs(t)) {
+            bestLabeled = t;
+            bestStrategy = 'labeled-parent-p';
+          }
+        }
+      }
+    }
+    if (bestLabeled) return { content: bestLabeled, strategy: bestStrategy };
+
+    // 策略 C：article / main 中的最长段落（排除模型 tab 和过短的）
+    const main = document.querySelector('article, main, [role="main"]');
+    if (main) {
+      const candidates = main.querySelectorAll('p, pre, code, div, section');
+      let best = '';
+      for (const c of candidates) {
+        const t = cleanText(c.textContent);
+        if (t.length > best.length && t.length > 80 && !looksLikeModelTabs(t)) best = t;
+      }
+      if (best) return { content: best, strategy: 'main-longest' };
     }
 
     // 策略 D：兜底 — 抓取页面主要内容区域的所有文字，取最长有意义的块
     const bodyText = document.body?.innerText || '';
     if (bodyText.length > 200) {
-      // 按双换行分段，找最长的一段（且不含导航/页脚关键词）
       const blocks = bodyText.split(/\n\s*\n/).map(s => cleanText(s)).filter(s => s.length > 50);
-      const skipKw = ['登录', '注册', '首页', '导航', 'footer', 'copyright', '©', 'cookie', '隐私', '条款'];
+      const skipKw = ['登录', '注册', '首页', '导航', 'footer', 'copyright', '©', 'cookie', '隐私', '条款', 'mind motor'];
       let bestBlock = '';
       for (const b of blocks) {
-        if (skipKw.some(k => b.toLowerCase().includes(k))) continue;
+        const lower = b.toLowerCase();
+        if (skipKw.some(k => lower.includes(k))) continue;
+        if (looksLikeModelTabs(b)) continue;
         if (b.length > bestBlock.length) bestBlock = b;
       }
       if (bestBlock.length > 80) return { content: bestBlock, strategy: 'body-blocks' };
@@ -172,15 +194,59 @@
     return 'image';
   }
 
+  // 提取视频 URL（video prompt 详情页）
+  function extractYouMindVideo() {
+    // 1) <video> 标签的 src 或子 <source>
+    const video = document.querySelector('video');
+    if (video) {
+      if (video.src) return { url: makeAbsoluteUrl(video.src), poster: makeAbsoluteUrl(video.poster) };
+      const source = video.querySelector('source');
+      if (source?.src) return { url: makeAbsoluteUrl(source.src), poster: makeAbsoluteUrl(video.poster) };
+    }
+
+    // 2) og:video / twitter:video
+    const ogVideo = document.querySelector('meta[property="og:video"], meta[property="og:video:url"]')?.content;
+    if (ogVideo) return { url: makeAbsoluteUrl(ogVideo), poster: '' };
+
+    // 3) 页面中可见的 <a href="...mp4/mov/webm"> 链接
+    for (const a of document.querySelectorAll('a[href*=".mp4"], a[href*=".mov"], a[href*=".webm"], a[href*=".m3u8"]')) {
+      return { url: makeAbsoluteUrl(a.href), poster: '' };
+    }
+
+    // 4) 任何元素上看起来像视频地址的 data-src / src
+    for (const el of document.querySelectorAll('[data-src*=".mp4"], [data-src*=".mov"], [data-src*=".webm"], [src*=".mp4"], [src*=".mov"], [src*=".webm"]')) {
+      const url = el.getAttribute('data-src') || el.src;
+      if (url) return { url: makeAbsoluteUrl(url), poster: '' };
+    }
+
+    return { url: '', poster: '' };
+  }
+
   // 提取作者
   function extractAuthor() {
     // YouMind 通常在 meta 中标注作者
     const authorMeta = document.querySelector('meta[name="author"]')?.content;
     if (authorMeta) return authorMeta.trim();
-    // 找 @username 模式
+
+    // 找明确的作者链接
+    for (const sel of ['a[href*="/user/"]', 'a[href*="/creator/"]', 'a[href*="/author/"]', '[class*="author"] a', '[class*="creator"] a']) {
+      const el = document.querySelector(sel);
+      if (el) {
+        const t = cleanText(el.textContent);
+        if (t && !t.includes('@-webkit') && !t.includes('@keyframes')) return t;
+      }
+    }
+
+    // 找 @username 模式，但排除 CSS @规则
     const bodyText = document.body?.textContent || '';
-    const atMatch = bodyText.match(/@[A-Za-z0-9_\-.]{3,30}/);
-    if (atMatch) return atMatch[0];
+    const atMatches = bodyText.match(/@[A-Za-z0-9_\-.]{3,30}/g);
+    if (atMatches) {
+      for (const m of atMatches) {
+        const lower = m.toLowerCase();
+        if (lower.includes('webkit') || lower.includes('keyframes') || lower.includes('media') || lower.includes('supports')) continue;
+        return m;
+      }
+    }
     return 'YouMind';
   }
 
@@ -201,20 +267,27 @@
   function extractYouMindTags() {
     const tags = [];
     const seen = new Set();
+    const cssJunk = new Set(['nprogress', 'organization', 'website', 'breadcrumb', 'creativew', 'navbar', 'header', 'footer', 'container', 'wrapper', 'content', 'main', 'section', 'page', 'home', 'index', 'active', 'selected', 'disabled', 'loading', 'hidden', 'visible']);
     const add = (text) => {
       const t = text.trim().replace(/^#/, '');
-      if (t && t.length < 30 && !seen.has(t.toLowerCase())) {
-        seen.add(t.toLowerCase());
+      if (!t || t.length < 2 || t.length > 30) return;
+      const lower = t.toLowerCase();
+      if (cssJunk.has(lower)) return;
+      if (/^[a-f0-9]{6,}$/i.test(t)) return; // 排除颜色/hash
+      if (!seen.has(lower)) {
+        seen.add(lower);
         tags.push(t);
       }
     };
-    document.querySelectorAll('a[href*="/tag/"], [class*="tag"]').forEach(el => {
-      add(el.textContent);
-    });
-    // hashtag
+
+    // 显式标签元素
+    document.querySelectorAll('a[href*="/tag/"], [class*="tag"]:not([class*="tagline"])').forEach(el => add(el.textContent));
+
+    // hashtag（限定中文/英文词）
     const bodyText = document.body?.textContent || '';
     const hashes = bodyText.match(/#[A-Za-z0-9_\u4e00-\u9fa5]+/g);
     if (hashes) hashes.forEach(h => add(h));
+
     return tags.slice(0, 20);
   }
 
@@ -226,6 +299,8 @@
     const model = detectYouMindModel();
     const cat = extractYouMindCategory();
     console.log('[Content-YouMind] 提取结果:', { strategy: promptResult.strategy, contentLen: promptResult.content?.length, model, cat });
+
+    const videoInfo = extractYouMindVideo();
 
     return {
       title: extractYouMindTitle(),
@@ -239,8 +314,8 @@
       tags: JSON.stringify(extractYouMindTags()),
       categories: cat ? [cat] : [],
       cover_image_url: extractYouMindCover(),
-      video_url: '',
-      video_poster: '',
+      video_url: videoInfo.url,
+      video_poster: videoInfo.poster,
       source_url: url,
       platform: 'youmind.com',
       extracted_by: 'content-youmind',
