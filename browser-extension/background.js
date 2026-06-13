@@ -8,7 +8,7 @@ const BATCH_KEY = 'promptCollectorBatch';
 const FETCH_TIMEOUT_MS = 10000; // API 请求超时 10s（从 15s 降低，更快反馈）
 const FETCH_RETRY_DELAY_MS = 2000; // 网络错误重试间隔 2s
 const FETCH_MAX_RETRIES = 1; // 网络错误最多重试 1 次
-const SW_VERSION = '1.4.1';
+const SW_VERSION = '1.4.2';
 const HEARTBEAT_ALARM = 'promptCollectorHeartbeat';
 const STATS_KEY = 'promptCollectorStats';
 
@@ -32,6 +32,28 @@ async function bumpStat(key, val = 1) {
     stats[key] = (stats[key] || 0) + val;
     await chrome.storage.local.set({ [STATS_KEY]: stats });
   } catch (e) { /* 统计失败不影响主流程 */ }
+}
+
+// ===== 批量数据辅助函数 =====
+async function appendToBatch(data) {
+  try {
+    const result = await chrome.storage.local.get(BATCH_KEY);
+    const batch = result[BATCH_KEY] || [];
+    const item = {
+      id: Date.now() + Math.random().toString(36).slice(2, 8),
+      ...data,
+      submitted: false,
+      error: '',
+      createdAt: Date.now()
+    };
+    batch.unshift(item);
+    await chrome.storage.local.set({ [BATCH_KEY]: batch });
+    safeBroadcast({ action: 'batchUpdated', batch });
+    return item;
+  } catch (e) {
+    console.error('[Background] appendToBatch 失败:', e);
+    return null;
+  }
 }
 
 // ===== 带超时的 fetch，错误分类 =====
@@ -128,6 +150,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'dataExtracted': {
+          // content script 的广播通知（如 content-youmind.js），转发给 popup 等监听方
+          safeBroadcast({ action: 'dataExtracted', data: message.data });
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'getExtractedData': {
           const result = await chrome.storage.local.get(EXTRACTED_KEY);
           sendResponse({ success: true, data: result[EXTRACTED_KEY] || null });
@@ -142,19 +171,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'appendBatchData': {
-          const result = await chrome.storage.local.get(BATCH_KEY);
-          const batch = result[BATCH_KEY] || [];
-          const item = {
-            id: Date.now() + Math.random().toString(36).slice(2, 8),
-            ...message.data,
-            submitted: false,
-            error: '',
-            createdAt: Date.now()
-          };
-          batch.unshift(item);
-          await chrome.storage.local.set({ [BATCH_KEY]: batch });
-          safeBroadcast({ action: 'batchUpdated', batch });
-          sendResponse({ success: true, item });
+          const item = await appendToBatch(message.data);
+          sendResponse({ success: !!item, item });
           break;
         }
 
@@ -516,7 +534,11 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'collectPrompt' && tab?.id) {
     const res = await extractFromTab(tab.id);
-    if (res.success) {
+    if (res.success && res.data) {
+      // 自动加入批量库，这样侧边栏打开后就能看到
+      if (res.data.content && res.data.content.length > 30) {
+        await appendToBatch(res.data);
+      }
       try {
         await chrome.sidePanel.open({ windowId: tab.windowId });
       } catch (e) {
