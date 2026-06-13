@@ -1,6 +1,13 @@
 // content-youmind.js - YouMind.com 专用提示词采集
 // 适配 https://youmind.com/* 页面，特别是 /prompts 类详情页
 // 与 content-universal.js 互不冲突
+//
+// v1.4.5 改动：
+//   - 新增策略 T：textarea 直接读取（最高优先级）+ 轮询等待模态框加载
+//   - looksLikeNoise() 增加：更多来自、@密集出现、UGC、LED、屏幕组装 等
+//   - 新增 hasTooManyMentions()：@用户名 ≥3 个 → 判定噪音
+//   - findPromptContainer() 长度门槛 200→100，适配模态框较短正文
+//   - 所有 fallback 策略加 mentions 检查
 
 (function () {
   'use strict';
@@ -59,14 +66,29 @@
   function looksLikeNoise(text) {
     const lower = text.toLowerCase();
     const noiseKw = ['©', 'copyright', 'mind motor', '隐私政策', '服务条款', '联系我们', '公司', '博客', '更新', '定价', '应用', '技能', '产品', 'browser', 'extension',
-      '更多功能', '探索', '搜着', '帮你搜索', '免费尝试', '/imagine', '按照互动量', '曝光', '收藏', '转发', '指定模型', '时间范围', '提示词库'];
+      '更多功能', '探索', '搜着', '帮你搜索', '免费尝试', '/imagine', '按照互动量', '曝光', '收藏', '转发', '指定模型', '时间范围', '提示词库',
+      // v1.4.5 新增
+      '更多来自', 'ugc', '屏幕组装', '球迷迷游'];
     if (noiseKw.some(k => lower.includes(k))) return true;
+
+    // @用户名密集出现（≥3 个）→ 标签/推荐区噪音
+    if (hasTooManyMentions(text)) return true;
 
     // 集中出现多个模型名 → 模型 tab / footer 链接
     const modelNames = ['nano banana', 'gpt image', 'seedance', 'seedream', 'sora', 'veo', 'kling', 'runway', 'pika', 'luma', 'midjourney', 'stable diffusion', 'sdxl', 'flux', 'claude', 'gemini', 'grok'];
     let hits = 0;
     for (const m of modelNames) if (lower.includes(m)) hits++;
     return hits >= 3;
+  }
+
+  // 检测文本中是否密集包含 @用户名标签（≥3 个即判定为非正文噪音）
+  function hasTooManyMentions(text) {
+    if (!text) return false;
+    const matches = text.match(/@[A-Za-z0-9_\u4e00-\u9fa5\-\. ]{2,30}/g);
+    if (!matches || matches.length < 3) return false;
+    // 排除纯英文长文本中偶尔的 email 地址（@ 前后是正常单词）
+    const ratio = matches.length / (text.length / 20);
+    return ratio > 0.5; // 每 20 字符就有 1 个 @提及 → 密集标签
   }
 
   // 判断文本是否像真正的提示词正文（场景描述、风格词等）
@@ -102,7 +124,8 @@
       let cur = label.parentElement;
       for (let depth = 0; depth < 6 && cur; depth++, cur = cur.parentElement) {
         const t = cleanText(cur.textContent);
-        if (t.length > 200 && !looksLikeNoise(t)) {
+        // v1.4.5: 门槛从 200 降到 100（模态框正文可能较短）
+        if (t.length > 100 && !looksLikeNoise(t)) {
           const hasSignals = looksLikeRealPrompt(t);
           // 优先选择有提示词特征信号的容器（即使更小）
           if (hasSignals && !bestHasPromptSignals) {
@@ -120,11 +143,77 @@
     return bestContainer;
   }
 
+  // 策略 T：直接读取 textarea / contenteditable 的值（最高优先级）
+  // YouMind 模态框中提示词放在 textarea 里，打开时可能懒加载，需要轮询等待
+  function readTextareaWithPolling(maxMs = 5000, intervalMs = 300) {
+    // 先同步试一次
+    const sync = tryReadTextareas();
+    if (sync) return sync;
+
+    // 同步没读到 → 可能是模态框还没加载，开始轮询
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const poll = setInterval(() => {
+        const result = tryReadTextareas();
+        if (result || Date.now() - start > maxMs) {
+          clearInterval(poll);
+          resolve(result || null);
+        }
+      }, intervalMs);
+    });
+  }
+
+  function tryReadTextareas() {
+    // 1) 找所有 textarea
+    const textareas = document.querySelectorAll('textarea');
+    for (const ta of textareas) {
+      const val = cleanText(ta.value);
+      if (val.length >= 30 && !looksLikeNoise(val)) {
+        return { content: val, strategy: 'textarea-value' };
+      }
+    }
+
+    // 2) contenteditable 元素
+    const editables = document.querySelectorAll('[contenteditable="true"], [contenteditable="1"]');
+    for (const el of editables) {
+      const val = cleanText(el.textContent);
+      if (val.length >= 30 && !looksLikeNoise(val)) {
+        return { content: val, strategy: 'contenteditable' };
+      }
+    }
+
+    // 3) 带有 prompt-content / prompt-text 等 class 的 pre/div
+    const promptSels = [
+      '[class*="prompt"] textarea', '[class*="prompt"] [contenteditable]',
+      '[class*="prompt-content"]', '[class*="prompt-text"]',
+      '[class*="prompt-body"]', '[class*="prompt-detail"]',
+      'pre.whitespace-pre-wrap', '[class*="whitespace-pre-wrap"]'
+    ];
+    for (const sel of promptSels) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const val = el.tagName === 'TEXTAREA' ? cleanText(el.value) : cleanText(el.textContent);
+      if (val.length >= 30 && !looksLikeNoise(val)) {
+        return { content: val, strategy: 'selector-' + sel };
+      }
+    }
+
+    return null;
+  }
+
   // 提取提示词文本（YouMind 通常在特定 section/div 中放置）
-  function extractYouMindPrompt() {
+  async function extractYouMindPrompt() {
     console.log('[Content-YouMind] extractYouMindPrompt() 开始');
 
-    // 策略 0：找"提示词"标签所在的容器（最可靠）
+    // ====== 策略 T（最高优先级）：直接读 textarea / contenteditable 值 ======
+    // YouMind 模态框中提示词放在 textarea 里，打开时可能还没加载完，需要轮询
+    const textareaResult = readTextareaWithPolling();
+    if (textareaResult) {
+      console.log('[Content-YouMind] 策略T命中 textarea:', textareaResult.content.substring(0, 80));
+      return textareaResult;
+    }
+
+    // ====== 策略 0：找"提示词"标签所在的容器（最可靠）======
     const container = findPromptContainer();
     if (container) {
       const clone = container.cloneNode(true);
@@ -155,7 +244,8 @@
       const el = document.querySelector(sel);
       if (el) {
         const t = cleanText(el.textContent);
-        if (t.length > 50 && !looksLikeNoise(t)) return { content: t, strategy: 'selector-' + sel };
+        // v1.4.5: 加 mentions 防护
+        if (t.length > 50 && !looksLikeNoise(t) && !hasTooManyMentions(t)) return { content: t, strategy: 'selector-' + sel };
       }
     }
 
@@ -172,7 +262,8 @@
       const next = label.nextElementSibling;
       if (next) {
         const t = cleanText(next.textContent);
-        if (t.length > bestLabeled.length && t.length > 30 && !looksLikeNoise(t)) {
+        // v1.4.5: 加 mentions 防护
+        if (t.length > bestLabeled.length && t.length > 30 && !looksLikeNoise(t) && !hasTooManyMentions(t)) {
           bestLabeled = t;
           bestStrategy = 'labeled-sibling';
         }
@@ -183,7 +274,7 @@
         for (const p of ps) {
           if (p === label) continue;
           const t = cleanText(p.textContent);
-          if (t.length > bestLabeled.length && t.length > 30 && !looksLikeNoise(t)) {
+          if (t.length > bestLabeled.length && t.length > 30 && !looksLikeNoise(t) && !hasTooManyMentions(t)) {
             bestLabeled = t;
             bestStrategy = 'labeled-parent-p';
           }
@@ -199,7 +290,8 @@
       let best = '';
       for (const c of candidates) {
         const t = cleanText(c.textContent);
-        if (t.length > best.length && t.length > 80 && !looksLikeNoise(t)) best = t;
+        // v1.4.5: 加 mentions 防护
+        if (t.length > best.length && t.length > 80 && !looksLikeNoise(t) && !hasTooManyMentions(t)) best = t;
       }
       if (best) return { content: best, strategy: 'main-longest' };
     }
@@ -214,6 +306,8 @@
         const lower = b.toLowerCase();
         if (skipKw.some(k => lower.includes(k))) continue;
         if (looksLikeNoise(b)) continue;
+        // v1.4.5: 加 mentions 防护
+        if (hasTooManyMentions(b)) continue;
         if (b.length > bestBlock.length) bestBlock = b;
       }
       if (bestBlock.length > 80) return { content: bestBlock, strategy: 'body-blocks' };
@@ -671,7 +765,7 @@
     console.log('[Content-YouMind] extractPageData() URL:', location.href);
     const url = location.href;
     const domain = getDomain(url);
-    const promptResult = extractYouMindPrompt();
+    const promptResult = await extractYouMindPrompt();
     const model = detectYouMindModel();
     const cat = extractYouMindCategory();
     console.log('[Content-YouMind] 提取结果:', { strategy: promptResult.strategy, contentLen: promptResult.content?.length, model, cat });
