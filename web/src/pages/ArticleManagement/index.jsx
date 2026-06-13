@@ -1988,6 +1988,7 @@ const ArticleManagement = () => {
                 pagination={false}
                 emptyText={t('暂无数据')}
                 size='small'
+                rowKey='id'
                 rowSelection={{
                   selectedRowKeys: selectedArticleKeys,
                   onChange: setSelectedArticleKeys,
