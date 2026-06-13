@@ -238,6 +238,10 @@
     const tags = parseTagsToArray(item.tags);
     const tagsHtml = tags.slice(0, 5).map(t => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('');
 
+    const errorSummary = item.error
+      ? escapeHtml(item.error.length > 80 ? item.error.slice(0, 80) + '…' : item.error)
+      : '';
+
     div.innerHTML = `
       <div class="batch-item-header">
         <input type="checkbox" class="item-check" data-id="${item.id}" ${item.submitted ? 'disabled' : ''}>
@@ -252,6 +256,7 @@
           ${item.submitted ? '<span class="status-badge success">✅ 已提交</span>' : item.error ? `<span class="status-badge error" title="${escapeHtml(item.error)}">❌ 失败</span>` : '<span class="status-badge pending">⏳ 待提交</span>'}
         </div>
       </div>
+      ${item.error ? `<div class="batch-item-error" title="${escapeHtml(item.error)}">${errorSummary}</div>` : ''}
       <div class="batch-item-actions">
         <button class="btn-text" data-action="edit" data-id="${item.id}">✏️ 编辑</button>
         <button class="btn-text" data-action="submit-one" data-id="${item.id}" ${item.submitted ? 'disabled' : ''}>⬆️ 提交</button>
@@ -378,7 +383,7 @@
       sort_order: 0,
       is_premium: false,
       unlock_cost: 0,
-      author: '采集导入',
+      author: item.author || item.source || '采集导入',
       i18n: '{}',
       seo_i18n: '{}'
     };
@@ -395,11 +400,13 @@
       if (res.success && res.data && res.data.success) {
         return true;
       } else {
-        item.error = res.data?.message || res.message || '提交失败';
+        item.error = res.data?.message || res.message || `提交失败 (HTTP ${res.status || '?'})`;
+        console.error('[Sidepanel] 提交失败:', { title: item.title, error: item.error, res });
         return false;
       }
     } catch (err) {
       item.error = err.message || '网络错误';
+      console.error('[Sidepanel] 提交异常:', err);
       return false;
     }
   }

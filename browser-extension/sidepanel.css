@@ -329,6 +329,17 @@ body {
   background: #fef2f2;
 }
 
+.batch-item-error {
+  margin: 6px 0 4px 24px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #991b1b;
+  background: #fee2e2;
+  border-radius: 4px;
+  word-break: break-word;
+  cursor: help;
+}
+
 .batch-item-header {
   display: flex;
   align-items: flex-start;
