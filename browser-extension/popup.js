@@ -203,16 +203,19 @@
     const originalText = els.extractBtn.textContent;
     els.extractBtn.disabled = true;
     els.extractBtn.textContent = '提取中...';
+    showStatus(els.submitStatus, '⏳ 正在抓取页面...（最多 8 秒）', 'info');
     try {
       const res = await safeMsg({ action: 'extractFromActiveTab' });
+      console.log('[Popup] extractFromActiveTab 响应:', res);
       if (res && res.success && res.data) {
         extractedData = res.data;
         await safeMsg({ action: 'saveExtractedData', data: extractedData });
         renderData();
-        const tip = res.reason === 'NO_PROMPT_DETECTED' ? '⚠️ 已抓取但未识别到提示词正文' : '✅ 提取成功';
+        const tip = res.reason === 'NO_PROMPT_DETECTED' ? '⚠️ 已抓取但未识别到提示词正文（可手动填）' : '✅ 提取成功';
         showStatus(els.submitStatus, tip, res.reason === 'NO_PROMPT_DETECTED' ? 'error' : 'success');
       } else {
-        showStatus(els.submitStatus, `❌ ${res?.message || '未能提取到提示词'}`, 'error');
+        const detail = res?.message || res?.data?.message || '未能提取到提示词';
+        showStatus(els.submitStatus, `❌ ${detail}`, 'error');
       }
     } catch (err) {
       showStatus(els.submitStatus, `❌ 提取失败: ${err.message}`, 'error');
@@ -365,7 +368,7 @@
         userId: config.userId
       });
 
-      if (res.success && res.data && res.data.success) {
+      if (res.success && res.data && (res.data.success === true || res.data.code === 0 || (res.data.code !== undefined && res.data.code === 0) || (res.data.message === '' && res.data.data))) {
         showStatus(els.submitStatus, '✅ 提交成功！已入库', 'success');
         // 清空提取数据
         await safeMsg({ action: 'clearExtractedData' });
@@ -376,7 +379,13 @@
           els.submitBtn.innerHTML = '<span class="btn-icon">⬆️</span> 提交到提示词库';
         }, 1500);
       } else {
-        const msg = res.data?.message || res.message || '未知错误';
+        const detail = res?.data?.message
+          || res?.data?.data?.message
+          || res?.data?.detail
+          || res?.message
+          || res?.error
+          || '未知错误';
+        const msg = typeof detail === 'string' ? detail : JSON.stringify(detail);
         showStatus(els.submitStatus, `❌ 提交失败: ${msg}`, 'error');
         els.submitBtn.disabled = false;
         els.submitBtn.innerHTML = '<span class="btn-icon">⬆️</span> 提交到提示词库';

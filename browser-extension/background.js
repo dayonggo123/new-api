@@ -674,43 +674,45 @@ async function showToast(tabId, message) {
 }
 
 // ===== 从指定 tab 提取数据 =====
+// v1.4.8: 修复 popup 弹窗点"采集"无反应问题
+//   - content script 通过 chrome.runtime.onMessage 监听 {action:'extractPrompt'}
+//   - 原代码 sendMessage 后立即 read response，但 onMessage listener 必须 return true 才异步响应
+//   - 解决：handler 中 await chrome.tabs.sendMessage 的响应，重试 3 次（间隔递增）
 async function extractFromTab(tabId) {
   try {
     console.log(`[Background] extractFromTab(${tabId}) 开始`);
     // 先尝试向页面发送消息（如果已有 content script 注入）
-    const result = await chrome.tabs.sendMessage(tabId, { action: 'extractPrompt' }).catch(() => null);
-    console.log('[Background] extractFromTab sendMessage 结果:', result);
-    if (result && result.success && result.data && result.data.content && result.data.content.length > 30) {
-      return result;
+    let result = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        result = await chrome.tabs.sendMessage(tabId, { action: 'extractPrompt' });
+        if (result) break;
+      } catch (e) {
+        console.log(`[Background] extractFromTab 第${attempt+1}次 sendMessage 失败:`, e.message);
+        // 第一次失败 → 动态注入对应脚本
+        if (attempt === 0) {
+          let scriptFile = 'content-universal.js';
+          try {
+            const tab = await chrome.tabs.get(tabId);
+            if (tab?.url?.includes('youmind.com')) scriptFile = 'content-youmind.js';
+            if (tab?.url?.includes('opennana.com')) scriptFile = 'content-detail.js';
+            if (tab?.url?.includes('mp.weixin.qq.com')) scriptFile = 'content-wechat.js';
+          } catch (e2) {}
+          console.log(`[Background] 动态注入: ${scriptFile}`);
+          try {
+            await chrome.scripting.executeScript({ target: { tabId }, files: [scriptFile] });
+            await new Promise(r => setTimeout(r, 1500));
+          } catch (e3) {
+            console.error('[Background] 动态注入失败:', e3.message);
+          }
+        } else {
+          await new Promise(r => setTimeout(r, 800 * attempt));
+        }
+      }
     }
-
-    // 动态注入：先检查 tab 的 URL，决定注入哪个脚本
-    let scriptFile = 'content-universal.js';
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      if (tab?.url?.includes('youmind.com')) scriptFile = 'content-youmind.js';
-      if (tab?.url?.includes('opennana.com')) scriptFile = 'content-detail.js';
-      if (tab?.url?.includes('mp.weixin.qq.com')) scriptFile = 'content-wechat.js';
-    } catch (e) {}
-
-    console.log(`[Background] 动态注入: ${scriptFile}`);
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: [scriptFile]
-    });
-
-    // 给 content script 足够时间等待动态加载的 video 元素
-    await new Promise(r => setTimeout(r, 2000));
-    const retryResult = await chrome.tabs.sendMessage(tabId, { action: 'extractPrompt' }).catch(() => null);
-    console.log('[Background] extractFromTab 重试结果:', retryResult?.data ? {
-      videoUrl: retryResult.data.video_url,
-      coverUrl: retryResult.data.cover_image_url,
-      contentLen: retryResult.data.content?.length
-    } : retryResult);
-    if (retryResult?.success && retryResult?.data?.content?.length > 30) return retryResult;
-
-    // 返回原始结果（即使 content 为空，也把 reason 带给调用方）
-    return retryResult || result || { success: false, message: '未能从页面提取到提示词', errorType: 'EMPTY_RESULT' };
+    console.log('[Background] extractFromTab 最终结果:', result?.data ? { videoUrl: result.data.video_url, contentLen: result.data.content?.length, strategy: result.data._meta?.strategy } : result);
+    if (result && result.success && result.data) return result;
+    return result || { success: false, message: '未能从页面提取到提示词', errorType: 'EMPTY_RESULT' };
   } catch (e) {
     console.error('[Background] extractFromTab 异常:', e);
     return { success: false, message: e.message, errorType: 'EXTRACT' };
