@@ -55,10 +55,11 @@
     return '';
   }
 
-  // 判断文本是否像 footer / 导航 / 模型 tab 等噪音
+  // 判断文本是否像 footer / 导航 / 模型 tab / 功能区 / 营销文案等噪音
   function looksLikeNoise(text) {
     const lower = text.toLowerCase();
-    const noiseKw = ['©', 'copyright', 'mind motor', '隐私政策', '服务条款', '联系我们', '公司', '博客', '更新', '定价', '应用', '技能', '产品', 'browser', 'extension'];
+    const noiseKw = ['©', 'copyright', 'mind motor', '隐私政策', '服务条款', '联系我们', '公司', '博客', '更新', '定价', '应用', '技能', '产品', 'browser', 'extension',
+      '更多功能', '探索', '搜着', '帮你搜索', '免费尝试', '/imagine', '按照互动量', '曝光', '收藏', '转发', '指定模型', '时间范围', '提示词库'];
     if (noiseKw.some(k => lower.includes(k))) return true;
 
     // 集中出现多个模型名 → 模型 tab / footer 链接
@@ -66,6 +67,19 @@
     let hits = 0;
     for (const m of modelNames) if (lower.includes(m)) hits++;
     return hits >= 3;
+  }
+
+  // 判断文本是否像真正的提示词正文（场景描述、风格词等）
+  function looksLikeRealPrompt(text) {
+    const lower = text.toLowerCase();
+    // 真正的提示词通常包含这些特征
+    const promptSignals = [
+      '镜头', '视角', '画面', '风格', '光影', '场景', '背景', '前景',
+      'camera', 'shot', 'angle', 'view', 'cinematic', 'lighting', 'scene',
+      'first-person', 'pov', 'handheld', '4k', '8k', 'hyper-realistic',
+      '详细', '超高细节', '电影级', '写实', '动漫', '3d', '渲染'
+    ];
+    return promptSignals.some(s => lower.includes(s));
   }
 
   // 找提示词容器：从"提示词"标签向上冒泡，找到包含足够正文的容器
@@ -83,12 +97,19 @@
 
     let bestContainer = null;
     let bestLen = 0;
+    let bestHasPromptSignals = false;
     for (const label of labels) {
       let cur = label.parentElement;
       for (let depth = 0; depth < 6 && cur; depth++, cur = cur.parentElement) {
         const t = cleanText(cur.textContent);
         if (t.length > 200 && !looksLikeNoise(t)) {
-          if (t.length > bestLen) {
+          const hasSignals = looksLikeRealPrompt(t);
+          // 优先选择有提示词特征信号的容器（即使更小）
+          if (hasSignals && !bestHasPromptSignals) {
+            bestLen = t.length;
+            bestContainer = cur;
+            bestHasPromptSignals = true;
+          } else if (hasSignals === bestHasPromptSignals && t.length > bestLen) {
             bestLen = t.length;
             bestContainer = cur;
           }
@@ -108,11 +129,12 @@
     if (container) {
       const clone = container.cloneNode(true);
       // 移除 header 里的按钮、图标、图片
-      clone.querySelectorAll('button, [role="button"], svg, img, [class*="icon"]').forEach(el => el.remove());
+      clone.querySelectorAll('button, [role="button"], svg, img, [class*="icon"], nav, header, [role="navigation"]').forEach(el => el.remove());
       let t = cleanText(clone.textContent);
       // 去掉容器头部可能残留的"提示词 Prompt 免费生成视频 翻译前"等标题
       t = t.replace(/^(提示词|prompt)\s*/i, '');
-      if (t.length > 80 && !looksLikeNoise(t)) {
+      // 二次校验：必须像真正的提示词（有场景/镜头/风格等描述），否则跳过
+      if (t.length > 80 && !looksLikeNoise(t) && looksLikeRealPrompt(t)) {
         return { content: t, strategy: 'prompt-container' };
       }
     }
