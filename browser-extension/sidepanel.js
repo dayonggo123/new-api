@@ -190,6 +190,19 @@
       const res = await safeMsg({ action: 'getBatchData' });
       if (res && res.success) {
         batchData = res.batch || [];
+        // 自动补全分类 ID（根据模型映射或分类列表匹配）
+        let hasUpdate = false;
+        for (const item of batchData) {
+          if (!item.category_id && item.model) {
+            const cid = matchCategoryId(item.model);
+            if (cid) {
+              item.category_id = cid;
+              await safeMsg({ action: 'updateBatchItem', id: item.id, updates: { category_id: cid } });
+              hasUpdate = true;
+            }
+          }
+        }
+        if (hasUpdate) console.log('[Sidepanel] 已自动补全分类 ID');
         renderBatchList();
       }
     } catch (e) {
@@ -366,6 +379,15 @@
 
   // 执行提交
   async function submitItem(item) {
+    // 确保分类 ID 已设置
+    if (!item.category_id && item.model) {
+      const cid = matchCategoryId(item.model);
+      if (cid) {
+        item.category_id = cid;
+        await safeMsg({ action: 'updateBatchItem', id: item.id, updates: { category_id: cid } });
+      }
+    }
+
     const tagsStr = item.tags || '[]';
     const payload = {
       title: item.title || '',
@@ -436,8 +458,16 @@
   }
 
   // 打开编辑面板
-  function openEdit(item) {
+  async function openEdit(item) {
     editingId = item.id;
+    // 如果分类 ID 为空，自动根据模型匹配
+    if (!item.category_id && item.model) {
+      const cid = matchCategoryId(item.model);
+      if (cid) {
+        item.category_id = cid;
+        await safeMsg({ action: 'updateBatchItem', id: item.id, updates: { category_id: cid } });
+      }
+    }
     els.editId.value = item.id;
     els.editTitle.value = item.title || '';
     els.editContent.value = item.content || '';
