@@ -420,6 +420,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           bumpStat('apiCalls', 1);
           console.log('[Background] API Request:', options.method, url);
+          if (message.body) {
+            console.log('[Background] API Request body:', JSON.parse(options.body));
+          }
 
           // ===== 带重试的 fetch =====
           let resp;

@@ -410,6 +410,7 @@
       seo_i18n: '{}'
     };
 
+    console.log('[Sidepanel] 提交 payload:', payload);
     try {
       const res = await safeMsg({
         action: 'apiRequest',
@@ -418,6 +419,7 @@
         body: payload,
         userId: config.userId
       });
+      console.log('[Sidepanel] 提交响应:', res);
 
       if (res.success && res.data && res.data.success) {
         return true;

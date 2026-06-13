@@ -291,6 +291,14 @@
   // 检测媒体类型
   function detectMediaType() {
     if (document.querySelector('video')) return 'video';
+    // Cloudflare Stream 视频：页面 HTML 或图片中包含 stream 域名
+    const html = document.documentElement.innerHTML;
+    if (/customer-[^"'\s<>]+\.cloudflarestream\.com/i.test(html)) return 'video';
+    const hasStreamImg = Array.from(document.querySelectorAll('img')).some(img => {
+      const src = img.src || img.getAttribute('data-src') || '';
+      return src.includes('cloudflarestream');
+    });
+    if (hasStreamImg) return 'video';
     const text = (document.body?.textContent || '').toLowerCase();
     if (text.includes('video') || text.includes('视频')) return 'video';
     return 'image';
