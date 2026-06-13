@@ -232,33 +232,47 @@
       { name: 'Grok', patterns: ['grok'] }
     ];
 
-    // 1) 优先从模型徽章/标签/选中态提取（避免 footer 干扰）
-    const badgeSelectors = [
-      '[class*="model"]:not([class*="model-list"]):not([class*="models"])',
-      '[class*="version"]',
-      '[class*="badge"]',
-      '[class*="chip"]'
-    ];
-    for (const sel of badgeSelectors) {
-      for (const el of document.querySelectorAll(sel)) {
-        const t = cleanText(el.textContent).toLowerCase();
-        if (!t || t.length > 60) continue;
-        for (const m of models) {
-          if (m.patterns.some(p => t.includes(p))) return m.name;
-        }
+    function matchModel(text) {
+      const lower = (text || '').toLowerCase();
+      for (const m of models) {
+        if (m.patterns.some(p => lower.includes(p))) return m.name;
+      }
+      return '';
+    }
+
+    // 1) 优先：h1 附近（包括 h1 上方/同层的小徽章），扩大到 h1 向上 4 层或 article/main
+    const h1 = document.querySelector('h1');
+    if (h1) {
+      // 先扫描 h1 前面紧邻的兄弟/父级兄弟（模型徽章常在标题上方）
+      let probe = h1.previousElementSibling;
+      while (probe) {
+        const t = cleanText(probe.textContent);
+        const hit = matchModel(t);
+        if (hit) return hit;
+        probe = probe.previousElementSibling;
+      }
+      // 扫描 h1 父级向上 4 层
+      let cur = h1.parentElement;
+      for (let i = 0; i < 4 && cur; i++, cur = cur.parentElement) {
+        const t = cleanText(cur.textContent);
+        const hit = matchModel(t);
+        if (hit) return hit;
+      }
+      // 扫描 h1 所在 article/main 容器
+      const container = h1.closest('article, main, [class*="detail"], [class*="content"], [class*="header"]');
+      if (container) {
+        const t = cleanText(container.textContent);
+        const hit = matchModel(t);
+        if (hit) return hit;
       }
     }
 
-    // 2) 从标题附近提取（h1 附近元素）
-    const h1 = document.querySelector('h1');
-    if (h1) {
-      const nearby = h1.parentElement;
-      if (nearby) {
-        const nearbyText = cleanText(nearby.textContent).toLowerCase();
-        for (const m of models) {
-          if (m.patterns.some(p => nearbyText.includes(p))) return m.name;
-        }
-      }
+    // 2) 扫描页面中所有小文本元素（< 40 字符），很可能是徽章/标签
+    for (const el of document.querySelectorAll('span, div, a, button, li')) {
+      const t = cleanText(el.textContent);
+      if (!t || t.length < 3 || t.length > 40) continue;
+      const hit = matchModel(t);
+      if (hit) return hit;
     }
 
     // 3) 全 body 兜底（但排除 footer）
@@ -284,6 +298,7 @@
 
   // 提取视频 URL（video prompt 详情页）
   function extractYouMindVideo() {
+    // 1) 页面 <video> 标签
     const video = document.querySelector('video');
     if (video) {
       if (video.src) return { url: makeAbsoluteUrl(video.src), poster: makeAbsoluteUrl(video.poster) };
@@ -291,9 +306,11 @@
       if (source?.src) return { url: makeAbsoluteUrl(source.src), poster: makeAbsoluteUrl(video.poster) };
     }
 
+    // 2) og:video / twitter:video
     const ogVideo = document.querySelector('meta[property="og:video"], meta[property="og:video:url"]')?.content;
     if (ogVideo) return { url: makeAbsoluteUrl(ogVideo), poster: '' };
 
+    // 3) 页面可见的媒体链接
     for (const a of document.querySelectorAll('a[href*=".mp4"], a[href*=".mov"], a[href*=".webm"], a[href*=".m3u8"]')) {
       return { url: makeAbsoluteUrl(a.href), poster: '' };
     }
@@ -301,6 +318,46 @@
     for (const el of document.querySelectorAll('[data-src*=".mp4"], [data-src*=".mov"], [data-src*=".webm"], [src*=".mp4"], [src*=".mov"], [src*=".webm"]')) {
       const url = el.getAttribute('data-src') || el.src;
       if (url) return { url: makeAbsoluteUrl(url), poster: '' };
+    }
+
+    // 4) JSON-LD 中找视频
+    for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+      try {
+        const json = JSON.parse(script.textContent);
+        const candidates = [json.video, json.contentUrl, json.embedUrl, json.url];
+        for (const c of candidates) {
+          if (typeof c === 'string' && /\.(mp4|mov|webm|m3u8)(\?|$)/i.test(c)) {
+            return { url: makeAbsoluteUrl(c), poster: json.thumbnailUrl || '' };
+          }
+        }
+        if (json['@graph']) {
+          for (const item of json['@graph']) {
+            const u = item.contentUrl || item.embedUrl || item.url;
+            if (typeof u === 'string' && /\.(mp4|mov|webm|m3u8)(\?|$)/i.test(u)) {
+              return { url: makeAbsoluteUrl(u), poster: item.thumbnailUrl || '' };
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 5) 全局 JS 变量（YouMind 可能把资源放在 __INITIAL_STATE__ / __DATA__ / __NUXT__ 等）
+    const globals = ['__INITIAL_STATE__', '__DATA__', '__NUXT__', '__APP__', '__CONFIG__'];
+    for (const key of globals) {
+      try {
+        const val = window[key];
+        if (!val) continue;
+        const str = JSON.stringify(val);
+        const m = str.match(/(https?:\/\/[^"'\s]+\.(mp4|mov|webm|m3u8)(\?[^"'\s]*)?)/i);
+        if (m) return { url: m[1], poster: '' };
+      } catch (e) {}
+    }
+
+    // 6) 所有 <script> 标签文本中挖视频 URL（兜底）
+    for (const script of document.querySelectorAll('script')) {
+      const text = script.textContent || '';
+      const m = text.match(/(https?:\/\/[^"'\s]+\.(mp4|mov|webm|m3u8)(\?[^"'\s]*)?)/i);
+      if (m) return { url: m[1], poster: '' };
     }
 
     return { url: '', poster: '' };
@@ -311,21 +368,54 @@
     const authorMeta = document.querySelector('meta[name="author"]')?.content;
     if (authorMeta) return authorMeta.trim();
 
-    for (const sel of ['a[href*="/user/"]', 'a[href*="/creator/"]', 'a[href*="/author/"]', '[class*="author"] a', '[class*="creator"] a']) {
+    // 1) 优先：明确作者链接（YouMind 常见 /u/xxx /user/xxx /creator/xxx）
+    const authorSels = [
+      'a[href*="/u/"]',
+      'a[href*="/user/"]',
+      'a[href*="/creator/"]',
+      'a[href*="/author/"]',
+      '[class*="author"] a',
+      '[class*="creator"] a',
+      '[class*="user"] a'
+    ];
+    for (const sel of authorSels) {
       const el = document.querySelector(sel);
       if (el) {
         const t = cleanText(el.textContent);
-        if (t && !t.includes('@-webkit') && !t.includes('@keyframes')) return t;
+        if (t && t.length > 1 && t.length < 60 && !t.toLowerCase().includes('@-webkit') && !t.toLowerCase().includes('@keyframes')) {
+          return t;
+        }
       }
     }
 
+    // 2) 从 h1 右侧/标题周围的信息区提取 @用户名（允许空格，如 @AI Arainz）
+    const h1 = document.querySelector('h1');
+    if (h1) {
+      const container = h1.closest('article, main, [class*="detail"], [class*="content"]') || document.body;
+      const atEls = container.querySelectorAll('*');
+      for (const el of atEls) {
+        const t = cleanText(el.textContent);
+        // 只考虑短小文本节点，避免大段正文
+        if (!t || t.length > 80) continue;
+        const m = t.match(/@[A-Za-z0-9_\-. ]{2,40}/);
+        if (m) {
+          const name = cleanText(m[0]);
+          const lower = name.toLowerCase();
+          if (lower.includes('@-webkit') || lower.includes('@keyframes') || lower.includes('@media') || lower.includes('@supports')) continue;
+          return name;
+        }
+      }
+    }
+
+    // 3) 全 body 兜底匹配 @用户名
     const bodyText = document.body?.textContent || '';
-    const atMatches = bodyText.match(/@[A-Za-z0-9_\-.]{3,30}/g);
+    const atMatches = bodyText.match(/@[A-Za-z0-9_\-. ]{2,40}/g);
     if (atMatches) {
       for (const m of atMatches) {
-        const lower = m.toLowerCase();
-        if (lower.includes('webkit') || lower.includes('keyframes') || lower.includes('media') || lower.includes('supports')) continue;
-        return m;
+        const name = cleanText(m);
+        const lower = name.toLowerCase();
+        if (lower.includes('@-webkit') || lower.includes('@keyframes') || lower.includes('@media') || lower.includes('@supports')) continue;
+        return name;
       }
     }
     return 'YouMind';
