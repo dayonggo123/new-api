@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prompt Collector - 提示词采集器",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "从任意网页一键采集提示词（支持 opennana.com、微信公众号、youmind 等视频/图片 prompt 平台）到 new-api",
   "permissions": [
     "storage",

@@ -334,13 +334,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           const apiBase = baseUrl + (baseUrl.includes('/api') ? '' : '/api');
           const url = `${apiBase}${message.path}`;
+          // 优先用 Token 鉴权（不带 cookie，避免 session 干扰）
+          // 用户未填 Token 时才允许带 cookie（session 鉴权降级）
+          const rawToken = (token || '').trim();
+          const useToken = rawToken && rawToken !== '';
+          const bearerToken = rawToken.startsWith('Bearer ') ? rawToken : `Bearer ${rawToken}`;
           const options = {
             method: message.method || 'GET',
-            credentials: 'include', // 携带 heharse.cloud 的 session cookie
+            credentials: useToken ? 'omit' : 'include',
             headers: {
               'Content-Type': 'application/json',
               'New-API-User': message.userId || cfg.userId || '',
-              ...(token ? { 'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}` } : {})
+              ...(useToken ? { 'Authorization': bearerToken } : {})
             }
           };
 
@@ -390,10 +395,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           if (!resp.ok) {
             bumpStat('apiErrors', 1);
+            const isAuth = resp.status === 401 || resp.status === 403;
+            let friendlyMsg = `HTTP ${resp.status}`;
+            if (isAuth) {
+              friendlyMsg = `⚠️ 鉴权失败（HTTP ${resp.status}）— Token 可能已过期，请点击侧边栏「从后台获取 Token」重新获取`;
+            } else {
+              friendlyMsg = `HTTP ${resp.status}: ${data.message || text.slice(0, 200)}`;
+            }
             sendResponse({
               success: false,
-              message: `HTTP ${resp.status}: ${data.message || text.slice(0, 200)}`,
-              errorType: resp.status === 401 || resp.status === 403 ? 'AUTH'
+              message: friendlyMsg,
+              errorType: isAuth ? 'AUTH'
                        : resp.status === 404 ? 'NOT_FOUND'
                        : resp.status >= 500 ? 'SERVER'
                        : 'HTTP_ERROR',
