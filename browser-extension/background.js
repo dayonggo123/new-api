@@ -581,6 +581,7 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'collectPrompt' && tab?.id) {
     const res = await extractFromTab(tab.id);
+    console.log('[Background] 右键采集结果 video_url:', res?.data?.video_url);
     if (res.success && res.data) {
       // 自动加入批量库，这样侧边栏打开后就能看到
       if (res.data.content && res.data.content.length > 30) {
@@ -621,9 +622,14 @@ async function extractFromTab(tabId) {
       files: [scriptFile]
     });
 
-    await new Promise(r => setTimeout(r, 800));
+    // 给 content script 足够时间等待动态加载的 video 元素
+    await new Promise(r => setTimeout(r, 2000));
     const retryResult = await chrome.tabs.sendMessage(tabId, { action: 'extractPrompt' }).catch(() => null);
-    console.log('[Background] extractFromTab 重试结果:', retryResult);
+    console.log('[Background] extractFromTab 重试结果:', retryResult?.data ? {
+      videoUrl: retryResult.data.video_url,
+      coverUrl: retryResult.data.cover_image_url,
+      contentLen: retryResult.data.content?.length
+    } : retryResult);
     if (retryResult?.success && retryResult?.data?.content?.length > 30) return retryResult;
 
     // 返回原始结果（即使 content 为空，也把 reason 带给调用方）

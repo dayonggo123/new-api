@@ -309,28 +309,104 @@
     return '';
   }
 
+  // 扫描页面上所有图片，找出 Cloudflare Stream 缩略图并推导视频地址
+  function scanCloudflareStreamInAllImages() {
+    const imgs = Array.from(document.querySelectorAll('img'));
+    // 优先带 cloudflarestream 的 src/srcset/data-src
+    for (const img of imgs) {
+      const src = img.src || img.getAttribute('data-src') || img.getAttribute('srcset') || '';
+      if (src.includes('cloudflarestream')) {
+        const derived = deriveCloudflareVideo(src);
+        if (derived) return { url: derived, poster: makeAbsoluteUrl(src.split(' ')[0]) };
+      }
+    }
+    // 其次 background-image
+    for (const el of document.querySelectorAll('*')) {
+      const bg = getComputedStyle(el).backgroundImage || '';
+      const m = bg.match(/https:\/\/customer-[^/"')]+\.cloudflarestream\.com\/[^/"')]+/i);
+      if (m) {
+        const derived = deriveCloudflareVideo(m[0]);
+        if (derived) return { url: derived, poster: makeAbsoluteUrl(m[0]) };
+      }
+    }
+    return null;
+  }
+
+  // 扫描 iframe 中的 video / 图片
+  function scanIframes() {
+    for (const iframe of document.querySelectorAll('iframe')) {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!doc) continue;
+        const video = doc.querySelector('video');
+        if (video) {
+          const url = video.src || video.currentSrc || video.querySelector('source')?.src || '';
+          if (url) return { url: makeAbsoluteUrl(url), poster: makeAbsoluteUrl(video.poster) };
+        }
+        const img = doc.querySelector('img');
+        if (img?.src) {
+          const derived = deriveCloudflareVideo(img.src);
+          if (derived) return { url: derived, poster: makeAbsoluteUrl(img.src) };
+        }
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  // 等待 video 元素出现（YouMind 页面常动态加载）
+  function waitForVideo(maxMs = 4000) {
+    return new Promise((resolve) => {
+      const video = document.querySelector('video');
+      if (video) return resolve(video);
+      const observer = new MutationObserver(() => {
+        const v = document.querySelector('video');
+        if (v) {
+          observer.disconnect();
+          resolve(v);
+        }
+      });
+      observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+      setTimeout(() => {
+        observer.disconnect();
+        resolve(document.querySelector('video'));
+      }, maxMs);
+    });
+  }
+
   // 提取视频 URL（video prompt 详情页）
-  function extractYouMindVideo() {
+  async function extractYouMindVideo() {
+    const logs = [];
+
+    // 0) 先等一等动态加载的 video 标签
+    const dynamicVideo = await waitForVideo(3000);
+    if (dynamicVideo) {
+      const url = dynamicVideo.src || dynamicVideo.currentSrc || dynamicVideo.querySelector('source')?.src || '';
+      if (url) {
+        logs.push(`命中动态 video 标签: ${url}`);
+        return { url: makeAbsoluteUrl(url), poster: makeAbsoluteUrl(dynamicVideo.poster), logs };
+      }
+    }
+
     // 1) 页面 <video> 标签
     const video = document.querySelector('video');
     if (video) {
-      if (video.src) return { url: makeAbsoluteUrl(video.src), poster: makeAbsoluteUrl(video.poster) };
+      if (video.src) return { url: makeAbsoluteUrl(video.src), poster: makeAbsoluteUrl(video.poster), logs };
       const source = video.querySelector('source');
-      if (source?.src) return { url: makeAbsoluteUrl(source.src), poster: makeAbsoluteUrl(video.poster) };
+      if (source?.src) return { url: makeAbsoluteUrl(source.src), poster: makeAbsoluteUrl(video.poster), logs };
     }
 
     // 2) og:video / twitter:video
     const ogVideo = document.querySelector('meta[property="og:video"], meta[property="og:video:url"]')?.content;
-    if (ogVideo) return { url: makeAbsoluteUrl(ogVideo), poster: '' };
+    if (ogVideo) return { url: makeAbsoluteUrl(ogVideo), poster: '', logs };
 
     // 3) 页面可见的媒体链接
     for (const a of document.querySelectorAll('a[href*=".mp4"], a[href*=".mov"], a[href*=".webm"], a[href*=".m3u8"]')) {
-      return { url: makeAbsoluteUrl(a.href), poster: '' };
+      return { url: makeAbsoluteUrl(a.href), poster: '', logs };
     }
 
     for (const el of document.querySelectorAll('[data-src*=".mp4"], [data-src*=".mov"], [data-src*=".webm"], [data-src*=".m3u8"], [src*=".mp4"], [src*=".mov"], [src*=".webm"], [src*=".m3u8"]')) {
       const url = el.getAttribute('data-src') || el.src;
-      if (url) return { url: makeAbsoluteUrl(url), poster: '' };
+      if (url) return { url: makeAbsoluteUrl(url), poster: '', logs };
     }
 
     // 4) JSON-LD 中找视频
@@ -340,24 +416,26 @@
         const candidates = [json.video, json.contentUrl, json.embedUrl, json.url];
         for (const c of candidates) {
           if (typeof c === 'string' && /\.(mp4|mov|webm|m3u8)(\?|$)/i.test(c)) {
-            return { url: makeAbsoluteUrl(c), poster: json.thumbnailUrl || '' };
+            return { url: makeAbsoluteUrl(c), poster: json.thumbnailUrl || '', logs };
           }
         }
         if (json['@graph']) {
           for (const item of json['@graph']) {
             const u = item.contentUrl || item.embedUrl || item.url;
             if (typeof u === 'string' && /\.(mp4|mov|webm|m3u8)(\?|$)/i.test(u)) {
-              return { url: makeAbsoluteUrl(u), poster: item.thumbnailUrl || '' };
+              return { url: makeAbsoluteUrl(u), poster: item.thumbnailUrl || '', logs };
             }
           }
         }
       } catch (e) {}
     }
 
-    // 5) Cloudflare Stream 专用：从封面图推导 MP4 地址
-    const coverUrl = extractYouMindCover();
-    const derived = deriveCloudflareVideo(coverUrl);
-    if (derived) return { url: derived, poster: coverUrl };
+    // 5) Cloudflare Stream 专用：从所有图片推导
+    const fromImages = scanCloudflareStreamInAllImages();
+    if (fromImages) {
+      logs.push(`从图片推导出 Cloudflare Stream: ${fromImages.url}`);
+      return { ...fromImages, logs };
+    }
 
     // 6) 扫描所有文本中的 cloudflarestream 链接（包括 iframe src、脚本变量）
     const allText = document.documentElement.innerHTML;
@@ -365,19 +443,23 @@
     if (streamMatches) {
       // 优先找 /downloads/default.mp4
       for (const u of streamMatches) {
-        if (/\/downloads\/default\.mp4(\?|$)/i.test(u)) return { url: u, poster: coverUrl };
+        if (/\/downloads\/default\.mp4(\?|$)/i.test(u)) return { url: u, poster: '', logs };
       }
       for (const u of streamMatches) {
-        if (/\.(mp4|mov|webm|m3u8)(\?|$)/i.test(u)) return { url: u, poster: coverUrl };
+        if (/\.(mp4|mov|webm|m3u8)(\?|$)/i.test(u)) return { url: u, poster: '', logs };
       }
       // 如果只有 uid 没有扩展名，补成 /downloads/default.mp4
       const first = streamMatches[0].replace(/\/$/, '');
       if (!/\.[a-z0-9]+(\?|$)/i.test(first)) {
-        return { url: `${first}/downloads/default.mp4`, poster: coverUrl };
+        return { url: `${first}/downloads/default.mp4`, poster: '', logs };
       }
     }
 
-    // 7) 全局 JS 变量（YouMind 可能把资源放在 __INITIAL_STATE__ / __DATA__ / __NUXT__ 等）
+    // 7) iframe 扫描
+    const fromIframe = scanIframes();
+    if (fromIframe) return { ...fromIframe, logs };
+
+    // 8) 全局 JS 变量（YouMind 可能把资源放在 __INITIAL_STATE__ / __DATA__ / __NUXT__ 等）
     const globals = ['__INITIAL_STATE__', '__DATA__', '__NUXT__', '__APP__', '__CONFIG__'];
     for (const key of globals) {
       try {
@@ -385,24 +467,26 @@
         if (!val) continue;
         const str = JSON.stringify(val);
         const m = str.match(/(https?:\/\/[^"'\s]+\.(mp4|mov|webm|m3u8)(\?[^"'\s]*)?)/i);
-        if (m) return { url: m[1], poster: '' };
+        if (m) return { url: m[1], poster: '', logs };
         // Cloudflare Stream uid
         const uidMatch = str.match(/([a-f0-9]{32}|[a-zA-Z0-9]{32})/);
+        const coverUrl = extractYouMindCover();
         if (uidMatch && coverUrl.includes('cloudflarestream')) {
           const baseMatch = coverUrl.match(/(https:\/\/customer-[^/]+\.cloudflarestream\.com)/i);
-          if (baseMatch) return { url: `${baseMatch[1]}/${uidMatch[1]}/downloads/default.mp4`, poster: coverUrl };
+          if (baseMatch) return { url: `${baseMatch[1]}/${uidMatch[1]}/downloads/default.mp4`, poster: coverUrl, logs };
         }
       } catch (e) {}
     }
 
-    // 8) 所有 <script> 标签文本中挖视频 URL（兜底）
+    // 9) 所有 <script> 标签文本中挖视频 URL（兜底）
     for (const script of document.querySelectorAll('script')) {
       const text = script.textContent || '';
       const m = text.match(/(https?:\/\/[^"'\s]+\.(mp4|mov|webm|m3u8)(\?[^"'\s]*)?)/i);
-      if (m) return { url: m[1], poster: '' };
+      if (m) return { url: m[1], poster: '', logs };
     }
 
-    return { url: '', poster: '' };
+    logs.push('未找到视频 URL');
+    return { url: '', poster: '', logs };
   }
 
   // 提取作者
@@ -562,8 +646,13 @@
     const cat = extractYouMindCategory();
     console.log('[Content-YouMind] 提取结果:', { strategy: promptResult.strategy, contentLen: promptResult.content?.length, model, cat });
 
-    const videoInfo = extractYouMindVideo();
-    console.log('[Content-YouMind] 视频提取:', { videoUrl: videoInfo.url, poster: videoInfo.poster, cover: extractYouMindCover() });
+    const videoInfo = await extractYouMindVideo();
+    console.log('[Content-YouMind] 视频提取:', {
+      videoUrl: videoInfo.url,
+      poster: videoInfo.poster,
+      cover: extractYouMindCover(),
+      logs: videoInfo.logs
+    });
 
     return {
       title: extractYouMindTitle(),
