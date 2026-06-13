@@ -111,7 +111,13 @@ const SEOEditModal = ({ visible, onCancel, articleId, refresh }) => {
         } catch (e) {}
         const merged = emptySeoI18n();
         Object.keys(parsed).forEach((code) => {
-          if (merged[code]) merged[code] = { ...merged[code], ...parsed[code] };
+          if (merged[code]) {
+            const item = { ...merged[code], ...parsed[code] };
+            if (item.faq && typeof item.faq !== 'string') {
+              item.faq = Array.isArray(item.faq) ? JSON.stringify(item.faq) : String(item.faq);
+            }
+            merged[code] = item;
+          }
         });
         setI18nData(merged);
         setActiveLang(DEFAULT_LANG);

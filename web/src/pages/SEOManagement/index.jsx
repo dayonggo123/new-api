@@ -128,7 +128,14 @@ const SEOEditModal = ({ visible, onCancel, promptId, refresh }) => {
         } catch (e) {}
         const merged = emptySeoI18n();
         Object.keys(parsed).forEach((code) => {
-          if (merged[code]) merged[code] = { ...merged[code], ...parsed[code] };
+          if (merged[code]) {
+            const item = { ...merged[code], ...parsed[code] };
+            // 后端可能把 faq 存为对象数组，统一转成 JSON 字符串显示
+            if (item.faq && typeof item.faq !== 'string') {
+              item.faq = Array.isArray(item.faq) ? JSON.stringify(item.faq) : String(item.faq);
+            }
+            merged[code] = item;
+          }
         });
         setI18nData(merged);
         setActiveLang(DEFAULT_LANG);
