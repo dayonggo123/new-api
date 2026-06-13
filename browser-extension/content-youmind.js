@@ -60,6 +60,7 @@
 
   // 提取提示词文本（YouMind 通常在特定 section/div 中放置）
   function extractYouMindPrompt() {
+    console.log('[Content-YouMind] extractYouMindPrompt() 开始');
     // 策略 A：查找带"提示词"或"prompt"标签的块
     const labelKeywords = ['提示词', 'Prompt', 'prompt', '正文', '描述', '咒语', '指令'];
     const allEls = document.querySelectorAll('h1, h2, h3, h4, h5, h6, strong, b, span, div, p');
@@ -115,6 +116,20 @@
         const t = cleanText(el.textContent);
         if (t.length > 50) return { content: t, strategy: 'selector-' + sel };
       }
+    }
+
+    // 策略 D：兜底 — 抓取页面主要内容区域的所有文字，取最长有意义的块
+    const bodyText = document.body?.innerText || '';
+    if (bodyText.length > 200) {
+      // 按双换行分段，找最长的一段（且不含导航/页脚关键词）
+      const blocks = bodyText.split(/\n\s*\n/).map(s => cleanText(s)).filter(s => s.length > 50);
+      const skipKw = ['登录', '注册', '首页', '导航', 'footer', 'copyright', '©', 'cookie', '隐私', '条款'];
+      let bestBlock = '';
+      for (const b of blocks) {
+        if (skipKw.some(k => b.toLowerCase().includes(k))) continue;
+        if (b.length > bestBlock.length) bestBlock = b;
+      }
+      if (bestBlock.length > 80) return { content: bestBlock, strategy: 'body-blocks' };
     }
 
     return { content: '', strategy: 'none' };
@@ -204,11 +219,13 @@
   }
 
   async function extractPageData() {
+    console.log('[Content-YouMind] extractPageData() URL:', location.href);
     const url = location.href;
     const domain = getDomain(url);
     const promptResult = extractYouMindPrompt();
     const model = detectYouMindModel();
     const cat = extractYouMindCategory();
+    console.log('[Content-YouMind] 提取结果:', { strategy: promptResult.strategy, contentLen: promptResult.content?.length, model, cat });
 
     return {
       title: extractYouMindTitle(),

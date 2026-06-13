@@ -529,22 +529,38 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 // ===== 从指定 tab 提取数据 =====
 async function extractFromTab(tabId) {
   try {
+    console.log(`[Background] extractFromTab(${tabId}) 开始`);
     // 先尝试向页面发送消息（如果已有 content script 注入）
     const result = await chrome.tabs.sendMessage(tabId, { action: 'extractPrompt' }).catch(() => null);
-    if (result && result.success && result.data) {
+    console.log('[Background] extractFromTab sendMessage 结果:', result);
+    if (result && result.success && result.data && result.data.content && result.data.content.length > 30) {
       return result;
     }
 
-    // 动态注入通用提取脚本
+    // 动态注入：先检查 tab 的 URL，决定注入哪个脚本
+    let scriptFile = 'content-universal.js';
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab?.url?.includes('youmind.com')) scriptFile = 'content-youmind.js';
+      if (tab?.url?.includes('opennana.com')) scriptFile = 'content-detail.js';
+      if (tab?.url?.includes('mp.weixin.qq.com')) scriptFile = 'content-wechat.js';
+    } catch (e) {}
+
+    console.log(`[Background] 动态注入: ${scriptFile}`);
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ['content-universal.js']
+      files: [scriptFile]
     });
 
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 800));
     const retryResult = await chrome.tabs.sendMessage(tabId, { action: 'extractPrompt' }).catch(() => null);
-    return retryResult || { success: false, message: '未能从页面提取到提示词', errorType: 'EMPTY_RESULT' };
+    console.log('[Background] extractFromTab 重试结果:', retryResult);
+    if (retryResult?.success && retryResult?.data?.content?.length > 30) return retryResult;
+
+    // 返回原始结果（即使 content 为空，也把 reason 带给调用方）
+    return retryResult || result || { success: false, message: '未能从页面提取到提示词', errorType: 'EMPTY_RESULT' };
   } catch (e) {
+    console.error('[Background] extractFromTab 异常:', e);
     return { success: false, message: e.message, errorType: 'EXTRACT' };
   }
 }
