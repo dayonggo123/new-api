@@ -208,7 +208,7 @@
     // ====== 策略 T（最高优先级）：直接读 textarea / contenteditable 值 ======
     // YouMind 模态框中提示词放在 textarea 里，打开时可能还没加载完，需要轮询
     const textareaResult = readTextareaWithPolling();
-    if (textareaResult) {
+    if (textareaResult && typeof textareaResult.content === 'string' && textareaResult.content.length > 0) {
       console.log('[Content-YouMind] 策略T命中 textarea:', textareaResult.content.substring(0, 80));
       return textareaResult;
     }

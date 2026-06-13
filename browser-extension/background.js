@@ -8,7 +8,7 @@ const BATCH_KEY = 'promptCollectorBatch';
 const FETCH_TIMEOUT_MS = 10000; // API 请求超时 10s（从 15s 降低，更快反馈）
 const FETCH_RETRY_DELAY_MS = 2000; // 网络错误重试间隔 2s
 const FETCH_MAX_RETRIES = 1; // 网络错误最多重试 1 次
-const SW_VERSION = '1.4.6';
+const SW_VERSION = '1.4.9';
 const HEARTBEAT_ALARM = 'promptCollectorHeartbeat';
 const STATS_KEY = 'promptCollectorStats';
 
@@ -611,6 +611,7 @@ chrome.runtime.onStartup.addListener(() => {
 
 // ===== 上下文菜单点击 =====
 // v1.4.6: 加详细日志 + 失败时给用户 toast 反馈（不再"无反应"）
+// v1.4.9: 加固所有 substring/slice 路径 + 抓空结果也加入批量库（让侧边栏可见）
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   console.log(`[Background] contextMenus.onClicked 触发 menuItemId=${info.menuItemId}, tab.id=${tab?.id}`);
   if (info.menuItemId === 'collectPrompt' && tab?.id) {
@@ -619,29 +620,40 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       ensureContextMenu();
 
       const res = await extractFromTab(tab.id);
-      console.log('[Background] 右键采集结果:', res?.success ? 'success' : 'fail', res?.data?.video_url || res?.message);
+      // v1.4.9: console.log 第三个参数必须保证不抛 — 任何 undefined.X 都会让 DevTools 截屏时只看到一截残栈
+      const status = res?.success ? 'success' : 'fail';
+      const detail = (res && (res?.data?.video_url || res?.message)) || 'no-detail';
+      console.log('[Background] 右键采集结果:', status, String(detail).slice(0, 120));
 
-      if (res.success && res.data) {
-        // 自动加入批量库，这样侧边栏打开后就能看到
-        if (res.data.content && res.data.content.length > 30) {
-          await appendToBatch(res.data);
-        }
+      // v1.4.9: 用 (res?.success && res?.data) 安全访问 .title/.content
+      const isOk = !!(res && res.success && res.data);
+      const hasContent = isOk && typeof res.data.content === 'string' && res.data.content.length > 30;
+
+      if (isOk) {
+        // v1.4.9: 即使没抓到正文也加入批量库（让用户在侧边栏看到并可手动编辑）
+        await appendToBatch(res.data);
         try {
           await chrome.sidePanel.open({ windowId: tab.windowId });
         } catch (e) {
           console.warn('[Background] 打开侧边栏失败:', e.message);
         }
-        // v1.4.6: 给用户一个 toast 反馈采集结果
-        showToast(tab.id, res.data.content && res.data.content.length > 30
-          ? `✅ 已采集：${(res.data.title || '提示词').slice(0, 30)}`
-          : `⚠️ 未提取到提示词正文（${res.data._meta?.strategy || 'unknown'}）`);
+        // v1.4.9: 字符串化兜底，绝不让 toast 拼接爆 substring
+        const titleStr = (typeof res.data.title === 'string' && res.data.title) ? res.data.title : '提示词';
+        if (hasContent) {
+          showToast(tab.id, `✅ 已采集：${titleStr.slice(0, 30)}`);
+        } else {
+          const strategy = (res.data && res.data._meta && res.data._meta.strategy) || 'unknown';
+          showToast(tab.id, `⚠️ 未提取到提示词正文（${strategy}）— 已加入侧边栏待编辑`);
+        }
       } else {
         // 失败也提示
-        showToast(tab.id, `❌ 采集失败：${res.message || '未知错误'}（${res.errorType || 'UNKNOWN'}）`);
+        const msg = (typeof res?.message === 'string' && res.message) || '未知错误';
+        const errType = res?.errorType || 'UNKNOWN';
+        showToast(tab.id, `❌ 采集失败：${msg}（${errType}）`);
       }
     } catch (e) {
       console.error('[Background] contextMenus.onClicked 异常:', e);
-      showToast(tab.id, `❌ 采集异常：${e.message}`);
+      showToast(tab.id, `❌ 采集异常：${e?.message || 'unknown'}`);
     }
   }
 });
