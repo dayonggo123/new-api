@@ -421,11 +421,28 @@
       });
       console.log('[Sidepanel] 提交响应:', res);
 
-      if (res.success && res.data && res.data.success) {
+      // 兼容多种返回结构：res.data.success / res.data.data.success / 直接 success
+      const apiOk = res?.success && (
+        res.data?.success === true ||
+        res.data?.code === 0 ||
+        // 后端 one-api 风格：{ code: 0, data: {...}, message: '' }
+        (res.data && res.data.code !== undefined && res.data.code === 0) ||
+        // 直接顶层 success
+        (res.data && !res.data.success && res.data.message === '' && res.data.data)
+      );
+
+      if (apiOk) {
         return true;
       } else {
-        item.error = res.data?.message || res.message || `提交失败 (HTTP ${res.status || '?'})`;
-        console.error('[Sidepanel] 提交失败:', { title: item.title, error: item.error, res });
+        // 尝试提取最具体错误信息（按优先级）
+        const detail = res?.data?.message
+          || res?.data?.data?.message
+          || res?.data?.detail
+          || res?.message
+          || res?.error
+          || `提交失败 (HTTP ${res?.status || '?'})`;
+        item.error = typeof detail === 'string' ? detail : JSON.stringify(detail);
+        console.error('[Sidepanel] 提交失败:', { title: item.title, error: item.error, fullRes: res });
         return false;
       }
     } catch (err) {
