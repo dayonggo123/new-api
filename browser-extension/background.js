@@ -230,32 +230,79 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
             const tab = tabs[0];
 
-            const results = await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: async () => {
-                try {
-                  const resp = await fetch('/api/user/token', { credentials: 'same-origin' });
-                  const json = await resp.json();
-                  if (json.success && json.data) return { success: true, token: json.data };
-                  const userStr = localStorage.getItem('user');
-                  if (userStr) {
-                    const user = JSON.parse(userStr);
-                    if (user.access_token) return { success: true, token: user.access_token };
+            // 第 1 步：从页面 localStorage 读取 user.id（最可靠）
+            let userId = null;
+            try {
+              const results = await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: () => {
+                  try {
+                    const userStr = localStorage.getItem('user');
+                    if (userStr) {
+                      const user = JSON.parse(userStr);
+                      return { id: user.id, username: user.username };
+                    }
+                    return null;
+                  } catch (e) {
+                    return null;
                   }
-                  return { success: false, message: json.message || '请确保已登录管理后台' };
-                } catch (e) {
-                  return { success: false, message: e.message };
                 }
+              });
+              const userInfo = results?.[0]?.result;
+              if (userInfo?.id) userId = String(userInfo.id);
+            } catch (e) {
+              console.warn('[Background] 读取页面 user 失败:', e.message);
+            }
+
+            // 第 2 步：在 background 里用 session cookie 调 /api/user/self 获取 id
+            if (!userId) {
+              try {
+                const selfResp = await fetch('https://heharse.cloud/api/user/self', {
+                  method: 'GET',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                const selfText = await selfResp.text();
+                const selfData = selfText ? JSON.parse(selfText) : {};
+                if (selfData.success && selfData.data?.id) {
+                  userId = String(selfData.data.id);
+                }
+              } catch (e) {
+                console.warn('[Background] /api/user/self 失败:', e.message);
+              }
+            }
+
+            if (!userId) {
+              sendResponse({ success: false, message: '无法获取用户 ID，请确保已登录 https://heharse.cloud', errorType: 'AUTH' });
+              return;
+            }
+
+            // 第 3 步：调用 /api/user/token 生成 access_token
+            const tokenResp = await fetch('https://heharse.cloud/api/user/token', {
+              method: 'GET',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+                'New-API-User': userId
               }
             });
+            const tokenText = await tokenResp.text();
+            const tokenData = tokenText ? JSON.parse(tokenText) : {};
+            console.log('[Background] fetchTokenFromTab /api/user/token:', tokenResp.status, tokenData);
 
-            const result = results?.[0]?.result;
-            if (result && result.success && result.token) {
-              sendResponse({ success: true, token: result.token, isAccessToken: true });
+            if (tokenData.success && tokenData.data) {
+              // 保存到配置
+              const config = await chrome.storage.local.get(STORAGE_KEY);
+              const cfg = config[STORAGE_KEY] || {};
+              cfg.apiToken = tokenData.data;
+              cfg.userId = userId;
+              await chrome.storage.local.set({ [STORAGE_KEY]: cfg });
+              sendResponse({ success: true, token: tokenData.data, userId, isAccessToken: true });
             } else {
-              sendResponse({ success: false, message: result?.message || '获取失败（需先打开 https://heharse.cloud 并登录）', errorType: 'AUTH' });
+              sendResponse({ success: false, message: tokenData.message || `获取 Token 失败 (HTTP ${tokenResp.status})`, errorType: 'AUTH' });
             }
           } catch (err) {
+            console.error('[Background] fetchTokenFromTab 异常:', err);
             sendResponse({ success: false, message: err.message, errorType: 'TAB_SCRIPT' });
           }
           break;
