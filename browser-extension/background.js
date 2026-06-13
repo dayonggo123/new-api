@@ -8,7 +8,7 @@ const BATCH_KEY = 'promptCollectorBatch';
 const FETCH_TIMEOUT_MS = 10000; // API 请求超时 10s（从 15s 降低，更快反馈）
 const FETCH_RETRY_DELAY_MS = 2000; // 网络错误重试间隔 2s
 const FETCH_MAX_RETRIES = 1; // 网络错误最多重试 1 次
-const SW_VERSION = '1.4.9';
+const SW_VERSION = '1.5.0';
 const HEARTBEAT_ALARM = 'promptCollectorHeartbeat';
 const STATS_KEY = 'promptCollectorStats';
 
@@ -85,6 +85,93 @@ async function appendToBatch(data) {
   } catch (e) {
     console.error('[Background] appendToBatch 失败:', e);
     return null;
+  }
+}
+
+// ===== 列表页"采集"流程：开后台 tab → 等加载 → 提取 → 入库 → 关闭 =====
+// v1.5.0 新增：YouMind 列表页 article 卡片右上角"采集"按钮触发
+//   1. chrome.tabs.create({ active:false }) 开后台 tab
+//   2. 监听 onUpdated 等 status=complete
+//   3. executeScript 注入对应 content script（防 manifest 注入慢）
+//   4. 调 extractFromTab 拿数据
+//   5. 写入批量库 + 关闭后台 tab
+async function collectFromListUrl(url, sourceTabId) {
+  console.log(`[Background] collectFromListUrl 开始: ${url}`);
+  let bgTabId = null;
+  let sourceTab = null;
+  try {
+    if (sourceTabId) {
+      try { sourceTab = await chrome.tabs.get(sourceTabId); } catch (e) {}
+    }
+
+    // 1) 开后台 tab
+    const bgTab = await chrome.tabs.create({ url, active: false });
+    bgTabId = bgTab.id;
+    console.log(`[Background] 后台 tab 已创建: ${bgTabId}`);
+
+    // 2) 等 tab 加载完成
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('后台 tab 加载超时（30s）')), 30000);
+      const onUpdate = (tabId, info, tab) => {
+        if (tabId === bgTabId && info.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(onUpdate);
+          clearTimeout(timer);
+          resolve();
+        }
+      };
+      chrome.tabs.onUpdated.addListener(onUpdate);
+      // 后台 tab 可能已经完成（缓存命中）
+      chrome.tabs.get(bgTabId).then(t => {
+        if (t?.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(onUpdate);
+          clearTimeout(timer);
+          resolve();
+        }
+      }).catch(() => {});
+    });
+    console.log(`[Background] 后台 tab 加载完成`);
+
+    // 3) 注入对应 content script（防 manifest 自动注入未生效）
+    let scriptFile = 'content-universal.js';
+    if (url.includes('youmind.com')) scriptFile = 'content-youmind.js';
+    else if (url.includes('opennana.com')) scriptFile = 'content-detail.js';
+    else if (url.includes('mp.weixin.qq.com')) scriptFile = 'content-wechat.js';
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: bgTabId }, files: [scriptFile] });
+      await new Promise(r => setTimeout(r, 1500)); // 等 onMessage listener 注册
+    } catch (e) {
+      console.warn(`[Background] 注入 ${scriptFile} 失败:`, e.message);
+    }
+
+    // 4) 提取
+    const result = await extractFromTab(bgTabId);
+
+    // 5) 关闭后台 tab
+    try { await chrome.tabs.remove(bgTabId); } catch (e) {}
+
+    // 6) 入库
+    if (result && result.success && result.data) {
+      const item = await appendToBatch(result.data);
+      if (sourceTab?.id) {
+        showToast(sourceTab.id, `✅ 已采集：${(typeof result.data.title === 'string' && result.data.title) ? result.data.title.slice(0, 30) : '提示词'}`);
+      }
+      return { success: true, item };
+    } else {
+      const msg = (result && result.message) || '未能从详情页提取到提示词';
+      if (sourceTab?.id) {
+        showToast(sourceTab.id, `❌ 采集失败：${msg}`);
+      }
+      return { success: false, message: msg };
+    }
+  } catch (e) {
+    console.error('[Background] collectFromListUrl 异常:', e);
+    if (bgTabId) {
+      try { await chrome.tabs.remove(bgTabId); } catch (e2) {}
+    }
+    if (sourceTab?.id) {
+      showToast(sourceTab.id, `❌ 采集异常：${e.message}`);
+    }
+    return { success: false, message: e.message, errorType: 'EXTRACT' };
   }
 }
 
@@ -172,6 +259,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'openDetailTab': {
           const tab = await chrome.tabs.create({ url: message.url, active: false });
           sendResponse({ success: true, tabId: tab.id });
+          break;
+        }
+
+        // v1.5.0: 列表页 article 卡片"采集"按钮触发
+        //   流程：开后台 tab → 等加载 → 注入 → 提取 → 入库 → 关闭
+        case 'collectFromList': {
+          if (!message.url) {
+            sendResponse({ success: false, message: '缺少 url 参数' });
+            break;
+          }
+          // 异步处理，立即返回 promise（background 内部会推 toast 给 source tab）
+          const res = await collectFromListUrl(message.url, sender?.tab?.id);
+          sendResponse(res);
           break;
         }
 

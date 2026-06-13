@@ -847,6 +847,147 @@
     return true;
   });
 
+  // ===== 列表页"采集"按钮注入（v1.5.0）=====
+  // 适配 https://youmind.com/*/explore?categories=xxx 等列表页
+  // article 卡片结构：
+  //   <article class="group relative font-sans select-none h-full" data-id="5723">
+  //     <a href="https://youmind.com/zh-CN/video-prompts/omegle-style-magic-reveal-5723" class="group/snippet ...">...</a>
+  //   </article>
+  // 注意：列表页 article 不含完整提示词正文，需要采集时后台开详情页 tab 提取
+  function isYouMindListPage() {
+    const path = window.location.pathname;
+    // 列表页路径：/explore, /prompts, /[model]-prompts（无末尾 ID）
+    if (path.includes('/explore')) return true;
+    if (/\/[a-z-]+-prompts\/?$/.test(path)) return true;
+    if (/\/[a-z-]+-prompts\/$/.test(path)) return true;
+    return false;
+  }
+
+  function injectListCollectButtons() {
+    if (!isYouMindListPage()) return;
+    const articles = document.querySelectorAll('article[data-id]');
+    if (articles.length === 0) return;
+    let injected = 0;
+    articles.forEach(article => {
+      if (article.dataset.pcInjected === '1') return; // 避免重复
+      article.dataset.pcInjected = '1';
+
+      // 找 article 里的详情页链接
+      const detailLink = article.querySelector('a[href*="youmind.com"][href*="-prompts/"]');
+      if (!detailLink) {
+        // 兜底：任意 a[href]
+        const fallback = article.querySelector('a[href]');
+        if (!fallback) return;
+        // 拼接绝对 URL
+        const href = fallback.href;
+        if (!href.includes('-prompts/')) return;
+        injectButton(article, href);
+        injected++;
+      } else {
+        injectButton(article, detailLink.href);
+        injected++;
+      }
+    });
+    if (injected > 0) {
+      console.log(`[Content-YouMind] 列表页注入 ${injected} 个采集按钮（article 总数 ${articles.length}）`);
+    }
+  }
+
+  function injectButton(article, detailUrl) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pc-list-collect-btn';
+    btn.dataset.pcUrl = detailUrl;
+    btn.innerHTML = '<span style="pointer-events:none">📋 采集</span>';
+    btn.setAttribute('aria-label', '采集此提示词到 Prompt Collector');
+    // 关键：阻止冒泡到外层 a，否则点了按钮会跳到详情页
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      const url = btn.dataset.pcUrl;
+      btn.disabled = true;
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<span style="pointer-events:none">⏳ 采集中...</span>';
+      try {
+        const res = await chrome.runtime.sendMessage({ action: 'collectFromList', url });
+        if (res && res.success) {
+          btn.innerHTML = '<span style="pointer-events:none">✅ 已采集</span>';
+          btn.style.background = '#22c55e';
+          setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.style.background = '';
+            btn.disabled = false;
+          }, 2500);
+        } else {
+          btn.innerHTML = '<span style="pointer-events:none">❌ 失败</span>';
+          btn.style.background = '#ef4444';
+          setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.style.background = '';
+            btn.disabled = false;
+          }, 3000);
+          console.warn('[Content-YouMind] 采集失败:', res?.message);
+        }
+      } catch (err) {
+        console.error('[Content-YouMind] 采集异常:', err);
+        btn.innerHTML = '<span style="pointer-events:none">❌ 异常</span>';
+        btn.style.background = '#ef4444';
+        setTimeout(() => {
+          btn.innerHTML = originalHtml;
+          btn.style.background = '';
+          btn.disabled = false;
+        }, 3000);
+      }
+    });
+
+    // 关键：阻止 article 内的 a 标签在按钮区域被点击
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    // 定位：article 右上角浮动
+    btn.style.cssText = [
+      'position: absolute',
+      'top: 8px',
+      'right: 8px',
+      'z-index: 9999',
+      'padding: 4px 10px',
+      'background: #000',
+      'color: #fff',
+      'border: 2px solid #fff',
+      'border-radius: 4px',
+      'font-size: 12px',
+      'font-weight: 600',
+      'cursor: pointer',
+      'box-shadow: 0 2px 6px rgba(0,0,0,0.3)',
+      'font-family: system-ui, -apple-system, sans-serif',
+      'line-height: 1.2',
+      'user-select: none'
+    ].join(';');
+
+    // article 没有 position 时强制 relative
+    const cs = window.getComputedStyle(article);
+    if (cs.position === 'static') {
+      article.style.position = 'relative';
+    }
+
+    article.appendChild(btn);
+  }
+
+  // 初次注入（页面已加载完）
+  injectListCollectButtons();
+
+  // 监听 article 新增（无限滚动加载更多）
+  if (isYouMindListPage()) {
+    const listObserver = new MutationObserver(() => {
+      injectListCollectButtons();
+    });
+    listObserver.observe(document.body, { childList: true, subtree: true });
+    console.log('[Content-YouMind] 列表页 MutationObserver 已启动');
+  }
+
   // 页面加载后预提取
   if (document.readyState === 'complete') {
     extractPageData().then(data => {
