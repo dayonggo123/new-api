@@ -300,10 +300,11 @@
   function deriveCloudflareVideo(coverUrl) {
     if (!coverUrl) return '';
     // 封面图：https://customer-xxx.cloudflarestream.com/{uid}/thumbnails/thumbnail.jpg?...
+    // 视频地址：https://customer-xxx.cloudflarestream.com/{uid}/downloads/default.mp4
     const m = coverUrl.match(/(https:\/\/customer-[^/]+\.cloudflarestream\.com\/[^/]+)/i);
     if (m) {
       const base = m[1];
-      return `${base}/manifest/video.m3u8`;
+      return `${base}/downloads/default.mp4`;
     }
     return '';
   }
@@ -353,7 +354,7 @@
       } catch (e) {}
     }
 
-    // 5) Cloudflare Stream 专用：从封面图推导 m3u8 地址
+    // 5) Cloudflare Stream 专用：从封面图推导 MP4 地址
     const coverUrl = extractYouMindCover();
     const derived = deriveCloudflareVideo(coverUrl);
     if (derived) return { url: derived, poster: coverUrl };
@@ -362,13 +363,17 @@
     const allText = document.documentElement.innerHTML;
     const streamMatches = allText.match(/https:\/\/customer-[^"'\s<>]+\.cloudflarestream\.com\/[^"'\s<>]+/gi);
     if (streamMatches) {
+      // 优先找 /downloads/default.mp4
+      for (const u of streamMatches) {
+        if (/\/downloads\/default\.mp4(\?|$)/i.test(u)) return { url: u, poster: coverUrl };
+      }
       for (const u of streamMatches) {
         if (/\.(mp4|mov|webm|m3u8)(\?|$)/i.test(u)) return { url: u, poster: coverUrl };
       }
-      // 如果只有 uid 没有扩展名，补成 m3u8
+      // 如果只有 uid 没有扩展名，补成 /downloads/default.mp4
       const first = streamMatches[0].replace(/\/$/, '');
       if (!/\.[a-z0-9]+(\?|$)/i.test(first)) {
-        return { url: `${first}/manifest/video.m3u8`, poster: coverUrl };
+        return { url: `${first}/downloads/default.mp4`, poster: coverUrl };
       }
     }
 
@@ -385,7 +390,7 @@
         const uidMatch = str.match(/([a-f0-9]{32}|[a-zA-Z0-9]{32})/);
         if (uidMatch && coverUrl.includes('cloudflarestream')) {
           const baseMatch = coverUrl.match(/(https:\/\/customer-[^/]+\.cloudflarestream\.com)/i);
-          if (baseMatch) return { url: `${baseMatch[1]}/${uidMatch[1]}/manifest/video.m3u8`, poster: coverUrl };
+          if (baseMatch) return { url: `${baseMatch[1]}/${uidMatch[1]}/downloads/default.mp4`, poster: coverUrl };
         }
       } catch (e) {}
     }
