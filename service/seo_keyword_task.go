@@ -75,7 +75,7 @@ func runSEOKeywordUpdateOnce() {
 	ctx := context.Background()
 
 	// 获取所有启用的提示词
-	prompts, _, err := model.GetPublicPrompts(0, "", 0, 10000)
+	prompts, _, err := model.GetPublicPrompts(0, "", 0, 10000, "id", "asc")
 	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("seo keyword update: fetch prompts failed: %v", err))
 		return

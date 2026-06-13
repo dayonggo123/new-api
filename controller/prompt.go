@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -282,7 +283,32 @@ func GetPublicPrompts(c *gin.Context) {
 	categoryId, _ := strconv.Atoi(c.Query("category_id"))
 	lang := c.Query("lang")
 
-	prompts, total, err := model.GetPublicPrompts(categoryId, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	// P1: 支持 ids 批量查询（方案 A：列表接口加 ids 参数）
+	if idsStr := c.Query("ids"); idsStr != "" {
+		idStrs := strings.Split(idsStr, ",")
+		ids := make([]int, 0, len(idStrs))
+		for _, s := range idStrs {
+			s = strings.TrimSpace(s)
+			if id, err := strconv.Atoi(s); err == nil && id > 0 {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) > 0 {
+			prompts, err := model.GetPromptsByIDs(ids, lang)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			common.ApiSuccess(c, gin.H{"items": prompts, "total": len(prompts)})
+			return
+		}
+	}
+
+	// P0: 排序参数
+	sort := c.DefaultQuery("sort", "id")
+	order := c.DefaultQuery("order", "desc")
+
+	prompts, total, err := model.GetPublicPrompts(categoryId, keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sort, order)
 	if err != nil {
 		common.ApiError(c, err)
 		return

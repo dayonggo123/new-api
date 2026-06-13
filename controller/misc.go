@@ -401,7 +401,7 @@ func GetSitemap(c *gin.Context) {
 	}
 
 	// Add all public prompts to sitemap
-	prompts, _, err := model.GetPublicPrompts(0, "", 0, 10000)
+	prompts, _, err := model.GetPublicPrompts(0, "", 0, 10000, "id", "asc")
 	if err == nil {
 		for _, p := range prompts {
 			sb.WriteString("  <url>\n")

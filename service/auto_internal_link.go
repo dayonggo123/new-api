@@ -80,7 +80,7 @@ func SuggestInternalLinks(recordType string, recordID int, limit int) ([]Interna
 	}
 
 	// 搜索相关 Prompt（排除自己）
-	prompts, _, err := model.GetPublicPrompts(0, "", 0, 50)
+	prompts, _, err := model.GetPublicPrompts(0, "", 0, 50, "id", "asc")
 	if err == nil {
 		for _, prompt := range prompts {
 			if recordType == "prompt" && prompt.Id == recordID {
