@@ -272,6 +272,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'extractFromActiveTab': {
+          try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab || !tab.id) {
+              sendResponse({ success: false, message: '未找到活动标签页' });
+              return;
+            }
+            const res = await extractFromTab(tab.id);
+            sendResponse(res);
+          } catch (err) {
+            sendResponse({ success: false, message: err.message });
+          }
+          break;
+        }
+
         default:
           sendResponse({ success: false, message: '未知 action' });
       }
@@ -301,4 +316,56 @@ chrome.runtime.onInstalled.addListener((details) => {
   } catch (e) {
     console.warn('[Background] setPanelBehavior 跳过:', e?.message || '不可用');
   }
+
+  // 注册上下文菜单
+  try {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: 'collectPrompt',
+        title: '🎯 采集此页面提示词',
+        contexts: ['page', 'selection']
+      });
+    });
+  } catch (e) {
+    console.warn('[Background] 上下文菜单注册失败:', e?.message);
+  }
 });
+
+// 上下文菜单点击
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'collectPrompt' && tab?.id) {
+    const res = await extractFromTab(tab.id);
+    if (res.success) {
+      // 尝试打开侧边栏展示
+      try {
+        await chrome.sidePanel.open({ windowId: tab.windowId });
+      } catch (e) {
+        console.warn('[Background] 打开侧边栏失败:', e.message);
+      }
+    }
+  }
+});
+
+// 从指定 tab 提取数据（优先使用页面内已注入脚本，否则动态注入）
+async function extractFromTab(tabId) {
+  try {
+    // 先尝试向页面发送消息（如果已有 content script 注入）
+    const result = await chrome.tabs.sendMessage(tabId, { action: 'extractPrompt' }).catch(() => null);
+    if (result && result.success && result.data) {
+      return result;
+    }
+
+    // 动态注入通用提取脚本
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content-universal.js']
+    });
+
+    // 等待脚本初始化后再次提取
+    await new Promise(r => setTimeout(r, 500));
+    const retryResult = await chrome.tabs.sendMessage(tabId, { action: 'extractPrompt' }).catch(() => null);
+    return retryResult || { success: false, message: '未能从页面提取到提示词' };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}

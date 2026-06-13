@@ -33,6 +33,10 @@
     submitBtn: document.getElementById('submitBtn'),
     clearBtn: document.getElementById('clearBtn'),
     submitStatus: document.getElementById('submitStatus'),
+
+    extractBtn: document.getElementById('extractBtn'),
+    addToBatchBtn: document.getElementById('addToBatchBtn'),
+    openBatchBtn: document.getElementById('openBatchBtn'),
   };
 
   let config = {};
@@ -46,6 +50,9 @@
     els.saveConfigBtn.addEventListener('click', saveConfig);
     els.submitBtn.addEventListener('click', submitPrompt);
     els.clearBtn.addEventListener('click', clearData);
+    if (els.extractBtn) els.extractBtn.addEventListener('click', extractCurrentPage);
+    if (els.addToBatchBtn) els.addToBatchBtn.addEventListener('click', addToBatch);
+    if (els.openBatchBtn) els.openBatchBtn.addEventListener('click', openBatchPanel);
     const fetchBtn = document.getElementById('fetchTokenBtn');
     if (fetchBtn) fetchBtn.addEventListener('click', fetchToken);
 
@@ -146,13 +153,14 @@
 
     els.dataSection.style.display = 'block';
     els.emptyState.style.display = 'none';
+    if (els.addToBatchBtn) els.addToBatchBtn.disabled = false;
 
     els.fieldTitle.value = extractedData.title || '';
     els.fieldContent.value = extractedData.content || '';
     els.fieldContentEn.value = extractedData.content_en || '';
     els.fieldDescription.value = extractedData.description || '';
     els.fieldModel.value = extractedData.model || '';
-    els.fieldSource.value = extractedData.source || '';
+    els.fieldSource.value = extractedData.source || extractedData.author || '';
     els.fieldMediaType.value = extractedData.media_type || 'image';
     els.fieldTags.value = parseTags(extractedData.tags);
 
@@ -181,6 +189,85 @@
   function showEmpty() {
     els.dataSection.style.display = 'none';
     els.emptyState.style.display = 'block';
+    if (els.addToBatchBtn) els.addToBatchBtn.disabled = true;
+  }
+
+  // 从当前活动标签页提取数据（通用）
+  async function extractCurrentPage() {
+    if (!els.extractBtn) return;
+    const originalText = els.extractBtn.textContent;
+    els.extractBtn.disabled = true;
+    els.extractBtn.textContent = '提取中...';
+    try {
+      const res = await chrome.runtime.sendMessage({ action: 'extractFromActiveTab' });
+      if (res && res.success && res.data) {
+        extractedData = res.data;
+        await chrome.runtime.sendMessage({ action: 'saveExtractedData', data: extractedData });
+        renderData();
+        showStatus(els.submitStatus, '✅ 提取成功', 'success');
+      } else {
+        showStatus(els.submitStatus, `❌ ${res?.message || '未能提取到提示词'}`, 'error');
+      }
+    } catch (err) {
+      showStatus(els.submitStatus, `❌ 提取失败: ${err.message}`, 'error');
+    } finally {
+      els.extractBtn.disabled = false;
+      els.extractBtn.textContent = originalText;
+    }
+  }
+
+  // 收集当前表单数据
+  function gatherFormData() {
+    const tagsInput = els.fieldTags.value.trim();
+    let tags = [];
+    if (tagsInput) {
+      tags = tagsInput.split(/[,，]/).map(t => t.trim()).filter(t => t);
+    }
+    return {
+      ...extractedData,
+      title: els.fieldTitle.value.trim(),
+      content: els.fieldContent.value.trim(),
+      content_en: els.fieldContentEn.value.trim(),
+      description: els.fieldDescription.value.trim(),
+      model: els.fieldModel.value.trim(),
+      source: els.fieldSource.value.trim(),
+      author: els.fieldSource.value.trim(),
+      media_type: els.fieldMediaType.value,
+      category_id: parseInt(els.fieldCategoryId.value, 10) || 0,
+      tags: JSON.stringify(tags),
+      cover_image_url: els.fieldCoverImage.value.trim(),
+      video_url: els.fieldVideoUrl ? els.fieldVideoUrl.value.trim() : '',
+      source_url: els.fieldSourceUrl.value.trim()
+    };
+  }
+
+  // 加入批量库
+  async function addToBatch() {
+    if (!extractedData) return;
+    const data = gatherFormData();
+    if (!data.title || (!data.content && !data.content_en)) {
+      showStatus(els.submitStatus, '❌ 标题和 Prompt 内容不能为空', 'error');
+      return;
+    }
+    try {
+      const res = await chrome.runtime.sendMessage({ action: 'appendBatchData', data });
+      if (res && res.success) {
+        showStatus(els.submitStatus, '✅ 已加入批量库', 'success');
+      } else {
+        showStatus(els.submitStatus, `❌ ${res?.message || '加入失败'}`, 'error');
+      }
+    } catch (err) {
+      showStatus(els.submitStatus, `❌ 加入失败: ${err.message}`, 'error');
+    }
+  }
+
+  // 打开批量库侧边栏
+  async function openBatchPanel() {
+    try {
+      await chrome.runtime.sendMessage({ action: 'openSidePanel' });
+    } catch (err) {
+      console.error('[Popup] 打开侧边栏失败:', err);
+    }
   }
 
   // 切换配置面板

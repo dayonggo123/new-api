@@ -39,6 +39,58 @@ body {
   color: #64748b;
 }
 
+/* 操作栏 */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.toolbar .btn {
+  flex: 1;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toolbar .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.toolbar .btn-primary {
+  background: #6366f1;
+  color: #fff;
+}
+
+.toolbar .btn-primary:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.toolbar .btn-secondary {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.toolbar .btn-secondary:hover:not(:disabled) {
+  background: #c7d2fe;
+}
+
+.toolbar .btn-ghost {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  flex: 0.6;
+}
+
+.toolbar .btn-ghost:hover {
+  background: #e2e8f0;
+}
+
 /* 配置面板 */
 .config-section {
   margin-bottom: 16px;
