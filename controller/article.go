@@ -232,7 +232,7 @@ func UpdateArticle(c *gin.Context) {
 	cleanArticle.I18n = article.I18n
 	cleanArticle.SeoI18n = article.SeoI18n
 	// 只有所有目标语言都翻译完整，才标记为已翻译
-	cleanArticle.IsTranslated = isArticleTranslationComplete(article.I18n)
+	cleanArticle.IsTranslated = isArticleTranslationComplete(article.I18n, article.Summary)
 	if cleanArticle.IsTranslated {
 		cleanArticle.TranslationError = ""
 	}
@@ -265,15 +265,20 @@ func DeleteArticle(c *gin.Context) {
 }
 
 // isArticleTranslationComplete 检查 Article 的 i18n 是否包含所有目标语言
-func isArticleTranslationComplete(i18n string) bool {
+// 若中文摘要有内容，则每种目标语言也必须包含摘要才算完整
+func isArticleTranslationComplete(i18n string, sourceSummary string) bool {
 	targetLangs := []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
 	var articleI18n map[string]model.ArticleContent18n
 	if i18n != "" {
 		_ = common.Unmarshal([]byte(i18n), &articleI18n)
 	}
+	hasSourceSummary := sourceSummary != ""
 	for _, lang := range targetLangs {
 		data, ok := articleI18n[lang]
 		if !ok || data.Title == "" || data.Content == "" {
+			return false
+		}
+		if hasSourceSummary && data.Summary == "" {
 			return false
 		}
 	}

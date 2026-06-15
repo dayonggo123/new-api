@@ -1661,6 +1661,61 @@ const ArticleManagement = () => {
     return cat ? cat.name : '-';
   };
 
+  const targetLangCodes = ['en', 'fr', 'ru', 'ja', 'vi', 'ko', 'es', 'de', 'pt', 'it', 'ar'];
+
+  const getTranslationStatusDetail = (record) => {
+    if (record.is_translated) {
+      return { type: 'success', text: t('是'), tooltip: '' };
+    }
+
+    let i18n = {};
+    try {
+      if (record.i18n) i18n = JSON.parse(record.i18n);
+    } catch (e) {}
+
+    const hasSourceSummary = !!record.summary && String(record.summary).trim() !== '';
+    const missing = [];
+    targetLangCodes.forEach((lang) => {
+      const data = i18n[lang] || {};
+      const missingFields = [];
+      if (!data.title || String(data.title).trim() === '') missingFields.push(t('标题'));
+      if (!data.content || String(data.content).trim() === '') missingFields.push(t('正文'));
+      if (hasSourceSummary && (!data.summary || String(data.summary).trim() === '')) missingFields.push(t('摘要'));
+      if (missingFields.length > 0) {
+        missing.push(`${lang}: ${missingFields.join('/')}`);
+      }
+    });
+
+    const partialMatch = record.translation_error && record.translation_error.match(/^partial:\s*(.+)$/i);
+    const partialLangs = partialMatch ? partialMatch[1].split(',').map((l) => l.trim()).filter(Boolean) : [];
+
+    if (partialLangs.length > 0) {
+      return {
+        type: 'partial',
+        text: t('部分失败'),
+        tooltip: `${t('缺失语言')}: ${partialLangs.join(', ')}\n${missing.join('; ')}`,
+      };
+    }
+
+    if (record.translation_error) {
+      return {
+        type: 'error',
+        text: t('失败'),
+        tooltip: `${record.translation_error}\n${missing.join('; ')}`,
+      };
+    }
+
+    if (missing.length > 0) {
+      return {
+        type: 'error',
+        text: t('失败'),
+        tooltip: `${t('缺失')}: ${missing.join('; ')}`,
+      };
+    }
+
+    return { type: 'pending', text: t('否'), tooltip: '' };
+  };
+
   const articleColumns = [
     {
       title: 'ID',
@@ -1697,32 +1752,16 @@ const ArticleManagement = () => {
       dataIndex: 'is_translated',
       width: 90,
       render: (text, record) => {
-        const partialMatch = record.translation_error && record.translation_error.match(/^partial:\s*(.+)$/i);
-        const partialLangs = partialMatch ? partialMatch[1].split(',').map((l) => l.trim()).filter(Boolean) : [];
-        if (text) {
-          return (
-            <Tag color='green' size='small'>
-              {t('是')}
-            </Tag>
-          );
-        }
-        if (partialLangs.length > 0) {
-          return (
-            <Tag color='orange' size='small' title={`${t('缺失语言')}: ${partialLangs.join(', ')}`}>
-              {t('部分失败')}
-            </Tag>
-          );
-        }
-        if (record.translation_error) {
-          return (
-            <Tag color='red' size='small' title={record.translation_error}>
-              {t('失败')}
-            </Tag>
-          );
-        }
+        const status = getTranslationStatusDetail(record);
+        const colorMap = {
+          success: 'green',
+          partial: 'orange',
+          error: 'red',
+          pending: 'grey',
+        };
         return (
-          <Tag color='grey' size='small'>
-            {t('否')}
+          <Tag color={colorMap[status.type]} size='small' title={status.tooltip}>
+            {status.text}
           </Tag>
         );
       },

@@ -219,9 +219,13 @@ func isRecordFullyTranslated(recordType string, recordID int) bool {
 	if article.I18n != "" {
 		common.Unmarshal([]byte(article.I18n), &articleI18n)
 	}
+	hasSourceSummary := article.Summary != ""
 	for _, lang := range autoTranslateTargetLangs {
 		data, ok := articleI18n[lang]
 		if !ok || data.Title == "" || data.Content == "" {
+			return false
+		}
+		if hasSourceSummary && data.Summary == "" {
 			return false
 		}
 	}
@@ -231,10 +235,11 @@ func isRecordFullyTranslated(recordType string, recordID int) bool {
 // processAutoTranslateOnce 单次翻译处理：加载记录、调用 AI、保存结果
 func processAutoTranslateOnce(task *AutoTranslateTask) {
 
-	var title, content string
+	var title, content, summary string
 	var recordExists bool
 	var existingTitleI18n = make(map[string]string)
 	var existingContentI18n = make(map[string]string)
+	var existingSummaryI18n = make(map[string]string)
 	var existingArticleI18n = make(map[string]model.ArticleContent18n)
 
 	if task.Type == "prompt" {
@@ -262,6 +267,7 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 		}
 		title = article.Title
 		content = article.Content
+		summary = article.Summary
 		if article.I18n != "" {
 			common.Unmarshal([]byte(article.I18n), &existingArticleI18n)
 		}
@@ -272,6 +278,9 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 			}
 			if data.Content != "" {
 				existingContentI18n[lang] = data.Content
+			}
+			if data.Summary != "" {
+				existingSummaryI18n[lang] = data.Summary
 			}
 		}
 		recordExists = true
@@ -294,18 +303,24 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 		return
 	}
 
-	// 构建翻译项
+	// 构建翻译项（文章额外包含 summary）
 	items := []translateItem{
 		{Key: "title", Text: title},
-		{Key: "content", Text: content},
 	}
+	if task.Type == "article" && summary != "" {
+		items = append(items, translateItem{Key: "summary", Text: summary})
+	}
+	items = append(items, translateItem{Key: "content", Text: content})
+
+	hasSourceSummary := task.Type == "article" && summary != ""
 
 	// 过滤已翻译的语言，只翻译缺失的
 	langsToTranslate := []string{}
 	for _, lang := range autoTranslateTargetLangs {
 		hasTitle := existingTitleI18n[lang] != ""
 		hasContent := existingContentI18n[lang] != ""
-		if !hasTitle || !hasContent {
+		hasSummary := existingSummaryI18n[lang] != ""
+		if !hasTitle || !hasContent || (hasSourceSummary && !hasSummary) {
 			langsToTranslate = append(langsToTranslate, lang)
 		}
 	}
@@ -320,6 +335,7 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 
 	titleI18n := make(map[string]string)
 	contentI18n := make(map[string]string)
+	summaryI18n := make(map[string]string)
 	failedLangs := []string{}
 
 	for _, lang := range langsToTranslate {
@@ -334,6 +350,9 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 		if t, ok := result["title"]; ok && t != "" && t != title {
 			titleI18n[lang] = t
 		}
+		if s, ok := result["summary"]; ok && s != "" && s != summary {
+			summaryI18n[lang] = s
+		}
 		if c, ok := result["content"]; ok && c != "" && c != content {
 			contentI18n[lang] = c
 		}
@@ -342,7 +361,7 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	if len(titleI18n) == 0 && len(contentI18n) == 0 {
+	if len(titleI18n) == 0 && len(contentI18n) == 0 && len(summaryI18n) == 0 {
 		task.Status = AutoTranslateStatusFailed
 		task.Error = "all translations failed"
 		return
@@ -351,6 +370,9 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 	// 合并新翻译到已有数据
 	for k, v := range titleI18n {
 		existingTitleI18n[k] = v
+	}
+	for k, v := range summaryI18n {
+		existingSummaryI18n[k] = v
 	}
 	for k, v := range contentI18n {
 		existingContentI18n[k] = v
@@ -386,6 +408,14 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 				existingArticleI18n[lang] = model.ArticleContent18n{Title: t}
 			}
 		}
+		for lang, s := range existingSummaryI18n {
+			if data, ok := existingArticleI18n[lang]; ok {
+				data.Summary = s
+				existingArticleI18n[lang] = data
+			} else {
+				existingArticleI18n[lang] = model.ArticleContent18n{Summary: s}
+			}
+		}
 		for lang, c := range existingContentI18n {
 			if data, ok := existingArticleI18n[lang]; ok {
 				data.Content = c
@@ -403,7 +433,7 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 	// 检查是否所有目标语言都已翻译完整
 	allComplete := true
 	for _, lang := range autoTranslateTargetLangs {
-		if existingTitleI18n[lang] == "" || existingContentI18n[lang] == "" {
+		if existingTitleI18n[lang] == "" || existingContentI18n[lang] == "" || (hasSourceSummary && existingSummaryI18n[lang] == "") {
 			allComplete = false
 			break
 		}
@@ -434,12 +464,12 @@ func processAutoTranslateOnce(task *AutoTranslateTask) {
 	// 计算总完成进度（合并新翻译后的现有数据）
 	completedCount := 0
 	for _, lang := range autoTranslateTargetLangs {
-		if existingTitleI18n[lang] != "" && existingContentI18n[lang] != "" {
+		if existingTitleI18n[lang] != "" && existingContentI18n[lang] != "" && (!hasSourceSummary || existingSummaryI18n[lang] != "") {
 			completedCount++
 		}
 	}
-	common.SysLog(fmt.Sprintf("AutoTranslate completed: %s %d, progress=%d/%d, missing=%d, new_title=%d, new_content=%d, existing_title=%d, existing_content=%d, failed=%v",
-		task.Type, task.RecordID, completedCount, len(autoTranslateTargetLangs), len(langsToTranslate), len(titleI18n), len(contentI18n), len(existingTitleI18n), len(existingContentI18n), failedLangs))
+	common.SysLog(fmt.Sprintf("AutoTranslate completed: %s %d, progress=%d/%d, missing=%d, new_title=%d, new_summary=%d, new_content=%d, existing_title=%d, existing_summary=%d, existing_content=%d, failed=%v",
+		task.Type, task.RecordID, completedCount, len(autoTranslateTargetLangs), len(langsToTranslate), len(titleI18n), len(summaryI18n), len(contentI18n), len(existingTitleI18n), len(existingSummaryI18n), len(existingContentI18n), failedLangs))
 }
 
 // ========== AI 翻译调用（内联实现，避免循环依赖） ==========
@@ -830,9 +860,15 @@ func fixIncompleteTranslationStatus() {
 				if a.I18n != "" {
 					common.Unmarshal([]byte(a.I18n), &articleI18n)
 				}
+				hasSourceSummary := a.Summary != ""
 				complete := true
 				for _, lang := range autoTranslateTargetLangs {
-					if data, ok := articleI18n[lang]; !ok || data.Title == "" || data.Content == "" {
+					data, ok := articleI18n[lang]
+					if !ok || data.Title == "" || data.Content == "" {
+						complete = false
+						break
+					}
+					if hasSourceSummary && data.Summary == "" {
 						complete = false
 						break
 					}
