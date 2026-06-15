@@ -517,7 +517,8 @@ func SearchPromptsWithCategory(keyword string, categoryId int, startIdx int, num
 
 type PromptWithCategory struct {
 	*Prompt
-	CategoryName string `json:"category_name"`
+	CategoryName string  `json:"category_name"`
+	Scenes       []Scene `json:"scenes" gorm:"-"`
 }
 
 func attachCategoryInfo(prompts []*Prompt) []*PromptWithCategory {
@@ -548,6 +549,7 @@ func attachCategoryInfo(prompts []*Prompt) []*PromptWithCategory {
 		result[i] = &PromptWithCategory{
 			Prompt:       p,
 			CategoryName: categoryMap[p.CategoryId],
+			Scenes:       DeriveScenesForPublic(p),
 		}
 	}
 	return result

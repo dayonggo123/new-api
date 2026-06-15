@@ -133,8 +133,8 @@ export const getPromptsColumns = ({
       dataIndex: 'scenes',
       width: 180,
       render: (_text, record) => {
-        const scenes = deriveScenes(record);
-        if (scenes.length === 0) {
+        const scenes = record.scenes || deriveScenes(record);
+        if (!scenes || scenes.length === 0) {
           return <span className='text-gray-400 text-xs'>-</span>;
         }
         return (
