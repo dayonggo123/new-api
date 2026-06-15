@@ -672,7 +672,15 @@
   }
 
   // 提取分类（YouMind 在 URL 中通常有 /nano-banana-pro-prompts/ 等）
+  // 优先从页面 DOM 读取真实分类名（解决 URL slug 缩写导致的截断问题，如 /grok-prompts/ → "Grok" 但页面显示 "GROK IMAGINE"）
   function extractYouMindCategory() {
+    // 1) 优先从 DOM 找"分类"标签下的胶囊状分类名
+    const domCategory = extractYouMindCategoryFromDOM();
+    if (domCategory) {
+      return domCategory;
+    }
+
+    // 2) 回退到 URL slug 解析
     const path = location.pathname.toLowerCase();
     const match = path.match(/\/([a-z0-9-]+)-prompts/);
     if (match) {
@@ -680,6 +688,69 @@
         .split('-')
         .map(s => s.charAt(0).toUpperCase() + s.slice(1))
         .join(' ');
+    }
+    return '';
+  }
+
+  // 从页面 DOM 提取 YouMind 分类名（解决 URL slug 与显示名不一致的问题）
+  function extractYouMindCategoryFromDOM() {
+    try {
+      // 策略 A：查找面包屑/分类链接（最准确）
+      const breadcrumbSelectors = [
+        'nav[aria-label*="breadcrumb" i] a',
+        '[class*="breadcrumb" i] a',
+        'a[href*="/category/"]',
+        'a[href*="/c/"]'
+      ];
+      for (const sel of breadcrumbSelectors) {
+        const el = document.querySelector(sel);
+        if (el) {
+          const t = cleanText(el.textContent);
+          // 过滤掉"首页"等非分类文本
+          if (t && t.length >= 2 && t.length <= 30 && !/^(首页|home|homepage)$/i.test(t)) {
+            return t;
+          }
+        }
+      }
+
+      // 策略 B：查找"分类"标签旁的胶囊/链接
+      const labels = Array.from(document.querySelectorAll('*')).filter(el => {
+        for (const node of el.childNodes) {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const t = cleanText(node.textContent);
+            if (t === '分类' || t.toLowerCase() === 'category') return true;
+          }
+        }
+        return false;
+      });
+
+      for (const label of labels) {
+        let cur = label.parentElement;
+        for (let depth = 0; depth < 4 && cur; depth++, cur = cur.parentElement) {
+          // 查找容器内的链接/胶囊，挑选第一个符合分类特征的元素
+          const candidates = cur.querySelectorAll('a, button, span.tag, [class*="tag" i], [class*="chip" i]');
+          for (const c of candidates) {
+            const t = cleanText(c.textContent);
+            if (t && t.length >= 2 && t.length <= 30 && !/^分类$|^category$/i.test(t)) {
+              return t;
+            }
+          }
+        }
+      }
+
+      // 策略 C：查找 H1/H2 旁的分类描述性文本（YouMind 详情页常在标题附近）
+      const headerArea = document.querySelector('h1, h2');
+      if (headerArea) {
+        const parent = headerArea.parentElement;
+        if (parent) {
+          const smallText = Array.from(parent.querySelectorAll('span, a, small'))
+            .map(el => cleanText(el.textContent))
+            .find(t => t && t.length >= 2 && t.length <= 30 && /[A-Za-z一-龥]/.test(t));
+          if (smallText) return smallText;
+        }
+      }
+    } catch (e) {
+      console.warn('[YouMind] DOM 分类提取失败，回退到 URL:', e);
     }
     return '';
   }
