@@ -965,25 +965,24 @@ const SEOManagement = () => {
     return <Tag color='grey' size='small'>{t('否')}</Tag>;
   };
 
-  const getTranslationProgress = (record) => {
+  const getSEOTranslationProgress = (record) => {
     const targetLangs = ['en', 'fr', 'ru', 'ja', 'vi', 'ko', 'es', 'de', 'pt', 'it', 'ar'];
-    let titleMap = {};
-    let contentMap = {};
+    let seoI18n = {};
     try {
-      if (record.title_i18n) titleMap = JSON.parse(record.title_i18n);
-    } catch (e) { /* ignore */ }
-    try {
-      if (record.i18n) contentMap = JSON.parse(record.i18n);
+      if (record.seo_i18n) seoI18n = JSON.parse(record.seo_i18n);
     } catch (e) { /* ignore */ }
 
     let completed = 0;
     for (const lang of targetLangs) {
-      const hasTitle = titleMap[lang] && String(titleMap[lang]).trim() !== '';
-      let hasContent = contentMap[lang] && String(contentMap[lang]).trim() !== '';
-      if (lang === 'en' && record.content_en && String(record.content_en).trim() !== '') {
-        hasContent = true;
+      const item = seoI18n[lang] || {};
+      const hasKeywords = item.seo_keywords && String(item.seo_keywords).trim() !== '';
+      const hasIntro = item.intro && String(item.intro).trim() !== '';
+      // FAQ 若有中文则要求该语言也必须有，否则只要求 keywords + intro
+      let hasFaq = true;
+      if (record.faq && String(record.faq).trim() !== '' && String(record.faq).trim() !== '[]') {
+        hasFaq = item.faq && String(item.faq).trim() !== '' && String(item.faq).trim() !== '[]';
       }
-      if (hasTitle && hasContent) completed++;
+      if (hasKeywords && hasIntro && hasFaq) completed++;
     }
     return `${completed}/11`;
   };
@@ -1204,7 +1203,7 @@ const SEOManagement = () => {
                     {t('FAQ')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
-                    {t('翻译进度')}
+                    {t('SEO 翻译进度')}
                   </th>
                   <th className='text-left py-2 px-3 font-medium w-24'>
                     {t('SEO翻译状态')}
@@ -1270,10 +1269,10 @@ const SEOManagement = () => {
                     </td>
                     <td className='py-2 px-3'>
                       {(() => {
-                        const progress = getTranslationProgress(item);
+                        const progress = getSEOTranslationProgress(item);
                         const [completed] = progress.split('/').map(Number);
                         const isDone = completed === 11;
-                        const hasError = !!item.translation_error;
+                        const hasError = !!item.seo_translation_error;
                         return (
                           <Tag color={hasError ? 'red' : isDone ? 'green' : 'blue'} size='small'>
                             {progress}
