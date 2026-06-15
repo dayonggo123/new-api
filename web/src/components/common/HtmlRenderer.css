@@ -1,0 +1,251 @@
+/* 文章/富文本 HTML 内容专用排版样式
+ * 用于 HtmlRenderer 组件渲染的 wangEditor 等富文本 HTML 输出
+ * 设计目标：专业、易读、支持 Semi Design 浅色/深色主题
+ */
+
+.html-content {
+  color: var(--semi-color-text-0);
+  font-size: 16px;
+  line-height: 1.8;
+  word-break: break-word;
+}
+
+/* 标题层级 */
+.html-content h1,
+.html-content h2,
+.html-content h3,
+.html-content h4,
+.html-content h5,
+.html-content h6 {
+  color: var(--semi-color-text-0);
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1.8em;
+  margin-bottom: 0.8em;
+}
+
+.html-content h1 {
+  font-size: 2em;
+  border-bottom: 1px solid var(--semi-color-border);
+  padding-bottom: 0.3em;
+  margin-top: 0;
+}
+
+.html-content h2 {
+  font-size: 1.6em;
+  border-bottom: 1px solid var(--semi-color-border);
+  padding-bottom: 0.3em;
+}
+
+.html-content h3 {
+  font-size: 1.35em;
+}
+
+.html-content h4 {
+  font-size: 1.15em;
+}
+
+.html-content h5 {
+  font-size: 1em;
+}
+
+.html-content h6 {
+  font-size: 0.9em;
+  color: var(--semi-color-text-2);
+}
+
+/* 段落 */
+.html-content p {
+  margin-top: 0;
+  margin-bottom: 1.1em;
+}
+
+.html-content p:empty {
+  margin-bottom: 0;
+}
+
+/* 链接 */
+.html-content a {
+  color: var(--semi-color-link);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.html-content a:hover {
+  border-bottom-color: var(--semi-color-link);
+}
+
+/* 图片与视频 */
+.html-content img,
+.html-content video {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin: 1.2em 0;
+  display: block;
+}
+
+.html-content figure {
+  margin: 1.5em 0;
+}
+
+.html-content figcaption {
+  text-align: center;
+  color: var(--semi-color-text-2);
+  font-size: 0.875em;
+  margin-top: 0.5em;
+}
+
+/* 列表 */
+.html-content ul,
+.html-content ol {
+  margin-top: 0;
+  margin-bottom: 1.2em;
+  padding-left: 1.8em;
+}
+
+.html-content li {
+  margin-bottom: 0.5em;
+}
+
+.html-content li > ul,
+.html-content li > ol {
+  margin-top: 0.4em;
+  margin-bottom: 0.4em;
+}
+
+/* 引用块 */
+.html-content blockquote {
+  margin: 1.5em 0;
+  padding: 1em 1.2em;
+  border-left: 4px solid var(--semi-color-primary);
+  background: var(--semi-color-fill-0);
+  border-radius: 0 8px 8px 0;
+  color: var(--semi-color-text-1);
+  font-style: italic;
+}
+
+.html-content blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* 代码 */
+.html-content code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0.2em 0.4em;
+  background: var(--semi-color-fill-1);
+  border-radius: 4px;
+  color: var(--semi-color-danger);
+}
+
+.html-content pre {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--semi-color-fill-1);
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  padding: 1em;
+  margin: 1.2em 0;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.html-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 0.9em;
+}
+
+/* 表格 */
+.html-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.95em;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.html-content th,
+.html-content td {
+  border: 1px solid var(--semi-color-border);
+  padding: 0.75em 1em;
+  text-align: left;
+}
+
+.html-content thead {
+  background: var(--semi-color-fill-0);
+}
+
+.html-content th {
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+}
+
+.html-content tbody tr:nth-child(even) {
+  background: var(--semi-color-fill-0);
+}
+
+/* 分割线 */
+.html-content hr {
+  border: none;
+  border-top: 1px solid var(--semi-color-border);
+  margin: 2em 0;
+}
+
+/* 加粗、斜体、删除线 */
+.html-content strong,
+.html-content b {
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+}
+
+.html-content em,
+.html-content i {
+  font-style: italic;
+}
+
+.html-content s,
+.html-content strike,
+.html-content del {
+  text-decoration: line-through;
+  color: var(--semi-color-text-2);
+}
+
+/* 上标/下标 */
+.html-content sup,
+.html-content sub {
+  font-size: 0.75em;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .html-content {
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .html-content h1 {
+    font-size: 1.6em;
+  }
+
+  .html-content h2 {
+    font-size: 1.35em;
+  }
+
+  .html-content h3 {
+    font-size: 1.15em;
+  }
+
+  .html-content pre {
+    padding: 0.75em;
+  }
+
+  .html-content th,
+  .html-content td {
+    padding: 0.5em 0.75em;
+  }
+}

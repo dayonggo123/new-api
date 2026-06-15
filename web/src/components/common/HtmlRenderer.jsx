@@ -1,5 +1,6 @@
 import React from 'react';
 import DOMPurify from 'dompurify';
+import './HtmlRenderer.css';
 
 /**
  * 安全 HTML 渲染组件
