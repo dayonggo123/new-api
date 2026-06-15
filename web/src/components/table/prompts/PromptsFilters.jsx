@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useRef } from 'react';
 import { Form, Button } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import { getSceneOptions } from '../../../helpers/scene-derive';
 
 const PromptsFilters = ({
   formInitValues,
@@ -40,6 +41,8 @@ const PromptsFilters = ({
       searchPrompts();
     }, 100);
   };
+
+  const sceneOptions = getSceneOptions();
 
   return (
     <Form
@@ -79,6 +82,22 @@ const PromptsFilters = ({
             {categories.map((cat) => (
               <Form.Select.Option key={cat.id} value={String(cat.id)}>
                 {cat.name}
+              </Form.Select.Option>
+            ))}
+          </Form.Select>
+        </div>
+        <div className='relative w-full md:w-48'>
+          <Form.Select
+            field='scene'
+            placeholder={t('全部场景')}
+            showClear
+            pure
+            size='small'
+            style={{ width: '100%' }}
+          >
+            {sceneOptions.map((opt) => (
+              <Form.Select.Option key={opt.value} value={opt.value}>
+                {opt.label}
               </Form.Select.Option>
             ))}
           </Form.Select>

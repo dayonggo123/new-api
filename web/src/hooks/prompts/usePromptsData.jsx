@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useEffect, useRef } from 'react';
 import { API, showError, showSuccess } from '../../helpers';
+import { matchScene } from '../../helpers/scene-derive';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTranslation } from 'react-i18next';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -55,6 +56,7 @@ export const usePromptsData = () => {
   const formInitValues = {
     searchKeyword: '',
     categoryId: '',
+    scene: '',
   };
 
   // Get form values
@@ -63,6 +65,7 @@ export const usePromptsData = () => {
     return {
       searchKeyword: formValues.searchKeyword || '',
       categoryId: formValues.categoryId || '',
+      scene: formValues.scene || '',
     };
   };
 
@@ -105,9 +108,9 @@ export const usePromptsData = () => {
 
   // Search prompts
   const searchPrompts = async () => {
-    const { searchKeyword, categoryId } = getFormValues();
+    const { searchKeyword, categoryId, scene } = getFormValues();
 
-    if (searchKeyword === '' && categoryId === '') {
+    if (searchKeyword === '' && categoryId === '' && !scene) {
       await loadPrompts(1, pageSize);
       return;
     }
@@ -124,7 +127,11 @@ export const usePromptsData = () => {
       const res = await API.get(url);
       const { success, message, data } = res.data;
       if (success) {
-        const newPageData = data.items;
+        let newPageData = data.items || [];
+        // 业务场景筛选为前端派生筛选（零后端改动）
+        if (scene) {
+          newPageData = newPageData.filter((p) => matchScene(p, scene));
+        }
         setActivePage(data.page || 1);
         setTokenCount(data.total);
         setPrompts(newPageData);

@@ -24,6 +24,7 @@ import {
 } from '../../../constants/prompt.constants';
 import { getLucideIcon } from '../../../helpers/render';
 import { openViewGeoBlocksModal } from '../../../components/modals/ViewGeoBlocksModal';
+import { deriveScenes } from '../../../helpers/scene-derive';
 
 /**
  * Render prompt status
@@ -125,6 +126,26 @@ export const getPromptsColumns = ({
       dataIndex: 'category_name',
       render: (text) => {
         return <div>{text || '-'}</div>;
+      },
+    },
+    {
+      title: t('业务场景'),
+      dataIndex: 'scenes',
+      width: 180,
+      render: (_text, record) => {
+        const scenes = deriveScenes(record);
+        if (scenes.length === 0) {
+          return <span className='text-gray-400 text-xs'>-</span>;
+        }
+        return (
+          <Space wrap>
+            {scenes.map((s) => (
+              <Tag key={s.scene} color={s.color} size='small' title={s.scene}>
+                {s.icon} {s.scene}
+              </Tag>
+            ))}
+          </Space>
+        );
       },
     },
     {
