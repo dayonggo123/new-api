@@ -1,63 +1,61 @@
 /* 文章/富文本 HTML 内容专用排版样式
- * 用于 HtmlRenderer 组件渲染的 wangEditor 等富文本 HTML 输出
- * 设计目标：专业、易读、支持 Semi Design 浅色/深色主题
+ * 参考腾讯文档的文档阅读体验：清晰、专业、易读
+ * 用于 HtmlRenderer 组件渲染的 wangEditor / 腾讯文档复制粘贴等富文本 HTML 输出
+ * 对关键排版属性使用 !important，避免复制来源的内联样式污染整体阅读体验
  */
 
 .html-content {
-  color: var(--semi-color-text-0);
-  font-size: 16px;
+  color: var(--semi-color-text-0) !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
   line-height: 1.8;
   word-break: break-word;
 }
 
-/* 标题层级 */
+/* 标题层级 —— 克制、清晰 */
 .html-content h1,
 .html-content h2,
 .html-content h3,
 .html-content h4,
 .html-content h5,
 .html-content h6 {
-  color: var(--semi-color-text-0);
+  color: var(--semi-color-text-0) !important;
   font-weight: 600;
-  line-height: 1.35;
-  margin-top: 1.8em;
-  margin-bottom: 0.8em;
+  line-height: 1.4;
+  margin-top: 1.6em;
+  margin-bottom: 0.6em;
 }
 
 .html-content h1 {
-  font-size: 2em;
-  border-bottom: 1px solid var(--semi-color-border);
-  padding-bottom: 0.3em;
+  font-size: 26px;
   margin-top: 0;
 }
 
 .html-content h2 {
-  font-size: 1.6em;
-  border-bottom: 1px solid var(--semi-color-border);
-  padding-bottom: 0.3em;
+  font-size: 21px;
 }
 
 .html-content h3 {
-  font-size: 1.35em;
+  font-size: 18px;
 }
 
 .html-content h4 {
-  font-size: 1.15em;
+  font-size: 16px;
 }
 
 .html-content h5 {
-  font-size: 1em;
+  font-size: 15px;
 }
 
 .html-content h6 {
-  font-size: 0.9em;
-  color: var(--semi-color-text-2);
+  font-size: 14px;
+  color: var(--semi-color-text-2) !important;
 }
 
 /* 段落 */
 .html-content p {
   margin-top: 0;
-  margin-bottom: 1.1em;
+  margin-bottom: 1em;
 }
 
 .html-content p:empty {
@@ -66,14 +64,13 @@
 
 /* 链接 */
 .html-content a {
-  color: var(--semi-color-link);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.2s ease;
+  color: var(--semi-color-link) !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .html-content a:hover {
-  border-bottom-color: var(--semi-color-link);
+  opacity: 0.85;
 }
 
 /* 图片与视频 */
@@ -81,50 +78,63 @@
 .html-content video {
   max-width: 100%;
   height: auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  margin: 1.2em 0;
+  border-radius: 4px;
+  margin: 1em 0;
   display: block;
 }
 
 .html-content figure {
-  margin: 1.5em 0;
+  margin: 1.2em 0;
 }
 
 .html-content figcaption {
   text-align: center;
   color: var(--semi-color-text-2);
-  font-size: 0.875em;
-  margin-top: 0.5em;
+  font-size: 13px;
+  margin-top: 0.4em;
 }
 
 /* 列表 */
 .html-content ul,
 .html-content ol {
   margin-top: 0;
-  margin-bottom: 1.2em;
-  padding-left: 1.8em;
+  margin-bottom: 1em;
+  padding-left: 1.6em;
+}
+
+.html-content ul {
+  list-style-type: disc;
+}
+
+.html-content ol {
+  list-style-type: decimal;
 }
 
 .html-content li {
-  margin-bottom: 0.5em;
+  margin-bottom: 0.4em;
 }
 
 .html-content li > ul,
 .html-content li > ol {
-  margin-top: 0.4em;
-  margin-bottom: 0.4em;
+  margin-top: 0.3em;
+  margin-bottom: 0.3em;
 }
 
-/* 引用块 */
+.html-content li > ul {
+  list-style-type: circle;
+}
+
+/* 引用块 —— 类似腾讯文档的左侧灰色竖线 */
 .html-content blockquote {
-  margin: 1.5em 0;
-  padding: 1em 1.2em;
-  border-left: 4px solid var(--semi-color-primary);
-  background: var(--semi-color-fill-0);
-  border-radius: 0 8px 8px 0;
-  color: var(--semi-color-text-1);
-  font-style: italic;
+  margin: 1.2em 0;
+  padding: 0.4em 0 0.4em 1em;
+  border-left: 3px solid var(--semi-color-text-3);
+  color: var(--semi-color-text-2) !important;
+  font-style: normal;
+}
+
+.html-content blockquote p {
+  margin-bottom: 0.6em;
 }
 
 .html-content blockquote p:last-child {
@@ -134,8 +144,8 @@
 /* 代码 */
 .html-content code {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 0.9em;
-  padding: 0.2em 0.4em;
+  font-size: 13px;
+  padding: 0.15em 0.35em;
   background: var(--semi-color-fill-1);
   border-radius: 4px;
   color: var(--semi-color-danger);
@@ -145,7 +155,7 @@
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   background: var(--semi-color-fill-1);
   border: 1px solid var(--semi-color-border);
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 1em;
   margin: 1.2em 0;
   overflow-x: auto;
@@ -156,24 +166,23 @@
   background: transparent;
   padding: 0;
   color: inherit;
-  font-size: 0.9em;
+  font-size: 13px;
 }
 
 /* 表格 */
 .html-content table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1.5em 0;
-  font-size: 0.95em;
-  border-radius: 8px;
-  overflow: hidden;
+  margin: 1.2em 0;
+  font-size: 14px;
 }
 
 .html-content th,
 .html-content td {
   border: 1px solid var(--semi-color-border);
-  padding: 0.75em 1em;
+  padding: 0.6em 0.8em;
   text-align: left;
+  vertical-align: top;
 }
 
 .html-content thead {
@@ -193,14 +202,14 @@
 .html-content hr {
   border: none;
   border-top: 1px solid var(--semi-color-border);
-  margin: 2em 0;
+  margin: 1.8em 0;
 }
 
 /* 加粗、斜体、删除线 */
 .html-content strong,
 .html-content b {
   font-weight: 600;
-  color: var(--semi-color-text-0);
+  color: var(--semi-color-text-0) !important;
 }
 
 .html-content em,
@@ -212,13 +221,18 @@
 .html-content strike,
 .html-content del {
   text-decoration: line-through;
-  color: var(--semi-color-text-2);
+  color: var(--semi-color-text-2) !important;
 }
 
 /* 上标/下标 */
 .html-content sup,
 .html-content sub {
   font-size: 0.75em;
+}
+
+/* 重置复制来源可能带来的异常内联样式，确保阅读一致 */
+.html-content span {
+  color: inherit;
 }
 
 /* 移动端适配 */
@@ -229,15 +243,15 @@
   }
 
   .html-content h1 {
-    font-size: 1.6em;
+    font-size: 22px;
   }
 
   .html-content h2 {
-    font-size: 1.35em;
+    font-size: 19px;
   }
 
   .html-content h3 {
-    font-size: 1.15em;
+    font-size: 17px;
   }
 
   .html-content pre {
@@ -246,6 +260,6 @@
 
   .html-content th,
   .html-content td {
-    padding: 0.5em 0.75em;
+    padding: 0.5em 0.6em;
   }
 }
