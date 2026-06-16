@@ -172,10 +172,19 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLangName)
 	// 兼容旧模板中使用 {{language}} 的写法
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{language}}", targetLangName)
+	itemsStr := itemsBuilder.String()
 	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
-	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsBuilder.String())
-	userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
+	// 兼容旧模板中使用 {{language}} 的写法
+	userPrompt = strings.ReplaceAll(userPrompt, "{{language}}", targetLangName)
+	// 根据模板占位符决定插入方式：{{items}} 旧文本格式 / {{fields}} JSON 格式 / 无占位符则追加在末尾
+	if strings.Contains(userPromptTemplate, "{{items}}") {
+		userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsStr)
+	} else if strings.Contains(userPromptTemplate, "{{fields}}") {
+		userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
+	} else if itemsStr != "" {
+		userPrompt = userPrompt + "\n\n" + itemsStr
+	}
 
 	response := callTranslateAI(cfg, systemPrompt, userPrompt)
 	if response == "" {
