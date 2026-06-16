@@ -529,31 +529,20 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 	sourceLangName := getAutoLangName(sourceLang)
 	targetLangName := getAutoLangName(targetLang)
 
-	// 若 content 过长，先拆出来单独翻译
-	var contentItem *translateItem
-	var shortItems []translateItem
-	for i := range items {
-		if items[i].Key == "content" && len(items[i].Text) > 300 {
-			contentItem = &items[i]
-		} else {
-			shortItems = append(shortItems, items[i])
-		}
-	}
-
 	// 使用代码内置模板，不依赖数据库中的 batch-translate skill，避免模板被改坏导致翻译失败
 	systemPrompt := "You are a professional translator. Your ONLY task is to translate the given fields from {{sourceLang}} to {{targetLang}}. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. If you accidentally start writing in {{sourceLang}}, STOP and rewrite everything in {{targetLang}}. Preserve all variable placeholders like {{variableName}} exactly as-is. Return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON."
 	userPromptTemplate := "Translate the following fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text — absolutely NO {{sourceLang}} allowed\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n5. If any value is still in {{sourceLang}}, you have failed — translate again into {{targetLang}}\n\nOutput format example:\n{\"title\":\"Translated Title\",\"summary\":\"Translated summary...\",\"content\":\"Translated content...\"}"
 
 	// 构建 {{items}} 变量内容（旧文本格式，向后兼容）
 	var itemsBuilder strings.Builder
-	for _, item := range shortItems {
+	for _, item := range items {
 		if item.Text != "" {
 			itemsBuilder.WriteString(fmt.Sprintf("%s: %s\n", item.Key, item.Text))
 		}
 	}
 
 	fieldsMap := make(map[string]string)
-	for _, item := range shortItems {
+	for _, item := range items {
 		if item.Text != "" {
 			fieldsMap[item.Key] = item.Text
 		}
@@ -644,14 +633,6 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 
 	common.SysLog(fmt.Sprintf("AutoTranslate batch parsed: lang=%s resultKeys=%v sample=%q", targetLang, getMapKeys(result), truncateString(fmt.Sprintf("%v", result), 300)))
 
-	// 若 content 被拆分出来，单独翻译
-	if contentItem != nil {
-		translatedContent := translateSingleAutoWithAI(cfg, contentItem.Text, sourceLang, targetLang)
-		if isValidAutoTranslation(translatedContent, contentItem.Text, targetLang) {
-			result[contentItem.Key] = translatedContent
-		}
-	}
-
 	// 补翻缺失或无效的字段：单条补翻 -> 强制补翻
 	for _, item := range items {
 		if !isValidAutoTranslation(result[item.Key], item.Text, targetLang) {
@@ -705,6 +686,7 @@ func translateSingleAutoWithAI(cfg *operation_setting.TranslateSetting, text, so
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}
 		translated := callAutoTranslateAI(cfg, systemPrompt, userPrompt)
+		common.SysLog(fmt.Sprintf("AutoTranslate single response: lang=%s len=%d reason=%s", targetLang, len(translated), invalidAutoTranslationReason(translated, text, targetLang)))
 		if isValidAutoTranslation(translated, text, targetLang) {
 			return translated
 		}
@@ -727,6 +709,7 @@ func translateSingleAutoWithAIForced(cfg *operation_setting.TranslateSetting, te
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}
 		forced := callAutoTranslateAI(cfg, systemPrompt, userPrompt)
+		common.SysLog(fmt.Sprintf("AutoTranslate forced response: lang=%s len=%d reason=%s", targetLang, len(forced), invalidAutoTranslationReason(forced, text, targetLang)))
 		if isValidAutoTranslation(forced, text, targetLang) {
 			return forced
 		}
