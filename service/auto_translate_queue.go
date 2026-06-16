@@ -503,6 +503,13 @@ func isValidAutoTranslation(translated, source, targetLang string) bool {
 	return true
 }
 
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
 func invalidAutoTranslationReason(translated, source, targetLang string) string {
 	if translated == "" {
 		return "empty"
@@ -539,6 +546,9 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 	if skill, err := model.GetSkillBySkillId("batch-translate"); err == nil && skill.SystemPromptTemplate != "" {
 		systemPrompt = skill.SystemPromptTemplate
 		userPromptTemplate = skill.UserPromptTemplate
+		common.SysLog(fmt.Sprintf("AutoTranslate skill loaded: sysLen=%d userLen=%d", len(systemPrompt), len(userPromptTemplate)))
+	} else {
+		common.SysLog(fmt.Sprintf("AutoTranslate skill not loaded: err=%v", err))
 	}
 	if systemPrompt == "" {
 		systemPrompt = "You are a professional translator. Your ONLY task is to translate the given fields from {{sourceLang}} to {{targetLang}}. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. If you accidentally start writing in {{sourceLang}}, STOP and rewrite everything in {{targetLang}}. Preserve all variable placeholders like {{variableName}} exactly as-is. Return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON."
@@ -571,7 +581,10 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 	userPrompt = strings.ReplaceAll(userPrompt, "{{language}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
 	// 兼容旧版 batch-translate skill 模板使用 {{items}} 占位符
-	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsBuilder.String())
+	itemsStr := itemsBuilder.String()
+	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsStr)
+
+	common.SysLog(fmt.Sprintf("AutoTranslate prompt built: lang=%s itemsEmpty=%t itemsLen=%d userPromptPreview=%s", targetLang, itemsStr == "", len(itemsStr), truncateString(userPrompt, 1500)))
 
 	response := callAutoTranslateAI(cfg, systemPrompt, userPrompt)
 	if response == "" {
