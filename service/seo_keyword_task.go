@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -48,6 +49,11 @@ type Suggestion struct {
 func StartSEOKeywordUpdateTask() {
 	seoKeywordUpdateOnce.Do(func() {
 		if !common.IsMasterNode {
+			return
+		}
+
+		if os.Getenv("DISABLE_SEO_KEYWORD_UPDATE") == "true" {
+			logger.LogInfo(context.Background(), "seo keyword update task disabled by env DISABLE_SEO_KEYWORD_UPDATE=true")
 			return
 		}
 
