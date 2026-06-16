@@ -777,6 +777,9 @@ func callAutoTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, 
 		if len(content) >= 2 && content[0] == '"' && content[len(content)-1] == '"' {
 			content = content[1 : len(content)-1]
 		}
+		if content == "" {
+			common.SysLog(fmt.Sprintf("AutoTranslate API empty content: model=%s body=%s", cfg.TranslateAIModel, string(bodyBytes)))
+		}
 		return content
 	}
 
