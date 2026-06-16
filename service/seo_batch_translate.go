@@ -7,8 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -106,8 +104,6 @@ func GetSEOBatchTask(taskID string) *SEOTask {
 
 // ========== 批量处理逻辑 ==========
 
-type seoItem struct{ Key, Text string }
-
 func processSEOBatchTranslate(task *SEOTask, ids []int, targetLangs []string) {
 	task.Status = SEOTaskStatusRunning
 
@@ -158,43 +154,22 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 	}
 
 	p := promptWC.Prompt
-	recordType := "prompt"
-	items := []seoItem{
-		{Key: "seo_keywords", Text: p.SeoKeywords},
-		{Key: "intro", Text: p.Intro},
-	}
 
-	// 解析 FAQ
-	faqMap := make(map[int]map[string]string)
+	// 构建要翻译的完整 SEO JSON（与 GEO 翻译模式一致）
+	sourceSEO := map[string]interface{}{}
+	if p.SeoKeywords != "" {
+		sourceSEO["seo_keywords"] = p.SeoKeywords
+	}
+	if p.Intro != "" {
+		sourceSEO["intro"] = p.Intro
+	}
+	var sourceFaq []map[string]string
 	if p.Faq != "" {
-		var faqArr []map[string]string
-		if err := common.Unmarshal([]byte(p.Faq), &faqArr); err == nil {
-			for idx, f := range faqArr {
-				if q, ok := f["question"]; ok && q != "" {
-					items = append(items, seoItem{Key: fmt.Sprintf("faq_%d_question", idx), Text: q})
-					if faqMap[idx] == nil {
-						faqMap[idx] = make(map[string]string)
-					}
-					faqMap[idx]["question"] = q
-				}
-				if a, ok := f["answer"]; ok && a != "" {
-					items = append(items, seoItem{Key: fmt.Sprintf("faq_%d_answer", idx), Text: a})
-					if faqMap[idx] == nil {
-						faqMap[idx] = make(map[string]string)
-					}
-					faqMap[idx]["answer"] = a
-				}
-			}
+		if err := common.Unmarshal([]byte(p.Faq), &sourceFaq); err == nil && len(sourceFaq) > 0 {
+			sourceSEO["faq"] = sourceFaq
 		}
 	}
-
-	validItems := make([]seoItem, 0, len(items))
-	for _, it := range items {
-		if it.Text != "" {
-			validItems = append(validItems, it)
-		}
-	}
-	if len(validItems) == 0 {
+	if len(sourceSEO) == 0 {
 		return nil // 无内容可翻译
 	}
 
@@ -212,55 +187,24 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 
 	// 按语言逐个翻译
 	for _, lang := range targetLangs {
-		translations := translateSEOItemsWithAI(cfg, validItems, "zh", lang)
-		if translations == nil || len(translations) == 0 {
+		translated, err := translateSEOJSONWithAI(cfg, sourceSEO, "zh", lang)
+		if err != nil || translated == nil || len(translated) == 0 {
+			common.SysLog(fmt.Sprintf("SEO JSON translate failed: prompt %d lang=%s err=%v", id, lang, err))
 			continue
 		}
 
-		// 检查是否至少有一个字段被有效翻译
-		hasValidField := false
-		for _, it := range validItems {
-			if translations[it.Key] != "" {
-				hasValidField = true
-				break
-			}
-		}
-		if !hasValidField {
-			common.SysLog(fmt.Sprintf("SEO translate all fields invalid for %s %d lang=%s", recordType, id, lang))
+		// 校验翻译结果是否仍包含中文
+		if !isValidSEOJSONTranslation(translated, "zh", lang) {
+			common.SysLog(fmt.Sprintf("SEO JSON translate contains Chinese: prompt %d lang=%s", id, lang))
 			continue
 		}
 
 		langData := map[string]interface{}{
-			"seo_keywords": translations["seo_keywords"],
-			"intro":        translations["intro"],
+			"seo_keywords": getStringFromMap(translated, "seo_keywords"),
+			"intro":        getStringFromMap(translated, "intro"),
 		}
-
-		// 重组 FAQ
-		newFaqMap := make(map[int]map[string]string)
-		faqRe := regexp.MustCompile(`^faq_(\d+)_(question|answer)$`)
-		for key, val := range translations {
-			matches := faqRe.FindStringSubmatch(key)
-			if len(matches) == 3 {
-				idx, _ := strconv.Atoi(matches[1])
-				field := matches[2]
-				if newFaqMap[idx] == nil {
-					newFaqMap[idx] = make(map[string]string)
-				}
-				newFaqMap[idx][field] = val
-			}
-		}
-
-		if len(newFaqMap) > 0 {
-			indices := make([]int, 0, len(newFaqMap))
-			for idx := range newFaqMap {
-				indices = append(indices, idx)
-			}
-			sort.Ints(indices)
-			var faqList []map[string]string
-			for _, idx := range indices {
-				faqList = append(faqList, newFaqMap[idx])
-			}
-			langData["faq"] = faqList
+		if faq, ok := translated["faq"]; ok {
+			langData["faq"] = faq
 		}
 
 		seoI18n[lang] = langData
@@ -310,113 +254,18 @@ func getSEOLangName(code string) string {
 	return code
 }
 
-func translateSEOItemsWithAI(cfg *operation_setting.TranslateSetting, items []seoItem, sourceLang, targetLang string) map[string]string {
-	result := make(map[string]string)
-
-	sourceLangName := getSEOLangName(sourceLang)
-	targetLangName := getSEOLangName(targetLang)
-
-	// 构建 fields JSON
-	fieldsMap := make(map[string]string)
-	for _, it := range items {
-		if it.Text != "" {
-			fieldsMap[it.Key] = it.Text
-		}
+func getStringFromMap(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
 	}
-	fieldsJSON, _ := common.Marshal(fieldsMap)
-
-	// 读取 Skill 模板
-	systemPrompt := ""
-	userPromptTemplate := ""
-	if skill, err := model.GetSkillBySkillId("batch-translate"); err == nil && skill.SystemPromptTemplate != "" {
-		systemPrompt = skill.SystemPromptTemplate
-		userPromptTemplate = skill.UserPromptTemplate
+	val, ok := m[key]
+	if !ok {
+		return ""
 	}
-	if systemPrompt == "" {
-		systemPrompt = "You are a professional translator. Your ONLY task is to translate the given fields from {{sourceLang}} to {{targetLang}}. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. If you accidentally start writing in {{sourceLang}}, STOP and rewrite everything in {{targetLang}}. Preserve all variable placeholders like {{variableName}} exactly as-is. Return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON. CRITICAL: every value must be in {{targetLang}} only."
+	if s, ok := val.(string); ok {
+		return s
 	}
-	if userPromptTemplate == "" {
-		userPromptTemplate = "Translate the following fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text — absolutely NO {{sourceLang}} allowed\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n5. If any value is still in {{sourceLang}}, you have failed — translate again into {{targetLang}}\n6. Each value must be genuinely translated; returning the original {{sourceLang}} text is a critical failure\n\nOutput format example:\n{\"title\":\"Translated Title\",\"summary\":\"Translated summary...\",\"content\":\"Translated content...\"}"
-	}
-
-	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLangName)
-	systemPrompt = strings.ReplaceAll(systemPrompt, "{{targetLang}}", targetLangName)
-	systemPrompt = strings.ReplaceAll(systemPrompt, "{{language}}", targetLangName)
-	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLangName)
-	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
-	userPrompt = strings.ReplaceAll(userPrompt, "{{language}}", targetLangName)
-	userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
-
-	response := callSEOTranslateAI(cfg, systemPrompt, userPrompt)
-	if response == "" {
-		for _, it := range items {
-			result[it.Key] = it.Text
-		}
-		return result
-	}
-
-	// 去掉 markdown 代码块
-	response = strings.TrimSpace(response)
-	if strings.HasPrefix(response, "```") {
-		start := strings.Index(response, "\n")
-		if start != -1 {
-			end := strings.LastIndex(response, "```")
-			if end > start {
-				response = strings.TrimSpace(response[start:end])
-			}
-		}
-	}
-
-	// JSON 解析
-	var jsonResult map[string]string
-	if err := common.Unmarshal([]byte(response), &jsonResult); err == nil && len(jsonResult) > 0 {
-		for _, it := range items {
-			if val, ok := jsonResult[it.Key]; ok {
-				if isValidSEOTranslation(val, it.Text, targetLang) {
-					result[it.Key] = val
-				}
-			}
-		}
-	} else {
-		// 回退到 key: value 格式
-		lines := strings.Split(response, "\n")
-		var currentKey string
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			if strings.Contains(line, ":") {
-				idx := strings.Index(line, ": ")
-				if idx == -1 {
-					idx = strings.Index(line, ":")
-				}
-				if idx > 0 {
-					currentKey = strings.TrimSpace(line[:idx])
-					val := strings.TrimSpace(line[idx+1:])
-					if currentKey != "" {
-						result[currentKey] = val
-					}
-				}
-			} else if currentKey != "" {
-				result[currentKey] += "\n" + line
-			}
-		}
-	}
-
-	// 补翻缺失或无效的字段
-	for _, it := range items {
-		if !isValidSEOTranslation(result[it.Key], it.Text, targetLang) {
-			translated := translateSingleSEOItemWithAI(cfg, it.Text, sourceLang, targetLang)
-			if isValidSEOTranslation(translated, it.Text, targetLang) {
-				result[it.Key] = translated
-			} else {
-				result[it.Key] = ""
-			}
-		}
-	}
-
-	return result
+	return ""
 }
 
 func containsChinese(text string) bool {
@@ -428,38 +277,91 @@ func containsChinese(text string) bool {
 	return false
 }
 
-func isValidSEOTranslation(translated, source, targetLang string) bool {
-	if translated == "" || translated == source {
-		return false
-	}
-	if targetLang != "zh" && containsChinese(translated) {
-		return false
-	}
-	return true
-}
-
-func translateSingleSEOItemWithAI(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
-	if text == "" {
-		return ""
-	}
+// translateSEOJSONWithAI 采用与 GEO 翻译相同的整 JSON 翻译模式：
+// 将中文 SEO 内容（seo_keywords/intro/faq）作为完整 JSON 一次性翻译，
+// AI 只需保持 key 不变、翻译 value，prompt 更简洁，稳定性和速度更好。
+func translateSEOJSONWithAI(cfg *operation_setting.TranslateSetting, sourceSEO map[string]interface{}, sourceLang, targetLang string) (map[string]interface{}, error) {
 	sourceLangName := getSEOLangName(sourceLang)
 	targetLangName := getSEOLangName(targetLang)
 
-	systemPrompt := "You are a professional translator. CRITICAL: Your response MUST be entirely in " + targetLangName + ". ZERO " + sourceLangName + " words allowed. Do not add explanations, notes, or the original text — output ONLY the translated text in " + targetLangName + "."
-	userPrompt := "Translate the following text from " + sourceLangName + " to " + targetLangName + ". Your response must be ONLY the translated text in " + targetLangName + ", nothing else. If you output any " + sourceLangName + ", you have failed.\n\n\"\"\"\n" + text + "\n\"\"\""
+	sourceJSON, err := common.Marshal(sourceSEO)
+	if err != nil {
+		return nil, fmt.Errorf("marshal source seo failed: %w", err)
+	}
 
-	const maxRetries = 2
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			common.SysLog(fmt.Sprintf("SEO single item translate retry %d/%d for %s", attempt, maxRetries, targetLang))
-			time.Sleep(time.Duration(attempt) * time.Second)
-		}
-		translated := callSEOTranslateAI(cfg, systemPrompt, userPrompt)
-		if translated != "" && translated != text && (targetLang == "zh" || !containsChinese(translated)) {
-			return translated
+	systemPrompt := fmt.Sprintf(`You are a professional translator. Translate the following JSON from %s to %s.
+
+Rules:
+1. Keep ALL keys exactly the same (do not translate keys)
+2. Translate ALL string values and ALL array string items into %s
+3. Return ONLY valid JSON. No markdown, no explanations.
+4. Do not include any %s text in the output.`, sourceLangName, targetLangName, targetLangName, sourceLangName)
+
+	response := callSEOTranslateAI(cfg, systemPrompt, string(sourceJSON))
+	if response == "" {
+		return nil, fmt.Errorf("empty translation response")
+	}
+
+	translatedJSON := extractSEOJSON(response)
+	if translatedJSON == "" {
+		return nil, fmt.Errorf("failed to extract JSON from translation")
+	}
+
+	var result map[string]interface{}
+	if err := common.Unmarshal([]byte(translatedJSON), &result); err != nil {
+		return nil, fmt.Errorf("invalid translated json: %w", err)
+	}
+
+	return result, nil
+}
+
+// extractSEOJSON 从 AI 响应中提取 JSON 对象（复用 GEO 的提取逻辑）
+func extractSEOJSON(response string) string {
+	response = strings.TrimSpace(response)
+
+	// 去掉 markdown 代码块
+	if strings.HasPrefix(response, "```") {
+		start := strings.Index(response, "\n")
+		if start != -1 {
+			end := strings.LastIndex(response, "```")
+			if end > start {
+				response = strings.TrimSpace(response[start:end])
+			}
 		}
 	}
-	return ""
+
+	// 找第一个 { 和最后一个 }
+	start := strings.Index(response, "{")
+	end := strings.LastIndex(response, "}")
+	if start == -1 || end == -1 || end <= start {
+		return ""
+	}
+
+	return response[start : end+1]
+}
+
+// isValidSEOJSONTranslation 递归检查翻译后的 JSON 是否仍包含中文（目标语言非中文时）
+func isValidSEOJSONTranslation(value interface{}, sourceLang, targetLang string) bool {
+	if targetLang == "zh" {
+		return true
+	}
+	switch v := value.(type) {
+	case string:
+		return !containsChinese(v)
+	case []interface{}:
+		for _, item := range v {
+			if !isValidSEOJSONTranslation(item, sourceLang, targetLang) {
+				return false
+			}
+		}
+	case map[string]interface{}:
+		for _, item := range v {
+			if !isValidSEOJSONTranslation(item, sourceLang, targetLang) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func callSEOTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, userPrompt string) string {
@@ -782,34 +684,21 @@ func processSingleArticleSEO(id int, targetLangs []string) error {
 		return finalErr
 	}
 
-	recordType := "article"
-	items := []seoItem{
-		{Key: "seo_keywords", Text: article.SeoKeywords},
-		{Key: "intro", Text: article.Intro},
+	// 构建要翻译的完整 SEO JSON（与 GEO 翻译模式一致）
+	sourceSEO := map[string]interface{}{}
+	if article.SeoKeywords != "" {
+		sourceSEO["seo_keywords"] = article.SeoKeywords
 	}
-
-	// 解析 FAQ
+	if article.Intro != "" {
+		sourceSEO["intro"] = article.Intro
+	}
+	var sourceFaq []map[string]string
 	if article.Faq != "" {
-		var faqArr []map[string]string
-		if err := common.Unmarshal([]byte(article.Faq), &faqArr); err == nil {
-			for idx, f := range faqArr {
-				if q, ok := f["question"]; ok && q != "" {
-					items = append(items, seoItem{Key: fmt.Sprintf("faq_%d_question", idx), Text: q})
-				}
-				if a, ok := f["answer"]; ok && a != "" {
-					items = append(items, seoItem{Key: fmt.Sprintf("faq_%d_answer", idx), Text: a})
-				}
-			}
+		if err := common.Unmarshal([]byte(article.Faq), &sourceFaq); err == nil && len(sourceFaq) > 0 {
+			sourceSEO["faq"] = sourceFaq
 		}
 	}
-
-	validItems := make([]seoItem, 0, len(items))
-	for _, it := range items {
-		if it.Text != "" {
-			validItems = append(validItems, it)
-		}
-	}
-	if len(validItems) == 0 {
+	if len(sourceSEO) == 0 {
 		return nil // 无内容可翻译
 	}
 
@@ -827,55 +716,24 @@ func processSingleArticleSEO(id int, targetLangs []string) error {
 
 	// 按语言逐个翻译
 	for _, lang := range targetLangs {
-		translations := translateSEOItemsWithAI(cfg, validItems, "zh", lang)
-		if translations == nil || len(translations) == 0 {
+		translated, err := translateSEOJSONWithAI(cfg, sourceSEO, "zh", lang)
+		if err != nil || translated == nil || len(translated) == 0 {
+			common.SysLog(fmt.Sprintf("SEO JSON translate failed: article %d lang=%s err=%v", id, lang, err))
 			continue
 		}
 
-		// 检查是否至少有一个字段被有效翻译
-		hasValidField := false
-		for _, it := range validItems {
-			if translations[it.Key] != "" {
-				hasValidField = true
-				break
-			}
-		}
-		if !hasValidField {
-			common.SysLog(fmt.Sprintf("SEO translate all fields invalid for %s %d lang=%s", recordType, id, lang))
+		// 校验翻译结果是否仍包含中文
+		if !isValidSEOJSONTranslation(translated, "zh", lang) {
+			common.SysLog(fmt.Sprintf("SEO JSON translate contains Chinese: article %d lang=%s", id, lang))
 			continue
 		}
 
 		langData := map[string]interface{}{
-			"seo_keywords": translations["seo_keywords"],
-			"intro":        translations["intro"],
+			"seo_keywords": getStringFromMap(translated, "seo_keywords"),
+			"intro":        getStringFromMap(translated, "intro"),
 		}
-
-		// 重组 FAQ
-		newFaqMap := make(map[int]map[string]string)
-		faqRe := regexp.MustCompile(`^faq_(\d+)_(question|answer)$`)
-		for key, val := range translations {
-			matches := faqRe.FindStringSubmatch(key)
-			if len(matches) == 3 {
-				idx, _ := strconv.Atoi(matches[1])
-				field := matches[2]
-				if newFaqMap[idx] == nil {
-					newFaqMap[idx] = make(map[string]string)
-				}
-				newFaqMap[idx][field] = val
-			}
-		}
-
-		if len(newFaqMap) > 0 {
-			indices := make([]int, 0, len(newFaqMap))
-			for idx := range newFaqMap {
-				indices = append(indices, idx)
-			}
-			sort.Ints(indices)
-			var faqList []map[string]string
-			for _, idx := range indices {
-				faqList = append(faqList, newFaqMap[idx])
-			}
-			langData["faq"] = faqList
+		if faq, ok := translated["faq"]; ok {
+			langData["faq"] = faq
 		}
 
 		seoI18n[lang] = langData
