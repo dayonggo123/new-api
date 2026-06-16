@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -97,6 +98,26 @@ func getLangName(code string) string {
 	return code
 }
 
+func containsChinese(text string) bool {
+	for _, r := range text {
+		if unicode.Is(unicode.Han, r) {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidBatchTranslation 校验翻译结果是否有效（非空、不等于原文、目标语言非中文时不能含中文）
+func isValidBatchTranslation(translated, source, targetLang string) bool {
+	if translated == "" || translated == source {
+		return false
+	}
+	if targetLang != "zh" && containsChinese(translated) {
+		return false
+	}
+	return true
+}
+
 // translateBatchWithAI 批量翻译：一次请求翻译某语言的多个字段
 // 若 content 字段过长，会拆分出来单独翻译，避免 AI 因 token 限制截断长文本
 func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []TranslateItem, sourceLang, targetLang string) map[string]string {
@@ -181,8 +202,12 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 	// 先尝试 JSON 解析（新格式）
 	var jsonResult map[string]string
 	if err := common.Unmarshal([]byte(response), &jsonResult); err == nil && len(jsonResult) > 0 {
-		for k, v := range jsonResult {
-			result[k] = v
+		for _, item := range items {
+			if v, ok := jsonResult[item.Key]; ok {
+				if isValidBatchTranslation(v, item.Text, targetLang) {
+					result[item.Key] = v
+				}
+			}
 		}
 	} else {
 		// 回退到 "key: translated text" 格式（旧格式，向后兼容）
@@ -217,29 +242,29 @@ func translateBatchWithAI(cfg *operation_setting.TranslateSetting, items []Trans
 	if contentItem != nil {
 		common.SysLog(fmt.Sprintf("AI translate content separately: [%s->%s] len=%d", sourceLang, targetLang, len(contentItem.Text)))
 		translatedContent := translateSingleWithAI(cfg, contentItem.Text, sourceLang, targetLang)
-		if translatedContent != "" && translatedContent != contentItem.Text {
+		if isValidBatchTranslation(translatedContent, contentItem.Text, targetLang) {
 			result[contentItem.Key] = translatedContent
 		} else {
-			result[contentItem.Key] = contentItem.Text
+			result[contentItem.Key] = ""
 		}
 	}
 
 	missingKeys := []string{}
 	for _, item := range items {
-		if result[item.Key] == "" || result[item.Key] == item.Text {
-			// 字段缺失或仍是原文，尝试单条补翻
+		if !isValidBatchTranslation(result[item.Key], item.Text, targetLang) {
+			// 字段缺失、仍是原文或含中文，尝试单条补翻
 			translated := translateSingleWithAI(cfg, item.Text, sourceLang, targetLang)
-			if translated != "" && translated != item.Text {
+			if isValidBatchTranslation(translated, item.Text, targetLang) {
 				result[item.Key] = translated
 				missingKeys = append(missingKeys, item.Key)
 			} else {
 				// 单条也失败了，用强制 prompt 再试一次
 				forced := translateSingleWithAIForced(cfg, item.Text, sourceLang, targetLang)
-				if forced != "" && forced != item.Text {
+				if isValidBatchTranslation(forced, item.Text, targetLang) {
 					result[item.Key] = forced
 					missingKeys = append(missingKeys, item.Key+"(forced)")
 				} else {
-					result[item.Key] = item.Text
+					result[item.Key] = ""
 				}
 			}
 		}
@@ -281,7 +306,18 @@ func translateSingleWithAI(cfg *operation_setting.TranslateSetting, text, source
 	userPrompt = strings.ReplaceAll(userPrompt, "{{language}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{prompt}}", text)
 
-	return callTranslateAI(cfg, systemPrompt, userPrompt)
+	const maxRetries = 2
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			common.SysLog(fmt.Sprintf("AI single translate retry %d/%d for %s", attempt, maxRetries, targetLang))
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+		translated := callTranslateAI(cfg, systemPrompt, userPrompt)
+		if isValidBatchTranslation(translated, text, targetLang) {
+			return translated
+		}
+	}
+	return ""
 }
 
 // translateSingleWithAIForced 强制翻译：使用更强烈的 prompt 确保模型用目标语言回复
@@ -292,7 +328,18 @@ func translateSingleWithAIForced(cfg *operation_setting.TranslateSetting, text, 
 	systemPrompt := "You are a translator. CRITICAL RULE: Your entire response MUST be written in " + targetLangName + ". ZERO words in " + sourceLangName + " allowed. If you write even one word in " + sourceLangName + ", you failed. Output ONLY the translation."
 	userPrompt := "Translate this to " + targetLangName + ". Remember: ONLY " + targetLangName + " output. No " + sourceLangName + " at all:\n\n" + text
 
-	return callTranslateAI(cfg, systemPrompt, userPrompt)
+	const maxRetries = 2
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			common.SysLog(fmt.Sprintf("AI forced translate retry %d/%d for %s", attempt, maxRetries, targetLang))
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+		forced := callTranslateAI(cfg, systemPrompt, userPrompt)
+		if isValidBatchTranslation(forced, text, targetLang) {
+			return forced
+		}
+	}
+	return ""
 }
 
 // callTranslateAI 调用 AI 模型获取文本响应（带重试）
