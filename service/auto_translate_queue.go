@@ -577,7 +577,7 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 		userPrompt = userPrompt + "\n\n" + itemsStr
 	}
 
-	common.SysLog(fmt.Sprintf("AutoTranslate prompt built: lang=%s itemsEmpty=%t itemsLen=%d userPromptPreview=%s", targetLang, itemsStr == "", len(itemsStr), truncateString(userPrompt, 1500)))
+	common.SysLog(fmt.Sprintf("AutoTranslate prompt built: lang=%s itemsEmpty=%t itemsLen=%d fieldsLen=%d userPromptPreview=%s", targetLang, itemsStr == "", len(itemsStr), len(fieldsJSON), strings.ReplaceAll(truncateString(userPrompt, 1500), "\n", "\\n")))
 
 	response := callAutoTranslateAI(cfg, systemPrompt, userPrompt)
 	if response == "" {
@@ -634,6 +634,8 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 		}
 	}
 
+	common.SysLog(fmt.Sprintf("AutoTranslate batch parsed: lang=%s resultKeys=%v sample=%q", targetLang, getMapKeys(result), truncateString(fmt.Sprintf("%v", result), 300)))
+
 	// 若 content 被拆分出来，单独翻译
 	if contentItem != nil {
 		translatedContent := translateSingleAutoWithAI(cfg, contentItem.Text, sourceLang, targetLang)
@@ -671,6 +673,14 @@ func getItemTextByKey(items []translateItem, key string) string {
 		}
 	}
 	return ""
+}
+
+func getMapKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func translateSingleAutoWithAI(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
