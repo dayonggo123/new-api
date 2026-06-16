@@ -492,6 +492,17 @@ func getAutoLangName(code string) string {
 	return code
 }
 
+// isValidAutoTranslation 校验翻译结果是否有效（非空、不等于原文、目标语言非中文时不能含中文）
+func isValidAutoTranslation(translated, source, targetLang string) bool {
+	if translated == "" || translated == source {
+		return false
+	}
+	if targetLang != "zh" && containsChinese(translated) {
+		return false
+	}
+	return true
+}
+
 func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []translateItem, sourceLang, targetLang string) map[string]string {
 	result := make(map[string]string)
 
@@ -563,7 +574,9 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 	var jsonResult map[string]string
 	if err := common.Unmarshal([]byte(response), &jsonResult); err == nil && len(jsonResult) > 0 {
 		for k, v := range jsonResult {
-			result[k] = v
+			if isValidAutoTranslation(v, getItemTextByKey(items, k), targetLang) {
+				result[k] = v
+			}
 		}
 	} else {
 		// 回退到 key: value 格式
@@ -582,7 +595,7 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 				if idx > 0 {
 					currentKey = strings.TrimSpace(line[:idx])
 					val := strings.TrimSpace(line[idx+1:])
-					if currentKey != "" {
+					if currentKey != "" && isValidAutoTranslation(val, getItemTextByKey(items, currentKey), targetLang) {
 						result[currentKey] = val
 					}
 				}
@@ -595,26 +608,39 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 	// 若 content 被拆分出来，单独翻译
 	if contentItem != nil {
 		translatedContent := translateSingleAutoWithAI(cfg, contentItem.Text, sourceLang, targetLang)
-		if translatedContent != "" && translatedContent != contentItem.Text {
+		if isValidAutoTranslation(translatedContent, contentItem.Text, targetLang) {
 			result[contentItem.Key] = translatedContent
-		} else {
-			result[contentItem.Key] = contentItem.Text
 		}
 	}
 
-	// 补翻缺失的字段
+	// 补翻缺失或无效的字段：单条补翻 -> 强制补翻
 	for _, item := range items {
-		if result[item.Key] == "" || result[item.Key] == item.Text {
+		if !isValidAutoTranslation(result[item.Key], item.Text, targetLang) {
 			translated := translateSingleAutoWithAI(cfg, item.Text, sourceLang, targetLang)
-			if translated != "" && translated != item.Text {
+			if isValidAutoTranslation(translated, item.Text, targetLang) {
 				result[item.Key] = translated
 			} else {
-				result[item.Key] = item.Text
+				forced := translateSingleAutoWithAIForced(cfg, item.Text, sourceLang, targetLang)
+				if isValidAutoTranslation(forced, item.Text, targetLang) {
+					result[item.Key] = forced
+				} else {
+					result[item.Key] = ""
+				}
 			}
 		}
 	}
 
 	return result
+}
+
+// getItemTextByKey 根据 key 查找对应翻译项的原文
+func getItemTextByKey(items []translateItem, key string) string {
+	for _, item := range items {
+		if item.Key == key {
+			return item.Text
+		}
+	}
+	return ""
 }
 
 func translateSingleAutoWithAI(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
@@ -624,7 +650,40 @@ func translateSingleAutoWithAI(cfg *operation_setting.TranslateSetting, text, so
 	systemPrompt := "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in " + targetLangName + ". Do NOT respond in " + sourceLangName + " or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in " + targetLangName + "."
 	userPrompt := "Translate the following text from " + sourceLangName + " to " + targetLangName + ". Your response must be ONLY the translated text in " + targetLangName + ", nothing else:\n\n\"\"\"\n" + text + "\n\"\"\""
 
-	return callAutoTranslateAI(cfg, systemPrompt, userPrompt)
+	const maxRetries = 2
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			common.SysLog(fmt.Sprintf("AutoTranslate single retry %d/%d for %s", attempt, maxRetries, targetLang))
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+		translated := callAutoTranslateAI(cfg, systemPrompt, userPrompt)
+		if isValidAutoTranslation(translated, text, targetLang) {
+			return translated
+		}
+	}
+	return ""
+}
+
+// translateSingleAutoWithAIForced 使用更强烈的 prompt 强制模型用目标语言输出
+func translateSingleAutoWithAIForced(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
+	sourceLangName := getAutoLangName(sourceLang)
+	targetLangName := getAutoLangName(targetLang)
+
+	systemPrompt := "You are a translator. CRITICAL RULE: Your entire response MUST be written in " + targetLangName + ". ZERO words in " + sourceLangName + " allowed. If you write even one word in " + sourceLangName + ", you failed. Output ONLY the translation."
+	userPrompt := "Translate this to " + targetLangName + ". Remember: ONLY " + targetLangName + " output. No " + sourceLangName + " at all:\n\n" + text
+
+	const maxRetries = 2
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			common.SysLog(fmt.Sprintf("AutoTranslate forced retry %d/%d for %s", attempt, maxRetries, targetLang))
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+		forced := callAutoTranslateAI(cfg, systemPrompt, userPrompt)
+		if isValidAutoTranslation(forced, text, targetLang) {
+			return forced
+		}
+	}
+	return ""
 }
 
 func callAutoTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, userPrompt string) string {
