@@ -599,6 +599,8 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 		}
 	}
 
+	common.SysLog(fmt.Sprintf("AutoTranslate raw response: lang=%s len=%d content=%q", targetLang, len(response), truncateString(response, 1000)))
+
 	// JSON 解析
 	var jsonResult map[string]string
 	if err := common.Unmarshal([]byte(response), &jsonResult); err == nil && len(jsonResult) > 0 {
@@ -607,7 +609,13 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 				result[k] = v
 			}
 		}
+		common.SysLog(fmt.Sprintf("AutoTranslate JSON parsed: lang=%s keys=%v", targetLang, getMapKeys(jsonResult)))
 	} else {
+		if err != nil {
+			common.SysLog(fmt.Sprintf("AutoTranslate JSON parse failed: lang=%s err=%s", targetLang, err.Error()))
+		} else {
+			common.SysLog(fmt.Sprintf("AutoTranslate JSON parse empty: lang=%s", targetLang))
+		}
 		// 回退到 key: value 格式
 		lines := strings.Split(response, "\n")
 		var currentKey string
