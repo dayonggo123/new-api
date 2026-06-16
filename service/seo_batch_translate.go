@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -157,6 +158,7 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 	}
 
 	p := promptWC.Prompt
+	recordType := "prompt"
 	items := []seoItem{
 		{Key: "seo_keywords", Text: p.SeoKeywords},
 		{Key: "intro", Text: p.Intro},
@@ -212,6 +214,19 @@ func processSinglePromptSEO(id int, targetLangs []string) error {
 	for _, lang := range targetLangs {
 		translations := translateSEOItemsWithAI(cfg, validItems, "zh", lang)
 		if translations == nil || len(translations) == 0 {
+			continue
+		}
+
+		// 检查是否至少有一个字段被有效翻译
+		hasValidField := false
+		for _, it := range validItems {
+			if translations[it.Key] != "" {
+				hasValidField = true
+				break
+			}
+		}
+		if !hasValidField {
+			common.SysLog(fmt.Sprintf("SEO translate all fields invalid for %s %d lang=%s", recordType, id, lang))
 			continue
 		}
 
@@ -318,10 +333,10 @@ func translateSEOItemsWithAI(cfg *operation_setting.TranslateSetting, items []se
 		userPromptTemplate = skill.UserPromptTemplate
 	}
 	if systemPrompt == "" {
-		systemPrompt = "You are a professional translator. Your ONLY task is to translate the given fields from {{sourceLang}} to {{targetLang}}. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. If you accidentally start writing in {{sourceLang}}, STOP and rewrite everything in {{targetLang}}. Preserve all variable placeholders like {{variableName}} exactly as-is. Return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON."
+		systemPrompt = "You are a professional translator. Your ONLY task is to translate the given fields from {{sourceLang}} to {{targetLang}}. You MUST respond entirely in {{targetLang}}. Do NOT respond in {{sourceLang}} or any other language. If you accidentally start writing in {{sourceLang}}, STOP and rewrite everything in {{targetLang}}. Preserve all variable placeholders like {{variableName}} exactly as-is. Return results in valid JSON format with the exact same keys as the input. No explanations, no markdown code blocks around the JSON. CRITICAL: every value must be in {{targetLang}} only."
 	}
 	if userPromptTemplate == "" {
-		userPromptTemplate = "Translate the following fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text — absolutely NO {{sourceLang}} allowed\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n5. If any value is still in {{sourceLang}}, you have failed — translate again into {{targetLang}}\n\nOutput format example:\n{\"title\":\"Translated Title\",\"summary\":\"Translated summary...\",\"content\":\"Translated content...\"}"
+		userPromptTemplate = "Translate the following fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text — absolutely NO {{sourceLang}} allowed\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n5. If any value is still in {{sourceLang}}, you have failed — translate again into {{targetLang}}\n6. Each value must be genuinely translated; returning the original {{sourceLang}} text is a critical failure\n\nOutput format example:\n{\"title\":\"Translated Title\",\"summary\":\"Translated summary...\",\"content\":\"Translated content...\"}"
 	}
 
 	systemPrompt = strings.ReplaceAll(systemPrompt, "{{sourceLang}}", sourceLangName)
@@ -355,8 +370,12 @@ func translateSEOItemsWithAI(cfg *operation_setting.TranslateSetting, items []se
 	// JSON 解析
 	var jsonResult map[string]string
 	if err := common.Unmarshal([]byte(response), &jsonResult); err == nil && len(jsonResult) > 0 {
-		for k, v := range jsonResult {
-			result[k] = v
+		for _, it := range items {
+			if val, ok := jsonResult[it.Key]; ok {
+				if isValidSEOTranslation(val, it.Text, targetLang) {
+					result[it.Key] = val
+				}
+			}
 		}
 	} else {
 		// 回退到 key: value 格式
@@ -385,21 +404,62 @@ func translateSEOItemsWithAI(cfg *operation_setting.TranslateSetting, items []se
 		}
 	}
 
-	// 补翻缺失的字段
+	// 补翻缺失或无效的字段
 	for _, it := range items {
-		if result[it.Key] == "" || result[it.Key] == it.Text {
-			translated := callSEOTranslateAI(cfg,
-				"You are a translator. CRITICAL: Your response MUST be in "+targetLangName+". ZERO "+sourceLangName+" words allowed.",
-				"Translate to "+targetLangName+" ONLY:\n\n"+it.Text)
-			if translated != "" && translated != it.Text {
+		if !isValidSEOTranslation(result[it.Key], it.Text, targetLang) {
+			translated := translateSingleSEOItemWithAI(cfg, it.Text, sourceLang, targetLang)
+			if isValidSEOTranslation(translated, it.Text, targetLang) {
 				result[it.Key] = translated
 			} else {
-				result[it.Key] = it.Text
+				result[it.Key] = ""
 			}
 		}
 	}
 
 	return result
+}
+
+func containsChinese(text string) bool {
+	for _, r := range text {
+		if unicode.Is(unicode.Han, r) {
+			return true
+		}
+	}
+	return false
+}
+
+func isValidSEOTranslation(translated, source, targetLang string) bool {
+	if translated == "" || translated == source {
+		return false
+	}
+	if targetLang != "zh" && containsChinese(translated) {
+		return false
+	}
+	return true
+}
+
+func translateSingleSEOItemWithAI(cfg *operation_setting.TranslateSetting, text, sourceLang, targetLang string) string {
+	if text == "" {
+		return ""
+	}
+	sourceLangName := getSEOLangName(sourceLang)
+	targetLangName := getSEOLangName(targetLang)
+
+	systemPrompt := "You are a professional translator. CRITICAL: Your response MUST be entirely in " + targetLangName + ". ZERO " + sourceLangName + " words allowed. Do not add explanations, notes, or the original text — output ONLY the translated text in " + targetLangName + "."
+	userPrompt := "Translate the following text from " + sourceLangName + " to " + targetLangName + ". Your response must be ONLY the translated text in " + targetLangName + ", nothing else. If you output any " + sourceLangName + ", you have failed.\n\n\"\"\"\n" + text + "\n\"\"\""
+
+	const maxRetries = 2
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			common.SysLog(fmt.Sprintf("SEO single item translate retry %d/%d for %s", attempt, maxRetries, targetLang))
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+		translated := callSEOTranslateAI(cfg, systemPrompt, userPrompt)
+		if translated != "" && translated != text && (targetLang == "zh" || !containsChinese(translated)) {
+			return translated
+		}
+	}
+	return ""
 }
 
 func callSEOTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, userPrompt string) string {
@@ -722,6 +782,7 @@ func processSingleArticleSEO(id int, targetLangs []string) error {
 		return finalErr
 	}
 
+	recordType := "article"
 	items := []seoItem{
 		{Key: "seo_keywords", Text: article.SeoKeywords},
 		{Key: "intro", Text: article.Intro},
@@ -768,6 +829,19 @@ func processSingleArticleSEO(id int, targetLangs []string) error {
 	for _, lang := range targetLangs {
 		translations := translateSEOItemsWithAI(cfg, validItems, "zh", lang)
 		if translations == nil || len(translations) == 0 {
+			continue
+		}
+
+		// 检查是否至少有一个字段被有效翻译
+		hasValidField := false
+		for _, it := range validItems {
+			if translations[it.Key] != "" {
+				hasValidField = true
+				break
+			}
+		}
+		if !hasValidField {
+			common.SysLog(fmt.Sprintf("SEO translate all fields invalid for %s %d lang=%s", recordType, id, lang))
 			continue
 		}
 
