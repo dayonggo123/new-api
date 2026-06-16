@@ -503,6 +503,19 @@ func isValidAutoTranslation(translated, source, targetLang string) bool {
 	return true
 }
 
+func invalidAutoTranslationReason(translated, source, targetLang string) string {
+	if translated == "" {
+		return "empty"
+	}
+	if translated == source {
+		return "equals_source"
+	}
+	if targetLang != "zh" && containsChinese(translated) {
+		return "contains_chinese"
+	}
+	return "unknown"
+}
+
 func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []translateItem, sourceLang, targetLang string) map[string]string {
 	result := make(map[string]string)
 
@@ -616,6 +629,7 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 	// 补翻缺失或无效的字段：单条补翻 -> 强制补翻
 	for _, item := range items {
 		if !isValidAutoTranslation(result[item.Key], item.Text, targetLang) {
+			common.SysLog(fmt.Sprintf("AutoTranslate invalid batch result: key=%s lang=%s reason=%s value=%q", item.Key, targetLang, invalidAutoTranslationReason(result[item.Key], item.Text, targetLang), result[item.Key]))
 			translated := translateSingleAutoWithAI(cfg, item.Text, sourceLang, targetLang)
 			if isValidAutoTranslation(translated, item.Text, targetLang) {
 				result[item.Key] = translated
@@ -739,6 +753,7 @@ func callAutoTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, 
 		}
 
 		if resp.StatusCode != http.StatusOK {
+			common.SysLog(fmt.Sprintf("AutoTranslate API error: status=%d body=%s", resp.StatusCode, string(bodyBytes)))
 			return ""
 		}
 
@@ -750,9 +765,11 @@ func callAutoTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, 
 			} `json:"choices"`
 		}
 		if err := common.Unmarshal(bodyBytes, &apiResp); err != nil {
+			common.SysLog("AutoTranslate API unmarshal error: " + err.Error())
 			return ""
 		}
 		if len(apiResp.Choices) == 0 {
+			common.SysLog("AutoTranslate API empty choices: " + string(bodyBytes))
 			return ""
 		}
 
