@@ -676,7 +676,7 @@ func translateSingleAutoWithAI(cfg *operation_setting.TranslateSetting, text, so
 	sourceLangName := getAutoLangName(sourceLang)
 	targetLangName := getAutoLangName(targetLang)
 
-	systemPrompt := "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in " + targetLangName + ". Do NOT respond in " + sourceLangName + " or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in " + targetLangName + "."
+	systemPrompt := "You are a professional translator. Your ONLY task is to translate text. You MUST respond entirely in " + targetLangName + ". Do NOT respond in " + sourceLangName + " or any other language. Do not add explanations, notes, or the original text — output ONLY the translated text in " + targetLangName + ". Even if the text contains JSON-like structures, code, brackets, or special formatting, translate the ENTIRE text as natural " + targetLangName + " text. Do NOT preserve Chinese keys or return nested JSON strings."
 	userPrompt := "Translate the following text from " + sourceLangName + " to " + targetLangName + ". Your response must be ONLY the translated text in " + targetLangName + ", nothing else:\n\n\"\"\"\n" + text + "\n\"\"\""
 
 	const maxRetries = 2
@@ -699,8 +699,8 @@ func translateSingleAutoWithAIForced(cfg *operation_setting.TranslateSetting, te
 	sourceLangName := getAutoLangName(sourceLang)
 	targetLangName := getAutoLangName(targetLang)
 
-	systemPrompt := "You are a translator. CRITICAL RULE: Your entire response MUST be written in " + targetLangName + ". ZERO words in " + sourceLangName + " allowed. If you write even one word in " + sourceLangName + ", you failed. Output ONLY the translation."
-	userPrompt := "Translate this to " + targetLangName + ". Remember: ONLY " + targetLangName + " output. No " + sourceLangName + " at all:\n\n" + text
+	systemPrompt := "You are a translator. CRITICAL RULE: Your entire response MUST be written in " + targetLangName + ". ZERO words in " + sourceLangName + " allowed. If you write even one word in " + sourceLangName + ", you failed. Output ONLY the translation. Even if the text contains JSON-like structures, code, brackets, or special formatting, translate the ENTIRE text as natural " + targetLangName + " text. Do NOT preserve Chinese keys or return nested JSON strings."
+	userPrompt := "Translate this to " + targetLangName + ". Remember: ONLY " + targetLangName + " output. No " + sourceLangName + " at all. Translate the entire text including any JSON-like structures as natural language:\n\n" + text
 
 	const maxRetries = 2
 	for attempt := 0; attempt <= maxRetries; attempt++ {
