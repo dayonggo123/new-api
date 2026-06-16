@@ -547,6 +547,14 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 		userPromptTemplate = "Translate the following fields from {{sourceLang}} to {{targetLang}}.\n\nInput (JSON):\n{{fields}}\n\nRules:\n1. Return ONLY a JSON object with the same keys\n2. All values must be pure {{targetLang}} text — absolutely NO {{sourceLang}} allowed\n3. Preserve {{variables}} exactly as-is\n4. Do not add explanations or wrap in markdown\n5. If any value is still in {{sourceLang}}, you have failed — translate again into {{targetLang}}\n\nOutput format example:\n{\"title\":\"Translated Title\",\"summary\":\"Translated summary...\",\"content\":\"Translated content...\"}"
 	}
 
+	// 构建 {{items}} 变量内容（旧文本格式，向后兼容）
+	var itemsBuilder strings.Builder
+	for _, item := range shortItems {
+		if item.Text != "" {
+			itemsBuilder.WriteString(fmt.Sprintf("%s: %s\n", item.Key, item.Text))
+		}
+	}
+
 	fieldsMap := make(map[string]string)
 	for _, item := range shortItems {
 		if item.Text != "" {
@@ -562,6 +570,8 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{language}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
+	// 兼容旧版 batch-translate skill 模板使用 {{items}} 占位符
+	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsBuilder.String())
 
 	response := callAutoTranslateAI(cfg, systemPrompt, userPrompt)
 	if response == "" {
