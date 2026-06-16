@@ -579,10 +579,16 @@ func translateItemsWithAI(cfg *operation_setting.TranslateSetting, items []trans
 	userPrompt := strings.ReplaceAll(userPromptTemplate, "{{sourceLang}}", sourceLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{targetLang}}", targetLangName)
 	userPrompt = strings.ReplaceAll(userPrompt, "{{language}}", targetLangName)
-	userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
-	// 兼容旧版 batch-translate skill 模板使用 {{items}} 占位符
+
 	itemsStr := itemsBuilder.String()
-	userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsStr)
+	// 根据模板占位符决定插入方式：{{items}} 旧文本格式 / {{fields}} JSON 格式 / 无占位符则追加在末尾
+	if strings.Contains(userPromptTemplate, "{{items}}") {
+		userPrompt = strings.ReplaceAll(userPrompt, "{{items}}", itemsStr)
+	} else if strings.Contains(userPromptTemplate, "{{fields}}") {
+		userPrompt = strings.ReplaceAll(userPrompt, "{{fields}}", string(fieldsJSON))
+	} else if itemsStr != "" {
+		userPrompt = userPrompt + "\n\n" + itemsStr
+	}
 
 	common.SysLog(fmt.Sprintf("AutoTranslate prompt built: lang=%s itemsEmpty=%t itemsLen=%d userPromptPreview=%s", targetLang, itemsStr == "", len(itemsStr), truncateString(userPrompt, 1500)))
 
