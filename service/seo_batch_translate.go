@@ -269,12 +269,25 @@ func getStringFromMap(m map[string]interface{}, key string) string {
 }
 
 func containsChinese(text string) bool {
+	hasHan := false
+	hasJapaneseKana := false
+	hasKoreanHangul := false
 	for _, r := range text {
 		if unicode.Is(unicode.Han, r) {
-			return true
+			hasHan = true
+		}
+		if unicode.Is(unicode.Hiragana, r) || unicode.Is(unicode.Katakana, r) {
+			hasJapaneseKana = true
+		}
+		if unicode.Is(unicode.Hangul, r) {
+			hasKoreanHangul = true
 		}
 	}
-	return false
+	// 日文/韩文也会使用汉字（kanji/hanja），只要包含假名/谚文就不是中文
+	if hasJapaneseKana || hasKoreanHangul {
+		return false
+	}
+	return hasHan
 }
 
 // translateSEOJSONWithAI 采用与 GEO 翻译相同的整 JSON 翻译模式：

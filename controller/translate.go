@@ -99,12 +99,25 @@ func getLangName(code string) string {
 }
 
 func containsChinese(text string) bool {
+	hasHan := false
+	hasJapaneseKana := false
+	hasKoreanHangul := false
 	for _, r := range text {
 		if unicode.Is(unicode.Han, r) {
-			return true
+			hasHan = true
+		}
+		if unicode.Is(unicode.Hiragana, r) || unicode.Is(unicode.Katakana, r) {
+			hasJapaneseKana = true
+		}
+		if unicode.Is(unicode.Hangul, r) {
+			hasKoreanHangul = true
 		}
 	}
-	return false
+	// 日文/韩文也会使用汉字（kanji/hanja），只要包含假名/谚文就不是中文
+	if hasJapaneseKana || hasKoreanHangul {
+		return false
+	}
+	return hasHan
 }
 
 // isValidBatchTranslation 校验翻译结果是否有效（非空、不等于原文、目标语言非中文时不能含中文）
