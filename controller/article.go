@@ -188,11 +188,40 @@ func CreateArticle(c *gin.Context) {
 	}
 	article.CreatedTime = common.GetTimestamp()
 	article.UpdatedTime = common.GetTimestamp()
+
+	// 发布前质量门禁：先以草稿状态入库，质量达标后再发布
+	requestedStatus := article.Status
+	if requestedStatus == 1 {
+		article.Status = 2
+	}
+
 	err = article.Insert()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+
+	if requestedStatus == 1 {
+		gate, gateErr := service.CheckPublishGate("article", article.Id, "zh")
+		if gateErr != nil || gate == nil || !gate.Passed {
+			// 门禁未通过，保持草稿状态并返回详细评分
+			_ = model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Update("status", 2).Error
+			msg := "发布前质量门禁检查失败"
+			if gate != nil {
+				msg = gate.Message
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": msg,
+				"data":    gate,
+			})
+			return
+		}
+		// 门禁通过，正式启用
+		_ = model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Update("status", 1).Error
+		article.Status = 1
+	}
+
 	// 异步生成 SEO 元数据
 	go generateArticleSEO(&article)
 	// 异步触发多语言自动翻译
@@ -216,6 +245,7 @@ func UpdateArticle(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	oldStatus := cleanArticle.Status
 	cleanArticle.CategoryId = article.CategoryId
 	cleanArticle.Title = article.Title
 	cleanArticle.Slug = article.Slug
@@ -224,7 +254,8 @@ func UpdateArticle(c *gin.Context) {
 	cleanArticle.CoverImageUrl = article.CoverImageUrl
 	cleanArticle.Author = article.Author
 	cleanArticle.Tags = article.Tags
-	cleanArticle.Status = article.Status
+	// 先保持原状态写入内容，通过发布门禁后再变更为启用
+	cleanArticle.Status = oldStatus
 	cleanArticle.IsFeatured = article.IsFeatured
 	cleanArticle.SeoTitle = article.SeoTitle
 	cleanArticle.SeoDescription = article.SeoDescription
@@ -242,6 +273,27 @@ func UpdateArticle(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 当尝试发布（状态从非启用变为启用）时执行质量门禁
+	if article.Status == 1 && oldStatus != 1 {
+		gate, gateErr := service.CheckPublishGate("article", cleanArticle.Id, "zh")
+		if gateErr != nil || gate == nil || !gate.Passed {
+			msg := "发布前质量门禁检查失败"
+			if gate != nil {
+				msg = gate.Message
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": msg,
+				"data":    gate,
+			})
+			return
+		}
+		// 门禁通过，更新为启用状态
+		_ = model.DB.Model(&model.Article{}).Where("id = ?", cleanArticle.Id).Update("status", 1).Error
+		cleanArticle.Status = 1
+	}
+
 	// 异步生成 SEO 元数据
 	go generateArticleSEO(cleanArticle)
 	c.JSON(http.StatusOK, gin.H{

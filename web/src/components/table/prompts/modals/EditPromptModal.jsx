@@ -41,6 +41,9 @@ import {
   Upload,
   TextArea,
   Input,
+  Modal,
+  Progress,
+  List,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
@@ -48,7 +51,11 @@ import {
   IconBookStroked,
   IconUpload,
   IconLanguage,
+  IconBarChartVStroked,
+  IconAlertTriangle,
+  IconTickCircle,
 } from '@douyinfe/semi-icons';
+import CROSidebar from '../../../seo/CROSidebar';
 
 const { Text, Title } = Typography;
 
@@ -82,6 +89,7 @@ const EditPromptModal = (props) => {
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const pollRef = useRef(null);
+  const [croVisible, setCroVisible] = useState(false);
 
   const PRESET_TAGS = [
     '电影感', '超写实', 'photography', 'nature', 'portrait', 'landscape',
@@ -464,7 +472,7 @@ const EditPromptModal = (props) => {
           ...localInputs,
         });
       }
-      const { success, message } = res.data;
+      const { success, message, data } = res.data;
       if (success) {
         if (isEdit) {
           showSuccess(t('提示词更新成功！'));
@@ -473,6 +481,9 @@ const EditPromptModal = (props) => {
         }
         props.refresh();
         props.handleClose();
+      } else if (data && (data.result || data.status)) {
+        // 发布前质量门禁未通过，弹窗展示详细评分
+        showPublishGateModal(data, t('提示词发布被阻止'));
       } else {
         showError(message);
       }
@@ -480,6 +491,39 @@ const EditPromptModal = (props) => {
       showError(error.message);
     }
     setLoading(false);
+  };
+
+  const showPublishGateModal = (gate, titleText) => {
+    const result = gate?.result || gate;
+    Modal.warning({
+      title: titleText || t('发布前质量门禁未通过'),
+      width: 640,
+      content: (
+        <div>
+          <Text>{gate?.message || t('内容评分未达到 70 分，请根据以下报告优化后再发布。')}</Text>
+          <Row gutter={16} style={{ marginTop: 16, marginBottom: 16 }}>
+            <Col span={8}><Progress percent={result?.seo_score || 0} size='small' showInfo={true} /></Col>
+            <Col span={8}><Progress percent={result?.human_score || 0} size='small' showInfo={true} /></Col>
+            <Col span={8}><Progress percent={result?.readability_score || 0} size='small' showInfo={true} /></Col>
+          </Row>
+          <List
+            size='small'
+            dataSource={result?.publish_check || []}
+            renderItem={(item) => (
+              <List.Item
+                main={
+                  <Space>
+                    {item.passed ? <IconTickCircle style={{ color: 'green' }} /> : <IconAlertTriangle style={{ color: 'red' }} />}
+                    <Text>{item.item}</Text>
+                    <Text type='secondary' size='small'>({item.message})</Text>
+                  </Space>
+                }
+              />
+            )}
+          />
+        </div>
+      ),
+    });
   };
 
   return (
@@ -508,6 +552,15 @@ const EditPromptModal = (props) => {
         footer={
           <div className='flex justify-end bg-white'>
             <Space>
+              {isEdit && (
+                <Button
+                  type='tertiary'
+                  icon={<IconBarChartVStroked />}
+                  onClick={() => setCroVisible(true)}
+                >
+                  {t('CRO 分析')}
+                </Button>
+              )}
               <Button
                 theme='solid'
                 onClick={() => formApiRef.current?.submitForm()}
@@ -907,6 +960,12 @@ const EditPromptModal = (props) => {
           </Form>
         </Spin>
       </SideSheet>
+      <CROSidebar
+        recordId={isEdit ? parseInt(props.editingPrompt.id, 10) : null}
+        contentType='prompt'
+        visible={croVisible}
+        onClose={() => setCroVisible(false)}
+      />
     </>
   );
 };

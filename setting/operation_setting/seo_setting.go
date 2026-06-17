@@ -3,12 +3,14 @@ package operation_setting
 import "github.com/QuantumNous/new-api/setting/config"
 
 type SEOSetting struct {
-	SeoAIEnabled         bool   `json:"seo_ai_enabled"`          // 是否启用 AI 自动生成 SEO
-	SeoAIModel           string `json:"seo_ai_model"`            // AI 模型，如 gpt-4o-mini
-	SeoAIBaseURL         string `json:"seo_ai_base_url"`         // API 基础地址
-	SeoAIApiKey          string `json:"seo_ai_api_key"`          // API Key
-	GoogleIndexingAPIKey string `json:"google_indexing_api_key"` // Google Indexing API OAuth 令牌
-	SiteDomain           string `json:"site_domain"`             // 网站域名，如 harse.tv
+	SeoAIEnabled             bool   `json:"seo_ai_enabled"`              // 是否启用 AI 自动生成 SEO
+	SeoAIModel               string `json:"seo_ai_model"`                // AI 模型，如 gpt-4o-mini
+	SeoAIBaseURL             string `json:"seo_ai_base_url"`             // API 基础地址
+	SeoAIApiKey              string `json:"seo_ai_api_key"`              // API Key
+	GoogleIndexingAPIKey     string `json:"google_indexing_api_key"`     // Google Indexing API OAuth 令牌
+	GoogleServiceAccountJSON string `json:"google_service_account_json"` // Google Service Account JSON（用于 GSC API）
+	GSCSiteURL               string `json:"gsc_site_url"`                // Google Search Console 站点 URL，如 https://harse.tv/ 或 sc-domain:harse.tv
+	SiteDomain               string `json:"site_domain"`                 // 网站域名，如 harse.tv
 }
 
 var seoSetting = SEOSetting{

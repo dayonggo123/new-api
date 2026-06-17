@@ -13,6 +13,9 @@ type ContentGenerationRequest struct {
 	Type          string   `json:"type" binding:"required"` // article 或 prompt
 	Keywords      []string `json:"keywords" binding:"required"`
 	Language      string   `json:"language"`
+	Intent        string   `json:"intent"`     // 搜索意图
+	WordCount     int      `json:"word_count"` // 目标字数
+	CTAGoal       string   `json:"cta_goal"`   // CTA 目标
 	AutoSEO       bool     `json:"auto_seo"`
 	AutoGEO       bool     `json:"auto_geo"`
 	AutoTranslate bool     `json:"auto_translate"`
@@ -32,6 +35,9 @@ func GenerateContent(c *gin.Context) {
 		Type:          service.ContentGenerationType(req.Type),
 		Keywords:      req.Keywords,
 		Language:      req.Language,
+		Intent:        req.Intent,
+		WordCount:     req.WordCount,
+		CTAGoal:       req.CTAGoal,
 		AutoSEO:       req.AutoSEO,
 		AutoGEO:       req.AutoGEO,
 		AutoTranslate: req.AutoTranslate,

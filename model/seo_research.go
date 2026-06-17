@@ -50,20 +50,22 @@ type ContentGap struct {
 
 // SEOQuickTemplate 快速研究模板
 type SEOQuickTemplate struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	SeedKeyword string `json:"seed_keyword"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	SeedKeyword  string `json:"seed_keyword"`
+	ResearchMode string `json:"research_mode"` // ai / serp
 }
 
 // GetSEOQuickTemplates 获取预设的快速研究模板
 func GetSEOQuickTemplates() []SEOQuickTemplate {
 	return []SEOQuickTemplate{
 		{
-			ID:          "ai-video-prompts",
-			Name:        "AI Video Prompt Library",
-			Description: "AI 视频提示词库关键词研究",
-			SeedKeyword: "AI video prompt library",
+			ID:           "ai-video-prompts",
+			Name:         "AI Video Prompt Library",
+			Description:  "AI 视频提示词库关键词研究",
+			SeedKeyword:  "AI video prompt library",
+			ResearchMode: "serp",
 		},
 		{
 			ID:          "node-canvas-video",

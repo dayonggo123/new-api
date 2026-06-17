@@ -36,6 +36,78 @@ func ResearchSEOKeywords(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
+// ResearchSERPKeywords 执行 SERP 深挖研究
+// POST /api/admin/seo/research/serp
+func ResearchSERPKeywords(c *gin.Context) {
+	var req service.SERPResearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result, err := service.ResearchSERP(&req)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	common.ApiSuccess(c, result)
+}
+
+// ResearchSiteOpportunityKeywords 执行站内机会词研究
+// POST /api/admin/seo/research/site
+func ResearchSiteOpportunityKeywords(c *gin.Context) {
+	var req service.AdvancedResearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result, err := service.ResearchSiteOpportunity(&req)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	common.ApiSuccess(c, result)
+}
+
+// ResearchCompetitorKeywords 执行竞品反查研究
+// POST /api/admin/seo/research/competitor
+func ResearchCompetitorKeywords(c *gin.Context) {
+	var req service.AdvancedResearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result, err := service.ResearchCompetitor(&req)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	common.ApiSuccess(c, result)
+}
+
+// ResearchCommunityKeywords 执行社群挖掘研究
+// POST /api/admin/seo/research/community
+func ResearchCommunityKeywords(c *gin.Context) {
+	var req service.AdvancedResearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result, err := service.ResearchCommunity(&req)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	common.ApiSuccess(c, result)
+}
+
 // GetSEOQuickTemplates 获取预设的快速研究模板
 // GET /api/admin/seo/research/templates
 func GetSEOQuickTemplates(c *gin.Context) {

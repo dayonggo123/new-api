@@ -38,3 +38,7 @@ status-monitor/status.json
 # Local workbuddy files
 .workbuddy/
 .git-credentials
+
+# Build artifacts / local tools
+clean-chinese-i18n
+clean-chinese-i18n-linux

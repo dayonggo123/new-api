@@ -174,11 +174,40 @@ func AddPrompt(c *gin.Context) {
 	}
 	prompt.CreatedTime = common.GetTimestamp()
 	prompt.UpdatedTime = common.GetTimestamp()
+
+	// 发布前质量门禁：先以草稿状态入库，质量达标后再发布
+	requestedStatus := prompt.Status
+	if requestedStatus == 1 {
+		prompt.Status = 2
+	}
+
 	err = prompt.Insert()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+
+	if requestedStatus == 1 {
+		gate, gateErr := service.CheckPublishGate("prompt", prompt.Id, "zh")
+		if gateErr != nil || gate == nil || !gate.Passed {
+			// 门禁未通过，保持草稿状态并返回详细评分
+			_ = model.DB.Model(&model.Prompt{}).Where("id = ?", prompt.Id).Update("status", 2).Error
+			msg := "发布前质量门禁检查失败"
+			if gate != nil {
+				msg = gate.Message
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": msg,
+				"data":    gate,
+			})
+			return
+		}
+		// 门禁通过，正式启用
+		_ = model.DB.Model(&model.Prompt{}).Where("id = ?", prompt.Id).Update("status", 1).Error
+		prompt.Status = 1
+	}
+
 	// 异步生成 SEO 关键词和介绍文案
 	go generatePromptSEO(&prompt)
 	// 异步触发多语言自动翻译
@@ -202,6 +231,7 @@ func UpdatePrompt(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	oldStatus := cleanPrompt.Status
 	cleanPrompt.CategoryId = prompt.CategoryId
 	cleanPrompt.Title = prompt.Title
 	cleanPrompt.Content = prompt.Content
@@ -216,7 +246,8 @@ func UpdatePrompt(c *gin.Context) {
 	cleanPrompt.Variables = prompt.Variables
 	cleanPrompt.Tags = prompt.Tags
 	cleanPrompt.SortOrder = prompt.SortOrder
-	cleanPrompt.Status = prompt.Status
+	// 先保持原状态写入内容，通过发布门禁后再变更为启用
+	cleanPrompt.Status = oldStatus
 	cleanPrompt.I18n = prompt.I18n
 	cleanPrompt.TitleI18n = prompt.TitleI18n
 	// 只有所有目标语言都翻译完整，才标记为已翻译
@@ -230,6 +261,27 @@ func UpdatePrompt(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 当尝试发布（状态从非启用变为启用）时执行质量门禁
+	if prompt.Status == 1 && oldStatus != 1 {
+		gate, gateErr := service.CheckPublishGate("prompt", cleanPrompt.Id, "zh")
+		if gateErr != nil || gate == nil || !gate.Passed {
+			msg := "发布前质量门禁检查失败"
+			if gate != nil {
+				msg = gate.Message
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": msg,
+				"data":    gate,
+			})
+			return
+		}
+		// 门禁通过，更新为启用状态
+		_ = model.DB.Model(&model.Prompt{}).Where("id = ?", cleanPrompt.Id).Update("status", 1).Error
+		cleanPrompt.Status = 1
+	}
+
 	// 异步生成 SEO 关键词和介绍文案
 	go generatePromptSEO(cleanPrompt.Prompt)
 	c.JSON(http.StatusOK, gin.H{
@@ -497,19 +549,19 @@ func GetPromptSEOList(c *gin.Context) {
 
 	// 只返回 SEO 相关字段
 	type SEOItem struct {
-		Id            int    `json:"id"`
-		Title         string `json:"title"`
-		CategoryName  string `json:"category_name"`
-		SeoKeywords   string `json:"seo_keywords"`
-		Intro         string `json:"intro"`
-		Faq           string `json:"faq"`
-		SeoI18n       string `json:"seo_i18n"`
-		TitleI18n     string `json:"title_i18n"`
-		I18n          string `json:"i18n"`
-		AuditScore    int    `json:"audit_score"`
-		Status        int    `json:"status"`
-		CreatedTime   int64  `json:"created_time"`
-		UpdatedTime   int64  `json:"updated_time"`
+		Id           int    `json:"id"`
+		Title        string `json:"title"`
+		CategoryName string `json:"category_name"`
+		SeoKeywords  string `json:"seo_keywords"`
+		Intro        string `json:"intro"`
+		Faq          string `json:"faq"`
+		SeoI18n      string `json:"seo_i18n"`
+		TitleI18n    string `json:"title_i18n"`
+		I18n         string `json:"i18n"`
+		AuditScore   int    `json:"audit_score"`
+		Status       int    `json:"status"`
+		CreatedTime  int64  `json:"created_time"`
+		UpdatedTime  int64  `json:"updated_time"`
 	}
 
 	items := make([]*SEOItem, len(prompts))
@@ -950,7 +1002,7 @@ func BatchTranslatePromptSEO(c *gin.Context) {
 		"task_id": taskID,
 		"status":  "running",
 		"total":   len(req.Ids),
-		"message":   fmt.Sprintf("已启动 %d 个提示词的批量 SEO 翻译任务", len(req.Ids)),
+		"message": fmt.Sprintf("已启动 %d 个提示词的批量 SEO 翻译任务", len(req.Ids)),
 	})
 }
 

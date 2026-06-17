@@ -1,40 +1,38 @@
 package service
 
 import (
-	"fmt"
 	"sync"
 	"time"
-
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
 // SEOMonitorData SEO 监控数据
 type SEOMonitorData struct {
-	Date            string                   `json:"date"`
-	OrganicTraffic  int                      `json:"organic_traffic"`
-	IndexedPages    int                      `json:"indexed_pages"`
-	RankingKeywords int                      `json:"ranking_keywords"`
-	AvgPosition     float64                  `json:"avg_position"`
-	TopKeywords     []KeywordRanking         `json:"top_keywords"`
-	HealthScore     int                      `json:"health_score"`
-	Issues          []MonitorIssue           `json:"issues"`
-	UpdatedAt       int64                    `json:"updated_at"`
+	Date            string           `json:"date"`
+	OrganicTraffic  int              `json:"organic_traffic"`
+	IndexedPages    int              `json:"indexed_pages"`
+	RankingKeywords int              `json:"ranking_keywords"`
+	AvgPosition     float64          `json:"avg_position"`
+	TopKeywords     []KeywordRanking `json:"top_keywords"`
+	HealthScore     int              `json:"health_score"`
+	Issues          []MonitorIssue   `json:"issues"`
+	UpdatedAt       int64            `json:"updated_at"`
+	IsSimulated     bool             `json:"is_simulated"` // 标记是否为模拟数据
 }
 
 // KeywordRanking 关键词排名
 type KeywordRanking struct {
-	Keyword   string  `json:"keyword"`
-	Position  float64 `json:"position"`
-	Clicks    int     `json:"clicks"`
-	Impressions int   `json:"impressions"`
-	CTR       float64 `json:"ctr"`
-	Change    float64 `json:"change"` // 环比变化
+	Keyword     string  `json:"keyword"`
+	Position    float64 `json:"position"`
+	Clicks      int     `json:"clicks"`
+	Impressions int     `json:"impressions"`
+	CTR         float64 `json:"ctr"`
+	Change      float64 `json:"change"` // 环比变化
 }
 
 // MonitorIssue 监控问题
 type MonitorIssue struct {
-	Type        string `json:"type"`        // error / warning / info
-	Category    string `json:"category"`    // indexing / performance / content / technical
+	Type        string `json:"type"`     // error / warning / info
+	Category    string `json:"category"` // indexing / performance / content / technical
 	Message     string `json:"message"`
 	Count       int    `json:"count"`
 	AutoFixable bool   `json:"auto_fixable"`
@@ -109,16 +107,24 @@ func UpdateSEOMonitorData(data *SEOMonitorData) {
 
 // UpdateMonitorFromGSC 从 Google Search Console API 更新数据
 func UpdateMonitorFromGSC(siteURL string, startDate, endDate string) error {
-	cfg := operation_setting.GetSEOSetting()
-	if cfg.GoogleIndexingAPIKey == "" {
-		return fmt.Errorf("google api not configured")
+	if err := ValidateGSCConfig(); err != nil {
+		return err
 	}
 
-	// TODO: 实现 GSC API 调用
-	// 需要 OAuth 2.0 认证 + searchanalytics/query API
-	// https://developers.google.com/webmaster-tools/search-console-api-original/v3/searchanalytics/query
+	if siteURL == "" {
+		siteURL = GetGSCSiteURL()
+	}
+	if startDate == "" || endDate == "" {
+		startDate, endDate = GetDefaultGSCDateRange()
+	}
 
-	return fmt.Errorf("GSC API integration not yet implemented - please use manual update")
+	data, err := FetchGSCSearchAnalytics(siteURL, startDate, endDate)
+	if err != nil {
+		return err
+	}
+
+	UpdateSEOMonitorData(data)
+	return nil
 }
 
 // SimulateMonitorData 模拟监控数据（用于演示和测试）
@@ -145,7 +151,8 @@ func SimulateMonitorData() *SEOMonitorData {
 			{Type: "info", Category: "indexing", Message: "3 个页面未被 Google 索引", Count: 3, AutoFixable: false},
 			{Type: "info", Category: "performance", Message: "建议增加内容更新频率", Count: 1, AutoFixable: false},
 		},
-		UpdatedAt: now.Unix(),
+		UpdatedAt:   now.Unix(),
+		IsSimulated: true,
 	}
 
 	UpdateSEOMonitorData(data)

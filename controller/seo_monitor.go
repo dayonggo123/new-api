@@ -56,3 +56,27 @@ func UpdateSEOMonitorData(c *gin.Context) {
 	service.UpdateSEOMonitorData(&data)
 	common.ApiSuccess(c, gin.H{"message": "监控数据已更新"})
 }
+
+// SyncSEOMonitorFromGSC 从 Google Search Console 同步 SEO 监控数据
+// POST /api/admin/seo/monitor/sync-gsc
+func SyncSEOMonitorFromGSC(c *gin.Context) {
+	var req struct {
+		SiteURL   string `json:"site_url"`
+		StartDate string `json:"start_date"`
+		EndDate   string `json:"end_date"`
+	}
+	// 绑定可选参数，即使为空也能继续
+	_ = c.ShouldBindJSON(&req)
+
+	data, err := service.FetchGSCSearchAnalytics(req.SiteURL, req.StartDate, req.EndDate)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	service.UpdateSEOMonitorData(data)
+	common.ApiSuccess(c, gin.H{
+		"message": "已从 Google Search Console 同步监控数据",
+		"data":    data,
+	})
+}

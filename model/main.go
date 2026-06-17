@@ -308,6 +308,7 @@ func migrateDB() error {
 		&PromptMedia{},
 		&ArticleMedia{},
 		&SEOResearchHistory{},
+		&SEOOptimizationQueueItem{},
 		&Popup{},
 		&MarketingBanner{},
 	)

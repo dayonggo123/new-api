@@ -30,15 +30,22 @@ import {
   Spin,
   Typography,
   Upload,
+  Modal,
+  Progress,
+  List,
 } from '@douyinfe/semi-ui';
 import {
   IconSave,
   IconArrowLeft,
   IconUpload,
+  IconBarChartVStroked,
+  IconAlertTriangle,
+  IconTickCircle,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API, showError, showSuccess } from '../../helpers';
+import CROSidebar from '../../components/seo/CROSidebar';
 
 // wangEditor
 import '@wangeditor/editor/dist/css/style.css';
@@ -83,6 +90,7 @@ const ArticleEditor = () => {
   const [mediaType, setMediaType] = useState('image');
   const [categories, setCategories] = useState([]);
   const [editor, setEditor] = useState(null);
+  const [croVisible, setCroVisible] = useState(false);
   const formApiRef = useRef(null);
 
   // wangEditor 配置
@@ -217,10 +225,13 @@ const ArticleEditor = () => {
       } else {
         res = await API.post('/api/admin/articles', payload);
       }
-      const { success, message } = res.data;
+      const { success, message, data } = res.data;
       if (success) {
         showSuccess(isEdit ? t('文章更新成功') : t('文章创建成功'));
         navigate('/console/article');
+      } else if (data && (data.result || data.status)) {
+        // 发布前质量门禁未通过，弹窗展示详细评分
+        showPublishGateModal(data, t('文章发布被阻止'));
       } else {
         showError(message);
       }
@@ -228,6 +239,39 @@ const ArticleEditor = () => {
       showError(err.message);
     }
     setSaving(false);
+  };
+
+  const showPublishGateModal = (gate, titleText) => {
+    const result = gate?.result || gate;
+    Modal.warning({
+      title: titleText || t('发布前质量门禁未通过'),
+      width: 640,
+      content: (
+        <div>
+          <Text>{gate?.message || t('内容评分未达到 70 分，请根据以下报告优化后再发布。')}</Text>
+          <Row gutter={16} style={{ marginTop: 16, marginBottom: 16 }}>
+            <Col span={8}><Progress percent={result?.seo_score || 0} size='small' showInfo={true} /></Col>
+            <Col span={8}><Progress percent={result?.human_score || 0} size='small' showInfo={true} /></Col>
+            <Col span={8}><Progress percent={result?.readability_score || 0} size='small' showInfo={true} /></Col>
+          </Row>
+          <List
+            size='small'
+            dataSource={result?.publish_check || []}
+            renderItem={(item) => (
+              <List.Item
+                main={
+                  <Space>
+                    {item.passed ? <IconTickCircle style={{ color: 'green' }} /> : <IconAlertTriangle style={{ color: 'red' }} />}
+                    <Text>{item.item}</Text>
+                    <Text type='secondary' size='small'>({item.message})</Text>
+                  </Space>
+                }
+              />
+            )}
+          />
+        </div>
+      ),
+    });
   };
 
   return (
@@ -242,9 +286,16 @@ const ArticleEditor = () => {
             <Tag color='blue' shape='circle'>{isEdit ? t('编辑') : t('新建')}</Tag>
             <Title heading={4} className='m-0'>{isEdit ? t('编辑文章') : t('新建文章')}</Title>
           </Space>
-          <Button theme='solid' icon={<IconSave />} loading={saving} onClick={() => formApiRef.current?.submitForm()}>
-            {t('保存')}
-          </Button>
+          <Space>
+            {isEdit && (
+              <Button type='tertiary' icon={<IconBarChartVStroked />} onClick={() => setCroVisible(true)}>
+                {t('CRO 分析')}
+              </Button>
+            )}
+            <Button theme='solid' icon={<IconSave />} loading={saving} onClick={() => formApiRef.current?.submitForm()}>
+              {t('保存')}
+            </Button>
+          </Space>
         </div>
 
         {/* Form */}
@@ -359,6 +410,12 @@ const ArticleEditor = () => {
           )}
         </Form>
       </div>
+      <CROSidebar
+        recordId={isEdit ? parseInt(id, 10) : null}
+        contentType='article'
+        visible={croVisible}
+        onClose={() => setCroVisible(false)}
+      />
     </Spin>
   );
 };
