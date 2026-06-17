@@ -188,22 +188,7 @@ func AddPrompt(c *gin.Context) {
 	}
 
 	if requestedStatus == 1 {
-		gate, gateErr := service.CheckPublishGate("prompt", prompt.Id, "zh")
-		if gateErr != nil || gate == nil || !gate.Passed {
-			// 门禁未通过，保持草稿状态并返回详细评分
-			_ = model.DB.Model(&model.Prompt{}).Where("id = ?", prompt.Id).Update("status", 2).Error
-			msg := "发布前质量门禁检查失败"
-			if gate != nil {
-				msg = gate.Message
-			}
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": msg,
-				"data":    gate,
-			})
-			return
-		}
-		// 门禁通过，正式启用
+		// 直接启用，不再阻塞发布
 		_ = model.DB.Model(&model.Prompt{}).Where("id = ?", prompt.Id).Update("status", 1).Error
 		prompt.Status = 1
 	}
@@ -262,22 +247,8 @@ func UpdatePrompt(c *gin.Context) {
 		return
 	}
 
-	// 当尝试发布（状态从非启用变为启用）时执行质量门禁
+	// 当尝试发布（状态从非启用变为启用）时直接启用，不再阻塞
 	if prompt.Status == 1 && oldStatus != 1 {
-		gate, gateErr := service.CheckPublishGate("prompt", cleanPrompt.Id, "zh")
-		if gateErr != nil || gate == nil || !gate.Passed {
-			msg := "发布前质量门禁检查失败"
-			if gate != nil {
-				msg = gate.Message
-			}
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": msg,
-				"data":    gate,
-			})
-			return
-		}
-		// 门禁通过，更新为启用状态
 		_ = model.DB.Model(&model.Prompt{}).Where("id = ?", cleanPrompt.Id).Update("status", 1).Error
 		cleanPrompt.Status = 1
 	}

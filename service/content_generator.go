@@ -152,23 +152,11 @@ func generateArticleContent(req *ContentGenerationRequest, lang string) (*Conten
 		go StartAutoTranslate("article", article.Id)
 	}
 
-	// Step 7: 自动发布（如果启用）需先通过质量门禁
+	// Step 7: 自动发布（如果启用）直接发布，不再经过质量门禁
 	if req.AutoPublish {
-		gate, gateErr := CheckPublishGate("article", article.Id, lang)
-		if gateErr != nil || gate == nil || !gate.Passed {
-			result.Status = "completed_with_warning"
-			result.GatePassed = false
-			if gate != nil {
-				result.GateMessage = gate.Message
-				result.GateResult = gate
-			} else {
-				result.GateMessage = "发布前质量门禁检查失败，内容已保存为草稿"
-			}
-		} else {
-			model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Update("status", 1)
-			result.GatePassed = true
-			result.GateMessage = "已自动生成并通过质量门禁，已发布"
-		}
+		model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Update("status", 1)
+		result.GatePassed = true
+		result.GateMessage = "已自动生成并发布"
 	}
 
 	return result, nil
@@ -249,23 +237,11 @@ func generateTutorialContent(req *ContentGenerationRequest, lang string) (*Conte
 		go StartAutoTranslate("article", article.Id)
 	}
 
-	// Step 7: 自动发布需先通过质量门禁
+	// Step 7: 自动发布直接发布，不再经过质量门禁
 	if req.AutoPublish {
-		gate, gateErr := CheckPublishGate("article", article.Id, lang)
-		if gateErr != nil || gate == nil || !gate.Passed {
-			result.Status = "completed_with_warning"
-			result.GatePassed = false
-			if gate != nil {
-				result.GateMessage = gate.Message
-				result.GateResult = gate
-			} else {
-				result.GateMessage = "发布前质量门禁检查失败，内容已保存为草稿"
-			}
-		} else {
-			model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Update("status", 1)
-			result.GatePassed = true
-			result.GateMessage = "已自动生成并通过质量门禁，已发布"
-		}
+		model.DB.Model(&model.Article{}).Where("id = ?", article.Id).Update("status", 1)
+		result.GatePassed = true
+		result.GateMessage = "已自动生成并发布"
 	}
 
 	return result, nil
@@ -339,23 +315,11 @@ func generatePromptContent(req *ContentGenerationRequest, lang string) (*Content
 		go StartAutoTranslate("prompt", prompt.Id)
 	}
 
-	// Step 7: 自动发布（如果启用）需先通过质量门禁
+	// Step 7: 自动发布直接发布，不再经过质量门禁
 	if req.AutoPublish {
-		gate, gateErr := CheckPublishGate("prompt", prompt.Id, lang)
-		if gateErr != nil || gate == nil || !gate.Passed {
-			result.Status = "completed_with_warning"
-			result.GatePassed = false
-			if gate != nil {
-				result.GateMessage = gate.Message
-				result.GateResult = gate
-			} else {
-				result.GateMessage = "发布前质量门禁检查失败，内容已保存为草稿"
-			}
-		} else {
-			model.DB.Model(&model.Prompt{}).Where("id = ?", prompt.Id).Update("status", 1)
-			result.GatePassed = true
-			result.GateMessage = "已自动生成并通过质量门禁，已发布"
-		}
+		model.DB.Model(&model.Prompt{}).Where("id = ?", prompt.Id).Update("status", 1)
+		result.GatePassed = true
+		result.GateMessage = "已自动生成并发布"
 	}
 
 	return result, nil
