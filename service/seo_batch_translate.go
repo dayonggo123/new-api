@@ -473,8 +473,8 @@ func callSEOTranslateAI(cfg *operation_setting.TranslateSetting, systemPrompt, u
 var seoAutoTranslateTargetLangs = []string{"en", "fr", "ru", "ja", "vi", "ko", "es", "de", "pt", "it", "ar"}
 
 func startSEOAutoRetryPoller() {
-	common.SysLog("SEOAutoTranslate poller: started (interval=10min)")
-	ticker := time.NewTicker(10 * time.Minute)
+	common.SysLog("SEOAutoTranslate poller: started (interval=1min)")
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -535,7 +535,7 @@ func getMissingSEOLangs(recordType string, id int, targetLangs []string) []strin
 func pollAndAutoTranslateSEO() {
 	common.SysLog("SEOAutoTranslate poller: starting scan")
 	const batchSize = 20
-	cooldown := time.Now().Add(-30 * time.Minute).Unix()
+	cooldown := time.Now().Add(-3 * time.Minute).Unix()
 
 	// Prompts: 分两部分查询
 	// A. 从未翻译过（seo_i18n 为空）— 不限冷却时间，这是最优先的
