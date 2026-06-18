@@ -210,10 +210,13 @@ func SetRelayRouter(router *gin.Engine) {
 	relayUploadRouter.Use(middleware.RouteTag("relay"))
 	relayUploadRouter.Use(middleware.TokenOrUserAuth())
 	{
-		relayUploadRouter.POST("/v1/upload_images", controller.UploadImages)
-		relayUploadRouter.POST("/v1/upload_images/json", controller.UploadImagesJSON)
-		relayUploadRouter.POST("/v1/upload_videos", controller.UploadVideos)
-	}
+	relayUploadRouter.POST("/v1/upload_images", controller.UploadImages)
+	relayUploadRouter.POST("/v1/upload_images/json", controller.UploadImagesJSON)
+	relayUploadRouter.POST("/v1/upload_videos", controller.UploadVideos)
+	relayUploadRouter.POST("/v1/r2/upload-image", controller.UploadImageR2)
+	relayUploadRouter.POST("/v1/r2/upload-image/base64", controller.UploadImageR2Base64)
+	relayUploadRouter.POST("/v1/r2/presign", controller.PresignImageR2)
+}
 
 	relayGeminiRouter := router.Group("/v1beta")
 	relayGeminiRouter.Use(middleware.RouteTag("relay"))

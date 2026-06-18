@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/storage"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -119,6 +120,11 @@ func main() {
 
 	// Upload file auto-cleanup task (remove images/videos/proxy-cache older than 3 days)
 	service.StartUploadCleanupTask(3)
+
+	// Initialize R2/S3-compatible object storage for temporary image URLs
+	if err := storage.InitR2(); err != nil {
+		common.FatalLog(fmt.Sprintf("InitR2 failed: %s", err.Error()))
+	}
 
 	// Top-up order auto-expire task (mark pending orders as expired after 30 minutes)
 	service.StartTopUpExpireTask()
