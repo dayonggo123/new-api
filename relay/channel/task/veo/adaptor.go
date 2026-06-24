@@ -270,6 +270,83 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil && len(bodyMap) > 0 {
 			bodyMap["model"] = info.UpstreamModelName
+
+			// image_urls -> 下载图片并以 multipart 格式转发（GeminiGen 上游需要实际文件内容）
+			if imageURLs, ok := bodyMap["image_urls"].([]interface{}); ok && len(imageURLs) > 0 {
+				// 下载所有参考图
+				var imagesData [][]byte
+				var imagesMime []string
+				for _, v := range imageURLs {
+					s, ok2 := v.(string)
+					if !ok2 || s == "" {
+						continue
+					}
+					var data []byte
+					var mimeType string
+					if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+						resp, err := http.Get(s)
+						if err == nil && resp.StatusCode == 200 {
+							data, _ = io.ReadAll(resp.Body)
+							resp.Body.Close()
+							mimeType = resp.Header.Get("Content-Type")
+						}
+					} else if strings.HasPrefix(s, "data:") {
+						// base64 data URI
+						idx := strings.Index(s, ",")
+						if idx >= 0 {
+							b64 := s[idx+1:]
+							data, _ = base64.StdEncoding.DecodeString(b64)
+							mimeType = strings.TrimPrefix(s[:idx], "data:")
+						}
+					}
+					if len(data) > 0 {
+						imagesData = append(imagesData, data)
+						if mimeType == "" {
+							mimeType = "image/jpeg"
+						}
+						imagesMime = append(imagesMime, mimeType)
+					}
+				}
+
+				if len(imagesData) > 0 {
+					// 构建 multipart body
+					var buf bytes.Buffer
+					writer := multipart.NewWriter(&buf)
+
+					// 把 JSON 里的其他字段写到 multipart（除了 image_urls）
+					for k, v := range bodyMap {
+						if k == "image_urls" {
+							continue
+						}
+						vs, err := common.Marshal(v)
+						if err == nil {
+							writer.WriteField(k, string(vs))
+						}
+					}
+
+					// 把参考图写到 files 字段
+					fieldName := "ref_images"
+					if strings.HasPrefix(info.UpstreamModelName, "nano-banana-") || strings.HasPrefix(info.UpstreamModelName, "grok-") || info.UpstreamModelName == "imagen-4" {
+						fieldName = "files"
+					}
+					for i, data := range imagesData {
+						h := make(textproto.MIMEHeader)
+						filename := fmt.Sprintf("ref_image_%d.%s", i, extFromMime(imagesMime[i]))
+						h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, filename))
+						h.Set("Content-Type", imagesMime[i])
+						part, err := writer.CreatePart(h)
+						if err == nil {
+							part.Write(data)
+						}
+					}
+
+					writer.Close()
+					c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+					return &buf, nil
+				}
+			}
+
+			// 没有 image_urls 或下载失败，原样转发（只替换 model）
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}
