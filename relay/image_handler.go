@@ -23,7 +23,7 @@ import (
 
 func isTaskImageChannel(channelType int) bool {
 	switch channelType {
-	case constant.ChannelTypeAPIMart, constant.ChannelTypeDuoYuanTanSuo:
+	case constant.ChannelTypeAPIMart, constant.ChannelTypeDuoYuanTanSuo, constant.ChannelTypeZhangyuge:
 		return true
 	}
 	return false

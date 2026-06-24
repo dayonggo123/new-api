@@ -465,12 +465,15 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		imageURLs = []string{req.Image}
 	}
 
-	// APIMart 只接受 http/https/asset:// 协议的 URL，data: 和 base64 字符串会被过滤
+	// APIMart 接受 http/https/asset:// URL 和 data: base64 URI
 	var validURLs []string
 	var droppedURLs []string
 	for _, url := range imageURLs {
 		url = strings.TrimSpace(url)
 		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "asset://") {
+			validURLs = append(validURLs, url)
+		} else if strings.HasPrefix(url, "data:") {
+			// data: URI 直接透传给上游（章鱼哥上游原生支持）
 			validURLs = append(validURLs, url)
 		} else {
 			droppedURLs = append(droppedURLs, url[:min(len(url), 80)])
@@ -500,27 +503,28 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 
 	if isImage {
 		payload := map[string]interface{}{
-			"model":  info.UpstreamModelName,
-			"prompt": req.Prompt,
-			"n":      1,
+			"model":   info.UpstreamModelName,
+			"prompt":  req.Prompt,
+			"n":       1,
 		}
 
-		// 设置尺寸：优先用像素串（如果 req.Size 是像素格式），
-		// 否则把 aspectRatio 映射为像素尺寸；兜底 1:1
-		if req.Size != "" && strings.Contains(req.Size, "x") {
+		// 对齐 APIMart 官方格式：
+		//   size 字段传比例字符串（如 "16:9"）或像素尺寸（如 "1920x1080"）
+		//   resolution 字段传档位（"1k" / "2k" / "4k"）
+		// 优先用 aspectRatio（已收集到的比例），其次用 req.Size
+		if aspectRatio != "" {
+			payload["size"] = aspectRatio
+		} else if req.Size != "" {
 			payload["size"] = req.Size
-		} else if aspectRatio != "" {
-			payload["aspect_ratio"] = aspectRatio
-			payload["size"] = mapAspectRatioToPixelSize(aspectRatio)
 		} else {
-			payload["size"] = "1024x1024"
+			payload["size"] = "1:1"
 		}
 
 		if len(imageURLs) > 0 {
 			payload["image_urls"] = imageURLs
 		}
 
-		// Metadata overrides
+		// resolution：默认 1k
 		if req.Metadata != nil {
 			if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
 				payload["resolution"] = v
