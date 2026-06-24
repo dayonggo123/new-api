@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -38,10 +37,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
-		return err
-	}
-	return nil
+	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -141,6 +137,17 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if img, ok := bodyMap["image"].(string); ok && img != "" {
 		images = append(images, img)
 	}
+	// 兼容下游用 image_urls (URL 列表) 传参考图
+	if imageURLs, ok := bodyMap["image_urls"]; ok {
+		if urlList, ok := imageURLs.([]interface{}); ok {
+			for _, u := range urlList {
+				if s, ok := u.(string); ok && s != "" {
+					images = append(images, s)
+				}
+			}
+		}
+	}
+	common.SysLog(fmt.Sprintf("[ZhangyugeAI] images count: %d (from images/image/image_urls)", len(images)))
 
 	// Distinguish request format by model type
 	isGPTImage := strings.HasPrefix(model, "gpt-image-2")
