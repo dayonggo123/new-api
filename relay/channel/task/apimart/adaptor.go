@@ -330,8 +330,9 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context, baseURL stri
 	}
 
 	// ----- 文件字段（二进制图片）-----
-	// 下游 ewapi 使用 ref_images 作为文件字段名；同时兼容 images / files
-	fileFieldNames := []string{"ref_images", "images", "files"}
+	// 下游 Storyboard-Copilot 使用 image 作为文件字段名（/v1/images/edits 标准字段）
+	// 同时兼容 ref_images / images / files
+	fileFieldNames := []string{"image", "ref_images", "images", "files"}
 	for _, fieldName := range fileFieldNames {
 		fileHeaders, ok := formData.File[fieldName]
 		if !ok {
