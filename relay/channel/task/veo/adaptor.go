@@ -318,9 +318,15 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 						if k == "image_urls" {
 							continue
 						}
-						vs, err := common.Marshal(v)
-						if err == nil {
-							writer.WriteField(k, string(vs))
+						// string 值直接写（避免 Marshal 加额外引号），其他类型 JSON 序列化
+						switch val := v.(type) {
+						case string:
+							writer.WriteField(k, val)
+						default:
+							vs, err := common.Marshal(v)
+							if err == nil {
+								writer.WriteField(k, string(vs))
+							}
 						}
 					}
 
