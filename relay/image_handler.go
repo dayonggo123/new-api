@@ -23,7 +23,8 @@ import (
 
 func isTaskImageChannel(channelType int) bool {
 	switch channelType {
-	case constant.ChannelTypeAPIMart, constant.ChannelTypeDuoYuanTanSuo, constant.ChannelTypeZhangyuge:
+	case constant.ChannelTypeAPIMart, constant.ChannelTypeDuoYuanTanSuo, constant.ChannelTypeZhangyuge,
+		constant.ChannelTypeVeo: // GeminiGen: nano-banana / imagen 等图像模型也走异步 task 路径
 		return true
 	}
 	return false
