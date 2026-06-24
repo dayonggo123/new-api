@@ -2,9 +2,13 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -108,6 +112,61 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		req.ReferenceImages = refImages
 	}
 
+	// 新增：解析上传的文件（参考图），保存到 uploads/ 并填充 image_urls
+	uploadDir := "uploads"
+	os.MkdirAll(uploadDir, 0755)
+	var uploadedURLs []string
+	
+	// 使用与 apimart adaptor 相同的 base URL 逻辑
+	baseURL := ""
+	if common.ServerAddress != "" {
+		baseURL = strings.TrimRight(common.ServerAddress, "/")
+	} else {
+		baseURL = "http://107.191.43.227:3000"
+	}
+
+	// 遍历所有上传的文件
+	for fieldName, files := range c.Request.MultipartForm.File {
+		common.SysLog(fmt.Sprintf("[MULTIPART] field=%s files=%d", fieldName, len(files)))
+		for _, fileHeader := range files {
+			file, err := fileHeader.Open()
+			if err != nil {
+				common.SysLog(fmt.Sprintf("[MULTIPART] failed to open file %s: %v", fileHeader.Filename, err))
+				continue
+			}
+			content, err := io.ReadAll(file)
+			file.Close()
+			if err != nil {
+				common.SysLog(fmt.Sprintf("[MULTIPART] failed to read file %s: %v", fileHeader.Filename, err))
+				continue
+			}
+
+			// 生成文件名
+			ext := filepath.Ext(fileHeader.Filename)
+			if ext == "" {
+				ext = ".jpg"
+			}
+			filename := fmt.Sprintf("%s%s", common.GetUUID(), ext)
+			filePath := filepath.Join(uploadDir, filename)
+			
+			if err := os.WriteFile(filePath, content, 0644); err != nil {
+				common.SysLog(fmt.Sprintf("[MULTIPART] failed to save file %s: %v", filename, err))
+				continue
+			}
+
+			// 生成公网 URL
+			publicURL := fmt.Sprintf("%s/uploads/%s", baseURL, filename)
+			uploadedURLs = append(uploadedURLs, publicURL)
+			common.SysLog(fmt.Sprintf("[MULTIPART] saved file %s -> %s", fileHeader.Filename, publicURL))
+		}
+	}
+
+	// 把上传的文件 URL 填入 req.ImageURLs
+	if len(uploadedURLs) > 0 {
+		req.ImageURLs = uploadedURLs
+		common.SysLog(fmt.Sprintf("[MULTIPART] added %d file URLs to image_urls", len(uploadedURLs)))
+	}
+
 	for key, values := range formData {
 		if len(values) > 0 && !isKnownTaskField(key) {
 			if intVal, err := strconv.Atoi(values[0]); err == nil {
@@ -119,6 +178,11 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 			}
 		}
 	}
+	
+	// 调试日志：打印最终解析结果
+	common.SysLog(fmt.Sprintf("[MULTIPART] result: prompt=%q model=%q image=%q images=%d reference_images=%d image_urls=%d",
+		req.Prompt, req.Model, req.Image, len(req.Images), len(req.ReferenceImages), len(req.ImageURLs)))
+	
 	return req, nil
 }
 
