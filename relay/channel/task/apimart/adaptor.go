@@ -107,7 +107,7 @@ type videoCreateRequest struct {
 	// ---- Create Response ----
 
 type createResponse struct {
-	Code  string                   `json:"code"`
+	Code  int                   `json:"code"`
 	Data  []createResponseItem  `json:"data,omitempty"`
 	Error *apimartError         `json:"error,omitempty"`
 }
@@ -126,7 +126,7 @@ type apimartError struct {
 // ---- Query Response ----
 
 type queryResponse struct {
-	Code  string           `json:"code"`
+	Code  int             `json:"code"`
 	Data  *queryData    `json:"data,omitempty"`
 	Error *apimartError `json:"error,omitempty"`
 }
@@ -668,12 +668,8 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	if cResp.Code != "200" {
-		codeInt := 400
-		if c, err := strconv.Atoi(cResp.Code); err == nil {
-			codeInt = c
-		}
-		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("apimart returned code %s", cResp.Code), "upstream_error", codeInt)
+	if cResp.Code != 200 {
+		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("apimart returned code %d", cResp.Code), "upstream_error", cResp.Code)
 		return
 	}
 
