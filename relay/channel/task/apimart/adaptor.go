@@ -2,9 +2,11 @@ package apimart
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,6 +22,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	storage "github.com/QuantumNous/new-api/service/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -465,7 +468,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		imageURLs = []string{req.Image}
 	}
 
-	// APIMart 接受 http/https/asset:// URL 和 data: base64 URI
+	// APIMart 接受 http/https/asset:// URL；data: base64 URI 先上传到 R2 转成 URL
 	var validURLs []string
 	var droppedURLs []string
 	for _, url := range imageURLs {
@@ -473,8 +476,20 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "asset://") {
 			validURLs = append(validURLs, url)
 		} else if strings.HasPrefix(url, "data:") {
-			// data: URI 直接透传给上游（章鱼哥上游原生支持）
-			validURLs = append(validURLs, url)
+			// base64 data URI: upload to R2 first, then use the resulting URL
+			if !storage.R2Enabled() {
+				return nil, fmt.Errorf("reference image is base64 but R2 storage is not configured; please set R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY")
+			}
+			data, contentType, err := parseDataURL(url)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse base64 reference image: %w", err)
+			}
+			r2url, _, err := storage.UploadImageBytes(data, contentType)
+			if err != nil {
+				return nil, fmt.Errorf("failed to upload reference image to R2: %w", err)
+			}
+			apimartLog(fmt.Sprintf("[APIMart] reference image uploaded to R2: %s", r2url))
+			validURLs = append(validURLs, r2url)
 		} else {
 			droppedURLs = append(droppedURLs, url[:min(len(url), 80)])
 		}
@@ -814,4 +829,49 @@ func (a *TaskAdaptor) GetModelList() []string {
 
 func (a *TaskAdaptor) GetChannelName() string {
 	return "apimart"
+}
+
+// parseDataURL parses a data: URI and returns (decoded bytes, content type, error).
+func parseDataURL(s string) ([]byte, string, error) {
+	if !strings.HasPrefix(s, "data:") {
+		return nil, "", fmt.Errorf("not a data URL")
+	}
+	rest := s[len("data:"):]
+	idx := strings.Index(rest, ",")
+	if idx < 0 {
+		return nil, "", fmt.Errorf("invalid data URL: no comma")
+	}
+	mediaType := rest[:idx]
+	data := rest[idx+1:]
+
+	// check if base64 encoded
+	isBase64 := strings.HasSuffix(mediaType, ";base64")
+	if isBase64 {
+		mediaType = strings.TrimSuffix(mediaType, ";base64")
+	}
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+	}
+
+	if !isBase64 {
+		decoded, err := url.QueryUnescape(data)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to decode URL-encoded data: %w", err)
+		}
+		return []byte(decoded), mediaType, nil
+	}
+
+	// Remove whitespace that may be present in the base64 string
+	data = strings.ReplaceAll(data, "\n", "")
+	data = strings.ReplaceAll(data, "\r", "")
+	data = strings.ReplaceAll(data, " ", "")
+
+	decoded, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		decoded, err = base64.URLEncoding.DecodeString(data)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to decode base64: %w", err)
+		}
+	}
+	return decoded, mediaType, nil
 }
