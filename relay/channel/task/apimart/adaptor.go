@@ -104,10 +104,10 @@ type videoCreateRequest struct {
 	OfficialFallback bool     `json:"official_fallback,omitempty"`
 }
 
-// ---- Create Response ----
+	// ---- Create Response ----
 
 type createResponse struct {
-	Code  int                   `json:"code"`
+	Code  string                   `json:"code"`
 	Data  []createResponseItem  `json:"data,omitempty"`
 	Error *apimartError         `json:"error,omitempty"`
 }
@@ -118,7 +118,7 @@ type createResponseItem struct {
 }
 
 type apimartError struct {
-	Code    int    `json:"code"`
+	Code    string `json:"code"`
 	Message string `json:"message"`
 	Type    string `json:"type"`
 }
@@ -126,7 +126,7 @@ type apimartError struct {
 // ---- Query Response ----
 
 type queryResponse struct {
-	Code  int           `json:"code"`
+	Code  string           `json:"code"`
 	Data  *queryData    `json:"data,omitempty"`
 	Error *apimartError `json:"error,omitempty"`
 }
@@ -660,12 +660,20 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 
 	// Handle upstream error
 	if cResp.Error != nil {
-		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("apimart error: %s", cResp.Error.Message), cResp.Error.Type, cResp.Error.Code)
+		codeInt := 400
+		if c, err := strconv.Atoi(cResp.Error.Code); err == nil {
+			codeInt = c
+		}
+		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("apimart error: %s", cResp.Error.Message), cResp.Error.Type, codeInt)
 		return
 	}
 
-	if cResp.Code != 200 {
-		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("apimart returned code %d", cResp.Code), "upstream_error", cResp.Code)
+	if cResp.Code != "200" {
+		codeInt := 400
+		if c, err := strconv.Atoi(cResp.Code); err == nil {
+			codeInt = c
+		}
+		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("apimart returned code %s", cResp.Code), "upstream_error", codeInt)
 		return
 	}
 
