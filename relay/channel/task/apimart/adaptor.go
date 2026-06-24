@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,7 +24,6 @@ import (
 	storage "github.com/QuantumNous/new-api/service/storage"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -41,17 +39,6 @@ func apimartLog(s string) {
 
 var base64Pattern = regexp.MustCompile(`^[A-Za-z0-9+/]+={0,2}$`)
 
-func getBaseURL(c *gin.Context) string {
-	scheme := "https"
-	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	host := c.GetHeader("X-Forwarded-Host")
-	if host == "" {
-		host = c.Request.Host
-	}
-	return scheme + "://" + host
-}
 
 func extFromContentType(ct string) string {
 	switch strings.ToLower(ct) {
@@ -78,18 +65,6 @@ func extFromContentType(ct string) string {
 	}
 }
 
-func saveTempUpload(data []byte, ext string) (string, error) {
-	dir := "./uploads"
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
-	}
-	filename := fmt.Sprintf("%s.%s", uuid.New().String(), ext)
-	filePath := filepath.Join(dir, filename)
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		return "", err
-	}
-	return filename, nil
-}
 
 func looksLikeBase64(s string) bool {
 	if len(s) < 100 {
@@ -240,7 +215,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	// 下游改为 multipart/form-data + 二进制文件上传时的处理路径
 	if strings.Contains(contentType, "multipart/form-data") {
-		req, err := a.parseMultipartToTaskSubmitReq(c, getBaseURL(c))
+		req, err := a.parseMultipartToTaskSubmitReq(c)
 		if err != nil {
 			return nil, err
 		}
@@ -277,7 +252,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 // parseMultipartToTaskSubmitReq 从 multipart/form-data 请求中解析出 TaskSubmitReq。
 // 兼容下游 ewapi/client.rs 的新逻辑：文本字段 + 文件字段（ref_images）上传参考图。
-func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context, baseURL string) (relaycommon.TaskSubmitReq, error) {
+func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon.TaskSubmitReq, error) {
 	formData, err := common.ParseMultipartFormReusable(c)
 	if err != nil {
 		return relaycommon.TaskSubmitReq{}, err
@@ -338,6 +313,7 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context, baseURL stri
 		if !ok {
 			continue
 		}
+		apimartLog(fmt.Sprintf("[parseMultipart] found file field=%s, file count=%d", fieldName, len(fileHeaders)))
 		for _, fh := range fileHeaders {
 			f, err := fh.Open()
 			if err != nil {
@@ -358,17 +334,19 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context, baseURL stri
 			if ct == "" || ct == "application/octet-stream" {
 				ct = http.DetectContentType(data)
 			}
-			ext := extFromContentType(ct)
-			filename, err := saveTempUpload(data, ext)
+			// 把文件上传到 R2，拿到可访问的 URL
+			if !storage.R2Enabled() {
+				return relaycommon.TaskSubmitReq{}, fmt.Errorf("reference image file %s uploaded but R2 storage is not configured; please set R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY", fh.Filename)
+			}
+			r2url, _, err := storage.UploadImageBytes(data, ct)
 			if err != nil {
-				common.SysLog(fmt.Sprintf("[APIMart] failed to save upload file %s: %v", fh.Filename, err))
-				apimartLog(fmt.Sprintf("[APIMart] failed to save upload file %s: %v", fh.Filename, err))
+				common.SysLog(fmt.Sprintf("[APIMart] failed to upload file %s to R2: %v", fh.Filename, err))
+				apimartLog(fmt.Sprintf("[APIMart] failed to upload file %s to R2: %v", fh.Filename, err))
 				continue
 			}
-			url := baseURL + "/uploads/" + filename
-			req.ReferenceImages = append(req.ReferenceImages, url)
-			common.SysLog(fmt.Sprintf("[APIMart] multipart file %s -> local URL %s (%s, %d bytes)", fh.Filename, url, ct, len(data)))
-			apimartLog(fmt.Sprintf("[APIMart] multipart file %s -> local URL %s (%s, %d bytes)", fh.Filename, url, ct, len(data)))
+			req.ReferenceImages = append(req.ReferenceImages, r2url)
+			common.SysLog(fmt.Sprintf("[APIMart] multipart file %s -> R2 URL %s (%s, %d bytes)", fh.Filename, r2url, ct, len(data)))
+			apimartLog(fmt.Sprintf("[APIMart] multipart file %s -> R2 URL %s (%s, %d bytes)", fh.Filename, r2url, ct, len(data)))
 		}
 	}
 
@@ -503,6 +481,11 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 
 	apimartLog(fmt.Sprintf("[APIMart] image source: referenceImages=%d images=%d imageURLs=%d image=%q final=%d dropped=%d",
 		len(req.ReferenceImages), len(req.Images), len(req.ImageURLs), req.Image, len(imageURLs), len(droppedURLs)))
+
+	// 新增：如果最终 imageURLs 为空，记录警告
+	if len(imageURLs) == 0 {
+		apimartLog(fmt.Sprintf("[APIMart] WARNING: no valid reference images found! req=%+v", req))
+	}
 
 	// Collect aspect ratio from req.AspectRatio / metadata["aspect_ratio"] / req.Size
 	aspectRatio := ""

@@ -443,8 +443,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		needsFilesField := strings.HasPrefix(modelName, "grok-") || strings.HasPrefix(modelName, "nano-banana-") || modelName == "imagen-4"
 
 		// Handle ref_images and files (for reference images)
+		// Also accept "image" field (OpenAI /v1/images/edits standard field name)
 		for fieldName, fileHeaders := range formData.File {
-			if fieldName != "ref_images" && fieldName != "files" && fieldName != "ref_videos" && fieldName != "ref_audios" {
+			if fieldName != "ref_images" && fieldName != "files" && fieldName != "ref_videos" && fieldName != "ref_audios" && fieldName != "image" {
 				continue
 			}
 			for _, fh := range fileHeaders {
@@ -464,9 +465,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 					}
 				}
 
-				// grok / nano-banana / imagen-4: local images must use "files" field, not "ref_images".
+				// grok / nano-banana / imagen-4: local images must use "files" field, not "ref_images" / "image".
 				upstreamField := fieldName
-				if needsFilesField && fieldName == "ref_images" {
+				if needsFilesField && (fieldName == "ref_images" || fieldName == "image") {
 					upstreamField = "files"
 				}
 
