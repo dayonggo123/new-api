@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,8 +22,6 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
-	storage "github.com/QuantumNous/new-api/service/storage"
-
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
@@ -334,19 +333,42 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon
 			if ct == "" || ct == "application/octet-stream" {
 				ct = http.DetectContentType(data)
 			}
-			// 把文件上传到 R2，拿到可访问的 URL
-			if !storage.R2Enabled() {
-				return relaycommon.TaskSubmitReq{}, fmt.Errorf("reference image file %s uploaded but R2 storage is not configured; please set R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY", fh.Filename)
+			// 把文件保存到本地 uploads/ 目录，生成公网 URL
+			ext := filepath.Ext(fh.Filename)
+			if ext == "" {
+				ext = ".png"
+				if strings.Contains(ct, "jpeg") || strings.Contains(ct, "jpg") {
+					ext = ".jpg"
+				} else if strings.Contains(ct, "gif") {
+					ext = ".gif"
+				} else if strings.Contains(ct, "webp") {
+					ext = ".webp"
+				}
 			}
-			r2url, _, err := storage.UploadImageBytes(data, ct)
-			if err != nil {
-				common.SysLog(fmt.Sprintf("[APIMart] failed to upload file %s to R2: %v", fh.Filename, err))
-				apimartLog(fmt.Sprintf("[APIMart] failed to upload file %s to R2: %v", fh.Filename, err))
+			filename := fmt.Sprintf("ref_%d%s", time.Now().UnixNano(), ext)
+			filePath := filepath.Join("uploads", filename)
+			if err := os.MkdirAll("uploads", 0755); err != nil {
+				common.SysLog(fmt.Sprintf("[APIMart] failed to create uploads/ directory: %v", err))
+				apimartLog(fmt.Sprintf("[APIMart] failed to create uploads/ directory: %v", err))
 				continue
 			}
-			req.ReferenceImages = append(req.ReferenceImages, r2url)
-			common.SysLog(fmt.Sprintf("[APIMart] multipart file %s -> R2 URL %s (%s, %d bytes)", fh.Filename, r2url, ct, len(data)))
-			apimartLog(fmt.Sprintf("[APIMart] multipart file %s -> R2 URL %s (%s, %d bytes)", fh.Filename, r2url, ct, len(data)))
+			if err := os.WriteFile(filePath, data, 0644); err != nil {
+				common.SysLog(fmt.Sprintf("[APIMart] failed to save file %s to uploads/: %v", fh.Filename, err))
+				apimartLog(fmt.Sprintf("[APIMart] failed to save file %s to uploads/: %v", fh.Filename, err))
+				continue
+			}
+			// build public URL
+			uploadsPublicURL := os.Getenv("UPLOADS_PUBLIC_URL")
+			if uploadsPublicURL == "" {
+				uploadsPublicURL = "http://localhost:3000/uploads/"
+			}
+			if !strings.HasSuffix(uploadsPublicURL, "/") {
+				uploadsPublicURL += "/"
+			}
+			publicURL := uploadsPublicURL + filename
+			req.ReferenceImages = append(req.ReferenceImages, publicURL)
+			common.SysLog(fmt.Sprintf("[APIMart] multipart file %s -> local URL %s (%s, %d bytes)", fh.Filename, publicURL, ct, len(data)))
+			apimartLog(fmt.Sprintf("[APIMart] multipart file %s -> local URL %s (%s, %d bytes)", fh.Filename, publicURL, ct, len(data)))
 		}
 	}
 
@@ -455,20 +477,44 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 		if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "asset://") {
 			validURLs = append(validURLs, url)
 		} else if strings.HasPrefix(url, "data:") {
-			// base64 data URI: upload to R2 first, then use the resulting URL
-			if !storage.R2Enabled() {
-				return nil, fmt.Errorf("reference image is base64 but R2 storage is not configured; please set R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY")
-			}
+			// base64 data URI: save to local uploads/ directory, then use the public URL
 			data, contentType, err := parseDataURL(url)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse base64 reference image: %w", err)
+				droppedURLs = append(droppedURLs, fmt.Sprintf("data:URI(parse error: %s)", err.Error()))
+				continue
 			}
-			r2url, _, err := storage.UploadImageBytes(data, contentType)
-			if err != nil {
-				return nil, fmt.Errorf("failed to upload reference image to R2: %w", err)
+			// generate filename from content type
+			ext := ".png"
+			if strings.Contains(contentType, "jpeg") || strings.Contains(contentType, "jpg") {
+				ext = ".jpg"
+			} else if strings.Contains(contentType, "gif") {
+				ext = ".gif"
+			} else if strings.Contains(contentType, "webp") {
+				ext = ".webp"
 			}
-			apimartLog(fmt.Sprintf("[APIMart] reference image uploaded to R2: %s", r2url))
-			validURLs = append(validURLs, r2url)
+			filename := fmt.Sprintf("ref_%d%s", time.Now().UnixNano(), ext)
+			filePath := filepath.Join("uploads", filename)
+			// ensure uploads/ directory exists
+			if err := os.MkdirAll("uploads", 0755); err != nil {
+				droppedURLs = append(droppedURLs, fmt.Sprintf("data:URI(mkdir failed: %s)", err.Error()))
+				continue
+			}
+			if err := os.WriteFile(filePath, data, 0644); err != nil {
+				droppedURLs = append(droppedURLs, fmt.Sprintf("data:URI(write failed: %s)", err.Error()))
+				continue
+			}
+			// build public URL
+			uploadsPublicURL := os.Getenv("UPLOADS_PUBLIC_URL")
+			if uploadsPublicURL == "" {
+				uploadsPublicURL = "http://localhost:3000/uploads/"
+			}
+			// ensure uploadsPublicURL ends with /
+			if !strings.HasSuffix(uploadsPublicURL, "/") {
+				uploadsPublicURL += "/"
+			}
+			publicURL := uploadsPublicURL + filename
+			apimartLog(fmt.Sprintf("[APIMart] reference image saved locally: %s -> %s", filePath, publicURL))
+			validURLs = append(validURLs, publicURL)
 		} else {
 			droppedURLs = append(droppedURLs, url[:min(len(url), 80)])
 		}
