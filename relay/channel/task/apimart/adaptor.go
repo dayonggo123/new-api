@@ -508,28 +508,24 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 			"n":       1,
 		}
 
-		// 对齐 APIMart 官方格式：
-		//   size 字段传比例字符串（如 "16:9"）或像素尺寸（如 "1920x1080"）
-		//   resolution 字段传档位（"1k" / "2k" / "4k"）
-		// 优先用 aspectRatio（已收集到的比例），其次用 req.Size
-		if aspectRatio != "" {
-			payload["size"] = aspectRatio
-		} else if req.Size != "" {
+		// size 字段：传像素尺寸（如 "1024x1024"），直接使用 req.Size
+		// 这是 APIMart 实际接受的格式（参考成功 payload）
+		if req.Size != "" {
 			payload["size"] = req.Size
 		} else {
-			payload["size"] = "1:1"
+			payload["size"] = "1024x1024"
 		}
 
-		if len(imageURLs) > 0 {
-			payload["image_urls"] = imageURLs
+		// aspect_ratio：传比例字符串（如 "1:1"），供上游参考
+		if aspectRatio != "" {
+			payload["aspect_ratio"] = aspectRatio
 		}
 
-		// resolution：默认 1k
+		// resolution：传档位（"1k" / "2k" / "4k"）
+		resolution := "1k"
 		if req.Metadata != nil {
 			if v, ok := req.Metadata["resolution"].(string); ok && v != "" {
-				payload["resolution"] = v
-			} else {
-				payload["resolution"] = "1k"
+				resolution = v
 			}
 			if v, ok := req.Metadata["n"].(float64); ok {
 				payload["n"] = int(v)
@@ -537,8 +533,30 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 			if v, ok := req.Metadata["official_fallback"].(bool); ok {
 				payload["official_fallback"] = v
 			}
+		}
+		payload["resolution"] = resolution
+
+		// actual_image_count：实际生成张数
+		if nVal, ok := payload["n"].(int); ok {
+			payload["actual_image_count"] = nVal
 		} else {
-			payload["resolution"] = "1k"
+			payload["actual_image_count"] = 1
+		}
+
+		// effective_resolution：根据 resolution 档位填充
+		effectiveRes := map[string]string{
+			"1k": "1K",
+			"2k": "2K",
+			"4k": "4K",
+		}
+		if v, ok := effectiveRes[resolution]; ok {
+			payload["effective_resolution"] = v
+		} else {
+			payload["effective_resolution"] = "1K"
+		}
+
+		if len(imageURLs) > 0 {
+			payload["image_urls"] = imageURLs
 		}
 
 		body, _ := common.Marshal(payload)

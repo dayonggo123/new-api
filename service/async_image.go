@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,6 +57,15 @@ func SetAsyncImageTaskUpstreamID(taskID, upstreamID string) {
 	if task, ok := asyncImageTasks[taskID]; ok {
 		task.UpstreamTaskID = upstreamID
 	}
+
+	// Also persist to DB so recovery after restart has the UpstreamTaskID
+	var dbTask model.Task
+	if err := model.DB.Where("task_id = ?", taskID).First(&dbTask).Error; err == nil {
+		dbTask.PrivateData.UpstreamTaskID = upstreamID
+		if err := model.DB.Model(&dbTask).Update("private_data", dbTask.PrivateData).Error; err != nil {
+			common.SysError(fmt.Sprintf("[SetAsyncImageTaskUpstreamID] failed to persist to DB: %v", err))
+		}
+	}
 }
 
 func cleanupExpiredAsyncImageTasksLocked() {
@@ -67,11 +77,28 @@ func cleanupExpiredAsyncImageTasksLocked() {
 }
 
 func GetAsyncImageTask(taskID string) *AsyncImageTask {
+	// Fast path: check in-memory map
 	asyncImageTasksMu.RLock()
-	defer asyncImageTasksMu.RUnlock()
 	task := asyncImageTasks[taskID]
-	if task != nil && time.Since(task.CreatedAt) > asyncTaskTTL {
-		return nil
+	asyncImageTasksMu.RUnlock()
+	if task != nil {
+		if time.Since(task.CreatedAt) > asyncTaskTTL {
+			common.SysLog(fmt.Sprintf("[GetAsyncImageTask] task %s expired, removing", taskID))
+			asyncImageTasksMu.Lock()
+			delete(asyncImageTasks, taskID)
+			asyncImageTasksMu.Unlock()
+			return nil
+		}
+		return task
+	}
+
+	// Slow path: try to recover from DB (handles New-API restart)
+	task = RecoverAsyncImageTaskFromDB(taskID)
+	if task != nil {
+		common.SysLog(fmt.Sprintf("[GetAsyncImageTask] recovered task %s from DB", taskID))
+		asyncImageTasksMu.Lock()
+		asyncImageTasks[taskID] = task
+		asyncImageTasksMu.Unlock()
 	}
 	return task
 }
@@ -88,9 +115,9 @@ func StoreAsyncImageTask(task *AsyncImageTask) {
 // Returns nil if the task is not found or the channel is not found.
 func RecoverAsyncImageTaskFromDB(taskID string) *AsyncImageTask {
 	var dbTask model.Task
-	err := model.DB.Where("id = ?", taskID).First(&dbTask).Error
+	err := model.DB.Where("task_id = ?", taskID).First(&dbTask).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			common.SysLog(fmt.Sprintf("[RecoverAsyncImageTaskFromDB] task %s not found in DB", taskID))
 		} else {
 			common.SysError(fmt.Sprintf("[RecoverAsyncImageTaskFromDB] DB error for task %s: %v", taskID, err))
@@ -98,19 +125,25 @@ func RecoverAsyncImageTaskFromDB(taskID string) *AsyncImageTask {
 		return nil
 	}
 
-	channel, err := model.GetChannelById(dbTask.ChannelID, true)
+	channel, err := model.GetChannelById(dbTask.ChannelId, true)
 	if err != nil {
-		common.SysError(fmt.Sprintf("[RecoverAsyncImageTaskFromDB] channel %d not found for task %s: %v", dbTask.ChannelID, taskID, err))
+		common.SysError(fmt.Sprintf("[RecoverAsyncImageTaskFromDB] channel %d not found for task %s: %v", dbTask.ChannelId, taskID, err))
 		return nil
+	}
+
+	// channel.BaseURL is *string
+	channelBaseURL := ""
+	if channel.BaseURL != nil {
+		channelBaseURL = *channel.BaseURL
 	}
 
 	task := &AsyncImageTask{
 		TaskID:      taskID,
-		ChannelURL:  channel.BaseURL,
+		ChannelURL:  channelBaseURL,
 		ChannelKey:  channel.Key,
 		ChannelType: channel.Type,
 		ModelName:   dbTask.Properties.OriginModelName,
-		CreatedAt:   dbTask.CreatedAt,
+		CreatedAt:   time.Unix(dbTask.CreatedAt, 0),
 	}
 
 	// Extract UpstreamTaskID from PrivateData
@@ -119,9 +152,9 @@ func RecoverAsyncImageTaskFromDB(taskID string) *AsyncImageTask {
 	}
 
 	// Also extract from request_payload if available
-	if dbTask.PrivateData.RequestPayload != nil && task.UpstreamTaskID == "" {
+	if dbTask.PrivateData.RequestPayload != "" && task.UpstreamTaskID == "" {
 		var payloadMap map[string]interface{}
-		if err := json.Unmarshal(dbTask.PrivateData.RequestPayload, &payloadMap); err == nil {
+		if err := json.Unmarshal([]byte(dbTask.PrivateData.RequestPayload), &payloadMap); err == nil {
 			// Try to find upstream task ID in the payload
 			// (this is channel-specific, may not always work)
 		}
