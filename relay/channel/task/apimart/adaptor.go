@@ -169,17 +169,17 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
+	// 使用 ValidateMultipartDirect 代替 ValidateBasicTaskRequest，
+	// 避免 c.MultipartForm() 提前消费 multipart body，导致后续 ParseMultipartFormReusable 解析不到文件
+	if err := relaycommon.ValidateMultipartDirect(c, info); err != nil {
 		return err
 	}
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return service.TaskErrorWrapper(err, "get_task_request_failed", http.StatusBadRequest)
-	}
-	info.Action = constant.TaskActionGenerate
-	if metaAction, ok := req.Metadata["action"]; ok {
-		if actionStr, ok := metaAction.(string); ok && actionStr != "" {
-			info.Action = actionStr
+	if req, err := relaycommon.GetTaskRequest(c); err == nil {
+		info.Action = constant.TaskActionGenerate
+		if metaAction, ok := req.Metadata["action"]; ok {
+			if actionStr, ok := metaAction.(string); ok && actionStr != "" {
+				info.Action = actionStr
+			}
 		}
 	}
 	return nil
