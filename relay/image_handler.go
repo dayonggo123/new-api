@@ -80,8 +80,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		info.OriginModelName = info.OriginModelName[idx+1:]
 	}
 
-	// 对于 APIMart/DuoYuanTanSuo 的 gpt-image 模型，走 task 流程
-	if isTaskImageChannel(info.ChannelType) && strings.HasPrefix(info.OriginModelName, "gpt-image") {
+	// 对于 APIMart/DuoYuanTanSuo/GeminiGen 的 task 模型，走 task 异步流程
+	// gpt-image (APIMart) 和 nano-banana (GeminiGen/Veo) 都走 task 路径
+	if isTaskImageChannel(info.ChannelType) &&
+		(strings.HasPrefix(info.OriginModelName, "gpt-image") ||
+			strings.HasPrefix(info.OriginModelName, "nano-banana-")) {
 		return handleTaskImageRelay(c, info)
 	}
 
