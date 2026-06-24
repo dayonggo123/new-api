@@ -192,6 +192,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 	common.SysLog(fmt.Sprintf("[ZhangyugeAI] upstream request body: %s", string(jsonData)))
+	c.Set("apimart_request_body", string(jsonData))
 	return bytes.NewReader(jsonData), nil
 }
 

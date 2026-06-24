@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,6 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"gorm.io/gorm"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
@@ -71,7 +76,59 @@ func GetAsyncImageTask(taskID string) *AsyncImageTask {
 	return task
 }
 
-// PollAsyncImageTask queries the upstream for the async image task status.
+// StoreAsyncImageTask stores a task directly into the in-memory map.
+// Used for recovering tasks from DB after a restart.
+func StoreAsyncImageTask(task *AsyncImageTask) {
+	asyncImageTasksMu.Lock()
+	defer asyncImageTasksMu.Unlock()
+	asyncImageTasks[task.TaskID] = task
+}
+
+// RecoverAsyncImageTaskFromDB attempts to reconstruct an AsyncImageTask from the database.
+// Returns nil if the task is not found or the channel is not found.
+func RecoverAsyncImageTaskFromDB(taskID string) *AsyncImageTask {
+	var dbTask model.Task
+	err := model.DB.Where("id = ?", taskID).First(&dbTask).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			common.SysLog(fmt.Sprintf("[RecoverAsyncImageTaskFromDB] task %s not found in DB", taskID))
+		} else {
+			common.SysError(fmt.Sprintf("[RecoverAsyncImageTaskFromDB] DB error for task %s: %v", taskID, err))
+		}
+		return nil
+	}
+
+	channel, err := model.GetChannelById(dbTask.ChannelID, true)
+	if err != nil {
+		common.SysError(fmt.Sprintf("[RecoverAsyncImageTaskFromDB] channel %d not found for task %s: %v", dbTask.ChannelID, taskID, err))
+		return nil
+	}
+
+	task := &AsyncImageTask{
+		TaskID:      taskID,
+		ChannelURL:  channel.BaseURL,
+		ChannelKey:  channel.Key,
+		ChannelType: channel.Type,
+		ModelName:   dbTask.Properties.OriginModelName,
+		CreatedAt:   dbTask.CreatedAt,
+	}
+
+	// Extract UpstreamTaskID from PrivateData
+	if dbTask.PrivateData.UpstreamTaskID != "" {
+		task.UpstreamTaskID = dbTask.PrivateData.UpstreamTaskID
+	}
+
+	// Also extract from request_payload if available
+	if dbTask.PrivateData.RequestPayload != nil && task.UpstreamTaskID == "" {
+		var payloadMap map[string]interface{}
+		if err := json.Unmarshal(dbTask.PrivateData.RequestPayload, &payloadMap); err == nil {
+			// Try to find upstream task ID in the payload
+			// (this is channel-specific, may not always work)
+		}
+	}
+
+	return task
+}
 func PollAsyncImageTask(task *AsyncImageTask) ([]byte, int, error) {
 	queryID := task.TaskID
 	if task.UpstreamTaskID != "" {
@@ -79,7 +136,7 @@ func PollAsyncImageTask(task *AsyncImageTask) ([]byte, int, error) {
 	}
 	var upstreamURL string
 	switch task.ChannelType {
-	case 60, 61: // DuoYuanTanSuo, APIMart
+	case 60, 61, 64: // DuoYuanTanSuo, APIMart, 章鱼哥
 		upstreamURL = fmt.Sprintf("%s/v1/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), queryID)
 	default:
 		upstreamURL = fmt.Sprintf("%s/v1/images/tasks/%s", strings.TrimSuffix(task.ChannelURL, "/"), queryID)

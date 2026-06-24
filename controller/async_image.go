@@ -19,8 +19,15 @@ func AsyncImageTaskFetch(c *gin.Context) {
 
 	task := service.GetAsyncImageTask(taskID)
 	if task == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "task not found or expired"})
-		return
+		// New-API 重启后内存丢失，尝试从 DB 恢复
+		common.SysLog(fmt.Sprintf("[AsyncImageTaskFetch] task %s not in memory, trying DB recovery", taskID))
+		task = service.RecoverAsyncImageTaskFromDB(taskID)
+		if task == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "task not found or expired"})
+			return
+		}
+		service.StoreAsyncImageTask(task)
+		common.SysLog(fmt.Sprintf("[AsyncImageTaskFetch] task %s recovered from DB, channelType=%d, upstreamTaskID=%s", taskID, task.ChannelType, task.UpstreamTaskID))
 	}
 
 	body, statusCode, err := service.PollAsyncImageTask(task)
@@ -32,8 +39,8 @@ func AsyncImageTaskFetch(c *gin.Context) {
 	// Try to parse JSON and rewrite image URLs with proxy
 	var result map[string]any
 	if err := common.Unmarshal(body, &result); err == nil {
-		// APIMart / DuoYuanTanSuo 查询响应转换为 OpenAI Video 格式
-		if task.ChannelType == constant.ChannelTypeAPIMart || task.ChannelType == constant.ChannelTypeDuoYuanTanSuo {
+		// APIMart / DuoYuanTanSuo / 章鱼哥 查询响应转换为 OpenAI Video 格式
+		if task.ChannelType == constant.ChannelTypeAPIMart || task.ChannelType == constant.ChannelTypeDuoYuanTanSuo || task.ChannelType == constant.ChannelTypeZhangyuge {
 			result = convertTaskQueryToOpenAIVideo(result, task.TaskID)
 		}
 		rewriteImageURLsInResponse(result, c)
