@@ -128,7 +128,7 @@ var ChannelBaseURLs = []string{
 	"https://api.geminigen.ai",                  //58
 	"https://api.lk888.ai",                      //59
 	"",                                          //60
-	"",                                          //61
+	"https://api.apimart.ai",                    //61 APIMart
 	"https://nb.gettoken.cn/openapi",            //62
 	"https://gaorui.cc",                         //63
 	"",                                          //64
