@@ -2,11 +2,13 @@ package controller
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -61,6 +63,10 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if strings.HasPrefix(modelName, "gpt-image") || strings.HasPrefix(modelName, "dall-e") ||
 		strings.Contains(modelName, "imagen") || strings.Contains(modelName, "nano-banana") {
 		return string(constant.EndpointTypeImageGeneration)
+	}
+	// 音频转录模型自动检测
+	if strings.HasPrefix(strings.ToLower(modelName), "whisper-") {
+		return string(constant.EndpointTypeAudioTranscription)
 	}
 	// Gemini 渠道自动检测
 	if channel != nil && channel.Type == constant.ChannelTypeGemini {
@@ -187,6 +193,27 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		Header: make(http.Header),
 	}
 
+	// 为音频转录测试构造 multipart 请求体（含测试音频文件）
+	if requestPath == "/v1/audio/transcriptions" {
+		audioBody, contentType, err := buildAudioTranscriptionTestBody(testModel)
+		if err != nil {
+			return testResult{
+				localErr:    fmt.Errorf("failed to build audio transcription test body: %w", err),
+				newAPIError: types.NewError(err, types.ErrorCodeInvalidRequest),
+			}
+		}
+		storage, err := common.CreateBodyStorage(audioBody)
+		if err != nil {
+			return testResult{
+				localErr:    fmt.Errorf("failed to create body storage: %w", err),
+				newAPIError: types.NewError(err, types.ErrorCodeInvalidRequest),
+			}
+		}
+		c.Set(common.KeyBodyStorage, storage)
+		c.Request.Body = io.NopCloser(bytes.NewReader(audioBody))
+		c.Request.Header.Set("Content-Type", contentType)
+	}
+
 	cache, err := model.GetUserCache(1)
 	if err != nil {
 		return testResult{
@@ -236,6 +263,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			relayFormat = types.RelayFormatEmbedding
 		case constant.EndpointTypeOpenAIVideo:
 			relayFormat = types.RelayFormatOpenAIImage
+		case constant.EndpointTypeAudioTranscription:
+			relayFormat = types.RelayFormatOpenAIAudio
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
@@ -491,6 +520,17 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
+	case relayconstant.RelayModeAudioTranscription:
+		// 音频转录请求
+		if audioReq, ok := request.(*dto.AudioRequest); ok {
+			convertedRequest, err = adaptor.ConvertAudioRequest(c, info, *audioReq)
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid audio request type"),
+				newAPIError: types.NewError(errors.New("invalid audio request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
 	default:
 		// Chat/Completion 等其他请求类型
 		if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
@@ -547,22 +587,69 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 	}
 
-	requestBody := bytes.NewBuffer(jsonData)
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
+	var requestBody *bytes.Buffer
+	isAudioTranscriptionTest := info.RelayMode == relayconstant.RelayModeAudioTranscription
+	if isAudioTranscriptionTest {
+		// 音频转录请求体已是 multipart Buffer，直接使用
+		if multipartBuf, ok := convertedRequest.(*bytes.Buffer); ok {
+			requestBody = multipartBuf
+			c.Request.Body = io.NopCloser(bytes.NewReader(multipartBuf.Bytes()))
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid audio transcription request body"),
+				newAPIError: types.NewError(errors.New("invalid audio transcription request body"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+	} else {
+		jsonData, err := common.Marshal(convertedRequest)
+		if err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewError(err, types.ErrorCodeJsonMarshalFailed),
+			}
+		}
+
+		if len(info.ParamOverride) > 0 {
+			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			if err != nil {
+				if fixedErr, ok := relaycommon.AsParamOverrideReturnError(err); ok {
+					return testResult{
+						context:     c,
+						localErr:    fixedErr,
+						newAPIError: relaycommon.NewAPIErrorFromParamOverride(fixedErr),
+					}
+				}
+				return testResult{
+					context:     c,
+					localErr:    err,
+					newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid),
+				}
+			}
+		}
+
+		requestBody = bytes.NewBuffer(jsonData)
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
+	}
+
 	// For OpenAIVideo GeminiGen channel test, extract real boundary from multipart body and call DoFormRequestWithContentType
 	isOpenAIVideoTest := info.RelayMode == relayconstant.RelayModeVideoSubmit && (info.ChannelType == constant.ChannelTypeVeo || info.ChannelType == constant.ChannelTypeWanXiangAI || info.ChannelType == constant.ChannelTypeGetToken || isWanXiangMedia)
+	isMultipartTest := isAudioTranscriptionTest || isOpenAIVideoTest
 	var resp any
-	if isOpenAIVideoTest {
+	if isMultipartTest {
 		if multipartBuf, ok := convertedRequest.(*bytes.Buffer); ok {
 			contentType := extractMultipartContentType(multipartBuf)
-			// Log what we're about to send
-			fullURL, _ := adaptor.GetRequestURL(info)
-			common.SysLog(fmt.Sprintf("veo test: URL=%s CT=%s Model=%s UpstreamModel=%s ApiKey=%s BodyLen=%d",
-				fullURL, contentType, info.OriginModelName, info.UpstreamModelName, info.ApiKey, multipartBuf.Len()))
+			if isOpenAIVideoTest {
+				// Log what we're about to send
+				fullURL, _ := adaptor.GetRequestURL(info)
+				common.SysLog(fmt.Sprintf("veo test: URL=%s CT=%s Model=%s UpstreamModel=%s ApiKey=%s BodyLen=%d",
+					fullURL, contentType, info.OriginModelName, info.UpstreamModelName, info.ApiKey, multipartBuf.Len()))
 				common.SysLog(fmt.Sprintf("veo test body: %q", multipartBuf.String()))
+			}
 			resp, err = relaychannel.DoFormRequestWithContentType(adaptor, c, info, multipartBuf, contentType)
 		} else {
-			common.SysLog(fmt.Sprintf("veo test: convertedRequest type=%T, using DoRequest", convertedRequest))
+			common.SysLog(fmt.Sprintf("multipart test: convertedRequest type=%T, using DoRequest", convertedRequest))
 			resp, err = adaptor.DoRequest(c, info, requestBody)
 		}
 	} else {
@@ -811,6 +898,12 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Prompt: "a beautiful sunset over ocean",
 				N:      lo.ToPtr(uint(1)),
 				Size:   "1280x720",
+			}
+		case constant.EndpointTypeAudioTranscription:
+			// 返回 AudioRequest（实际文件在 testChannel 中构造为 multipart）
+			return &dto.AudioRequest{
+				Model:          model,
+				ResponseFormat: "json",
 			}
 		case constant.EndpointTypeJinaRerank:
 			// 返回 RerankRequest
@@ -1094,6 +1187,64 @@ func AutomaticallyTestChannels() {
 			}
 		}
 	})
+}
+
+// generateTestWAV 生成一个极小的有效 WAV 文件（1 秒静音，16kHz，单声道，16bit），
+// 用于渠道模型测试中的音频转录接口。
+func generateTestWAV() []byte {
+	sampleRate := 16000
+	numChannels := 1
+	bitsPerSample := 16
+	durationSeconds := 1
+	byteRate := sampleRate * numChannels * bitsPerSample / 8
+	blockAlign := numChannels * bitsPerSample / 8
+	dataSize := sampleRate * durationSeconds * blockAlign
+	fileSize := 36 + dataSize
+
+	buf := new(bytes.Buffer)
+	_ = binary.Write(buf, binary.LittleEndian, []byte("RIFF"))
+	_ = binary.Write(buf, binary.LittleEndian, uint32(fileSize))
+	_ = binary.Write(buf, binary.LittleEndian, []byte("WAVE"))
+	_ = binary.Write(buf, binary.LittleEndian, []byte("fmt "))
+	_ = binary.Write(buf, binary.LittleEndian, uint32(16))       // Subchunk1Size
+	_ = binary.Write(buf, binary.LittleEndian, uint16(1))        // AudioFormat PCM
+	_ = binary.Write(buf, binary.LittleEndian, uint16(numChannels))
+	_ = binary.Write(buf, binary.LittleEndian, uint32(sampleRate))
+	_ = binary.Write(buf, binary.LittleEndian, uint32(byteRate))
+	_ = binary.Write(buf, binary.LittleEndian, uint16(blockAlign))
+	_ = binary.Write(buf, binary.LittleEndian, uint16(bitsPerSample))
+	_ = binary.Write(buf, binary.LittleEndian, []byte("data"))
+	_ = binary.Write(buf, binary.LittleEndian, uint32(dataSize))
+	// 静音 PCM 数据
+	buf.Write(make([]byte, dataSize))
+	return buf.Bytes()
+}
+
+// buildAudioTranscriptionTestBody 构造包含测试音频文件的 multipart/form-data 请求体。
+func buildAudioTranscriptionTestBody(model string) ([]byte, string, error) {
+	audioData := generateTestWAV()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("model", model); err != nil {
+		return nil, "", err
+	}
+	if err := writer.WriteField("language", "zh"); err != nil {
+		return nil, "", err
+	}
+	if err := writer.WriteField("response_format", "json"); err != nil {
+		return nil, "", err
+	}
+	part, err := writer.CreateFormFile("file", "test.wav")
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := part.Write(audioData); err != nil {
+		return nil, "", err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+	return body.Bytes(), writer.FormDataContentType(), nil
 }
 
 // extractMultipartContentType scans the multipart body for the boundary value
