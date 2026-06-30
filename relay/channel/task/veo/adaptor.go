@@ -135,6 +135,108 @@ func isImageURL(url string) bool {
 		strings.HasSuffix(lower, ".heic") || strings.HasSuffix(lower, ".heif")
 }
 
+// isTaskImageGenerationModel 判断当前模型是否走 GeminiGen 图片生成任务路径。
+// 这些模型的上游端点（如 /uapi/v1/generate_image）要求 multipart/form-data，
+// 直接把 JSON body 转发过去会导致 [INVALID_INPUT] Invalid input field: ('body', 'prompt')。
+func isTaskImageGenerationModel(model string) bool {
+	switch {
+	case strings.HasPrefix(model, "nano-banana-"):
+		return true
+	case strings.HasPrefix(model, "grok-image"):
+		return true
+	case model == "imagen-4":
+		return true
+	case model == "meta-ai-image":
+		return true
+	}
+	return false
+}
+
+// mapSizeToResolutionForImage 把 OpenAI 风格的 size 映射为 GeminiGen 图片模型可识别的 resolution。
+func mapSizeToResolutionForImage(size string) string {
+	switch {
+	case strings.HasPrefix(size, "480"):
+		return "1K"
+	case strings.HasPrefix(size, "720"):
+		return "1K"
+	case strings.HasPrefix(size, "1080"):
+		return "2K"
+	case strings.Contains(size, "x"):
+		return "1K"
+	case strings.HasPrefix(size, "1K"), strings.HasPrefix(size, "2K"), strings.HasPrefix(size, "4K"):
+		return size
+	default:
+		return size
+	}
+}
+
+// mapSizeToAspectRatio 从 "1024x1024" 这类像素尺寸推断常见宽高比。
+func mapSizeToAspectRatio(size string) string {
+	parts := strings.Split(size, "x")
+	if len(parts) != 2 {
+		return ""
+	}
+	w, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+	h, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err1 != nil || err2 != nil || h == 0 {
+		return ""
+	}
+	ratio := float64(w) / float64(h)
+	switch {
+	case ratio > 1.3:
+		return "16:9"
+	case ratio < 0.8:
+		return "9:16"
+	default:
+		return "1:1"
+	}
+}
+
+// buildMultipartFromMap 把 JSON 字段转换为 GeminiGen 图片生成上游需要的 multipart body。
+func buildMultipartFromMap(bodyMap map[string]interface{}) (io.Reader, string, error) {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	if prompt, ok := bodyMap["prompt"].(string); ok {
+		writer.WriteField("prompt", prompt)
+	}
+	if model, ok := bodyMap["model"].(string); ok {
+		writer.WriteField("model", model)
+	}
+
+	// 优先使用显式字段
+	if ar, ok := bodyMap["aspect_ratio"].(string); ok && ar != "" {
+		writer.WriteField("aspect_ratio", ar)
+	}
+	if res, ok := bodyMap["resolution"].(string); ok && res != "" {
+		writer.WriteField("resolution", res)
+	}
+	if modeImage, ok := bodyMap["mode_image"].(string); ok && modeImage != "" {
+		writer.WriteField("mode_image", modeImage)
+	}
+	if mode, ok := bodyMap["mode"].(string); ok && mode != "" {
+		writer.WriteField("mode", mode)
+	}
+
+	// 从 size 派生 resolution/aspect_ratio（仅当没有显式值时）
+	if size, ok := bodyMap["size"].(string); ok && size != "" {
+		if _, hasRes := bodyMap["resolution"].(string); !hasRes {
+			writer.WriteField("resolution", mapSizeToResolutionForImage(size))
+		}
+		if _, hasAR := bodyMap["aspect_ratio"].(string); !hasAR {
+			if ar := mapSizeToAspectRatio(size); ar != "" {
+				writer.WriteField("aspect_ratio", ar)
+			}
+		}
+	}
+
+	err := writer.Close()
+	if err != nil {
+		return nil, "", err
+	}
+	return &buf, writer.FormDataContentType(), nil
+}
+
 type veoParameters struct {
 	Prompt       string   `json:"prompt,omitempty"`
 	Model        string   `json:"model,omitempty"`
@@ -352,6 +454,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				}
 			}
 
+			// GeminiGen 图片生成模型（nano-banana 等）的上游 /uapi/v1/generate_image
+			// 要求 multipart/form-data，不能把 JSON 原样转发。
+			if isTaskImageGenerationModel(info.UpstreamModelName) {
+				body, contentType, err := buildMultipartFromMap(bodyMap)
+				if err == nil {
+					c.Request.Header.Set("Content-Type", contentType)
+					return body, nil
+				}
+			}
+
 			// 没有 image_urls 或下载失败，原样转发（只替换 model）
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
@@ -376,6 +488,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 					}
 				}
 			}
+
+			// 图片生成模型的渠道测试同样需要转 multipart
+			if isTaskImageGenerationModel(info.UpstreamModelName) {
+				body, contentType, err := buildMultipartFromMap(bodyMap)
+				if err == nil {
+					c.Request.Header.Set("Content-Type", contentType)
+					return body, nil
+				}
+			}
+
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}
