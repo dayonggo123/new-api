@@ -31,6 +31,7 @@ import SettingsSigninPoints from '../../pages/Setting/Operation/SettingsSigninPo
 import SettingsSEO from '../../pages/Setting/Operation/SettingsSEO';
 import SettingsTranslate from '../../pages/Setting/Operation/SettingsTranslate';
 import SettingsImageAI from '../../pages/Setting/Operation/SettingsImageAI';
+import SettingsEchotik from '../../pages/Setting/Operation/SettingsEchotik';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -170,6 +171,10 @@ const OperationSetting = () => {
         {/* 图片 AI 设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsImageAI options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* EchoTik 设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsEchotik options={inputs} refresh={onRefresh} />
         </Card>
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>

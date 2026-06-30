@@ -574,6 +574,10 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/releases/latest.json", controller.GetLatestReleaseJSON)
 		apiRouter.GET("/public/releases/download/:platform/:arch", controller.DownloadAppRelease)
 
+		// EchoTik proxy routes (token auth)
+		apiRouter.GET("/public/echotik/video/ranklist", middleware.TokenAuthReadOnly(), controller.EchotikVideoRanklist)
+		apiRouter.GET("/admin/echotik/status", middleware.AdminAuth(), controller.EchotikSettingStatus)
+
 		// App Release Admin Routes
 		apiRouter.GET("/admin/releases", middleware.AdminAuth(), controller.GetAllAppReleases)
 		apiRouter.POST("/admin/releases", middleware.AdminAuth(), controller.UploadAppRelease)
