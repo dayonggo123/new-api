@@ -578,6 +578,10 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/echotik/video/ranklist", middleware.TokenAuthReadOnly(), controller.EchotikVideoRanklist)
 		apiRouter.GET("/admin/echotik/status", middleware.AdminAuth(), controller.EchotikSettingStatus)
 
+		// Whisper proxy routes (token auth)
+		apiRouter.POST("/public/audio/transcriptions", middleware.TokenAuthReadOnly(), controller.WhisperTranscriptions)
+		apiRouter.GET("/admin/whisper/status", middleware.AdminAuth(), controller.WhisperSettingStatus)
+
 		// App Release Admin Routes
 		apiRouter.GET("/admin/releases", middleware.AdminAuth(), controller.GetAllAppReleases)
 		apiRouter.POST("/admin/releases", middleware.AdminAuth(), controller.UploadAppRelease)
