@@ -132,6 +132,10 @@ func main() {
 	// SEO keyword auto-update task (fetch Google Suggest trends daily)
 	service.StartSEOKeywordUpdateTask()
 
+	// EchoTik video ranklist cache sync and cleanup tasks
+	service.StartEchotikRanklistSyncTask()
+	service.StartEchotikRanklistCleanupTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

@@ -311,6 +311,7 @@ func migrateDB() error {
 		&SEOOptimizationQueueItem{},
 		&Popup{},
 		&MarketingBanner{},
+		&EchotikVideoRanklistSnapshot{},
 	)
 	if err != nil {
 		return err
