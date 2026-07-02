@@ -1,6 +1,8 @@
 package model_setting
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -66,6 +68,8 @@ func GetGeminiVersionSetting(key string) string {
 	return geminiSettings.VersionSettings["default"]
 }
 
+// IsGeminiModelSupportImagine reports whether a model is explicitly configured as
+// a Gemini image generation model.
 func IsGeminiModelSupportImagine(model string) bool {
 	for _, v := range geminiSettings.SupportedImagineModels {
 		if v == model {
@@ -73,4 +77,35 @@ func IsGeminiModelSupportImagine(model string) bool {
 		}
 	}
 	return false
+}
+
+// IsGeminiNativeImageModel reports whether the model name matches the Gemini
+// native image generation suffix pattern.
+func IsGeminiNativeImageModel(model string) bool {
+	if model == "" {
+		return false
+	}
+	return IsGeminiModelSupportImagine(model) ||
+		(strings.HasPrefix(model, "gemini-") && strings.HasSuffix(model, "-image"))
+}
+
+// IsGeminiVideoModel reports whether the model is a Gemini Veo video model.
+func IsGeminiVideoModel(model string) bool {
+	if model == "" {
+		return false
+	}
+	lower := strings.ToLower(model)
+	return strings.HasPrefix(lower, "veo-") && strings.Contains(lower, "generate")
+}
+
+// IsGeminiOmniFlashModel reports whether the model is the Gemini Omni Flash
+// interactions model.
+func IsGeminiOmniFlashModel(model string) bool {
+	return strings.ToLower(model) == "gemini-omni-flash-preview"
+}
+
+// IsGeminiMediaModel reports whether the model is any Gemini media generation
+// model (image or video).
+func IsGeminiMediaModel(model string) bool {
+	return IsGeminiNativeImageModel(model) || IsGeminiVideoModel(model) || IsGeminiOmniFlashModel(model)
 }

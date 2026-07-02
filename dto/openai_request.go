@@ -870,22 +870,37 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	if r.Input != nil {
 		inputs := r.ParseInput()
 		for _, input := range inputs {
-			if input.Type == "input_image" {
+			switch input.Type {
+			case "input_image":
 				if input.ImageUrl != "" {
 					fileMeta = append(fileMeta, &types.FileMeta{
 						FileType: types.FileTypeImage,
 						Source:   types.NewFileSourceFromData(input.ImageUrl, ""),
 						Detail:   input.Detail,
 					})
+				} else if input.FileId != "" {
+					fileMeta = append(fileMeta, &types.FileMeta{
+						FileType: types.FileTypeImage,
+						Detail:   input.Detail,
+					})
 				}
-			} else if input.Type == "input_file" {
+			case "input_file":
 				if input.FileUrl != "" {
 					fileMeta = append(fileMeta, &types.FileMeta{
 						FileType: types.FileTypeFile,
 						Source:   types.NewFileSourceFromData(input.FileUrl, ""),
 					})
+				} else if input.FileData != "" {
+					fileMeta = append(fileMeta, &types.FileMeta{
+						FileType: types.FileTypeFile,
+						Source:   types.NewFileSourceFromData(input.FileData, ""),
+					})
+				} else if input.FileId != "" {
+					fileMeta = append(fileMeta, &types.FileMeta{
+						FileType: types.FileTypeFile,
+					})
 				}
-			} else {
+			default:
 				texts = append(texts, input.Text)
 			}
 		}
@@ -957,6 +972,9 @@ type MediaInput struct {
 	FileUrl  string `json:"file_url,omitempty"`
 	ImageUrl string `json:"image_url,omitempty"`
 	Detail   string `json:"detail,omitempty"` // 仅 input_image 有效
+	FileId   string `json:"file_id,omitempty"`
+	FileName string `json:"filename,omitempty"`
+	FileData string `json:"file_data,omitempty"`
 }
 
 // ParseInput parses the Responses API `input` field into a normalized slice of MediaInput.
@@ -1019,29 +1037,52 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 						text, _ := item["text"].(string)
 						mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
 					case "input_image":
-						// image_url may be string or object with url field
+						// image_url may be a string or an object with url/detail fields
 						var imageUrl string
-						switch v := item["image_url"].(type) {
-						case string:
-							imageUrl = v
-						case map[string]any:
-							if url, ok := v["url"].(string); ok {
-								imageUrl = url
+						var detail string
+						if imageUrlRaw, ok := item["image_url"]; ok {
+							switch v := imageUrlRaw.(type) {
+							case string:
+								imageUrl = v
+							case map[string]any:
+								if url, ok := v["url"].(string); ok {
+									imageUrl = url
+								}
+								if d, ok := v["detail"].(string); ok {
+									detail = d
+								}
 							}
 						}
-						mediaInputs = append(mediaInputs, MediaInput{Type: "input_image", ImageUrl: imageUrl})
+						fileId, _ := item["file_id"].(string)
+						mediaInputs = append(mediaInputs, MediaInput{
+							Type:     "input_image",
+							ImageUrl: imageUrl,
+							Detail:   detail,
+							FileId:   fileId,
+						})
 					case "input_file":
-						// file_url may be string or object with url field
+						// file_url may be a string or an object with url field
 						var fileUrl string
-						switch v := item["file_url"].(type) {
-						case string:
-							fileUrl = v
-						case map[string]any:
-							if url, ok := v["url"].(string); ok {
-								fileUrl = url
+						if fileUrlRaw, ok := item["file_url"]; ok {
+							switch v := fileUrlRaw.(type) {
+							case string:
+								fileUrl = v
+							case map[string]any:
+								if url, ok := v["url"].(string); ok {
+									fileUrl = url
+								}
 							}
 						}
-						mediaInputs = append(mediaInputs, MediaInput{Type: "input_file", FileUrl: fileUrl})
+						fileId, _ := item["file_id"].(string)
+						fileName, _ := item["filename"].(string)
+						fileData, _ := item["file_data"].(string)
+						mediaInputs = append(mediaInputs, MediaInput{
+							Type:     "input_file",
+							FileUrl:  fileUrl,
+							FileId:   fileId,
+							FileName: fileName,
+							FileData: fileData,
+						})
 					}
 				}
 			}

@@ -144,6 +144,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     showSuccess(t('注销成功!'));
     userDispatch({ type: 'logout' });
     localStorage.removeItem('user');
+    localStorage.removeItem('device_id');
     navigate('/login');
   }, [navigate, t, userDispatch]);
 

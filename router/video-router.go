@@ -26,10 +26,9 @@ func SetVideoRouter(router *gin.Engine) {
 	}
 	// openai compatible API video routes
 	// docs: https://platform.openai.com/docs/api-reference/videos/create
+	// POST /v1/videos/generations 与 GET /v1/videos/:task_id 已在 relay-router.go 注册，使用 RelayVideo 处理
 	{
 		videoV1Router.POST("/videos", controller.RelayTask)
-		videoV1Router.POST("/videos/generations", controller.RelayTask)
-		videoV1Router.GET("/videos/:task_id", controller.RelayTaskFetch)
 	}
 
 	// Audio generation task routes (async, for TTS / music models)

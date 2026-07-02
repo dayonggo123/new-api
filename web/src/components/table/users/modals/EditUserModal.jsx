@@ -47,6 +47,8 @@ import {
   InputNumber,
   RadioGroup,
   Radio,
+  Table,
+  Popconfirm,
 } from '@douyinfe/semi-ui';
 import {
   IconUser,
@@ -76,6 +78,8 @@ const EditUserModal = (props) => {
   const [showAdjustQuotaRaw, setShowAdjustQuotaRaw] = useState(false);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const [inputs, setInputs] = useState(null);
+  const [devices, setDevices] = useState([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
 
   const isEdit = Boolean(userId);
 
@@ -132,9 +136,95 @@ const EditUserModal = (props) => {
 
   useEffect(() => {
     loadUser();
-    if (userId) fetchGroups();
+    if (userId) {
+      fetchGroups();
+      fetchDevices();
+    }
     setBindingModalVisible(false);
   }, [props.editingUser.id]);
+
+  const fetchDevices = async () => {
+    if (!userId) return;
+    setDevicesLoading(true);
+    try {
+      const res = await API.get(`/api/admin/users/${userId}/devices`);
+      const { success, data } = res.data;
+      if (success) {
+        setDevices(data || []);
+      }
+    } catch (e) {
+      console.error('fetch devices failed', e);
+    } finally {
+      setDevicesLoading(false);
+    }
+  };
+
+  const kickDevice = async (deviceID) => {
+    try {
+      const res = await API.delete(`/api/admin/users/${userId}/devices/${deviceID}`);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess('设备已踢下线');
+        fetchDevices();
+      } else {
+        showError(message);
+      }
+    } catch (e) {
+      showError(e.message);
+    }
+  };
+
+  const formatDeviceTime = (ts) => {
+    if (!ts) return '-';
+    const d = new Date(ts * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const deviceColumns = [
+    {
+      title: t('设备类型'),
+      dataIndex: 'device_type',
+      render: (text) => {
+        const map = {
+          mobile: '手机',
+          tablet: '平板',
+          desktop: '桌面',
+          bot: '机器人',
+        };
+        return <Tag>{map[text] || text || '未知'}</Tag>;
+      },
+    },
+    {
+      title: t('IP'),
+      dataIndex: 'ip',
+    },
+    {
+      title: t('User-Agent'),
+      dataIndex: 'user_agent',
+      ellipsis: true,
+    },
+    {
+      title: t('登录时间'),
+      dataIndex: 'login_at',
+      render: (text) => formatDeviceTime(text),
+    },
+    {
+      title: t('操作'),
+      key: 'action',
+      render: (_, record) => (
+        <Popconfirm
+          title={t('确定踢掉该设备？')}
+          content={t('该设备上的用户将被强制下线')}
+          onConfirm={() => kickDevice(record.device_id)}
+        >
+          <Button type='danger' size='small'>
+            {t('踢下线')}
+          </Button>
+        </Popconfirm>
+      ),
+    },
+  ];
 
   const openBindingModal = () => {
     setBindingModalVisible(true);
@@ -444,6 +534,47 @@ const EditUserModal = (props) => {
                         {t('管理绑定')}
                       </Button>
                     </div>
+                  </Card>
+                )}
+                {/* 在线设备 */}
+                {userId && (
+                  <Card className='!rounded-2xl shadow-sm border-0'>
+                    <div className='flex items-center justify-between gap-3 mb-3'>
+                      <div className='flex items-center min-w-0'>
+                        <Avatar
+                          size='small'
+                          color='orange'
+                          className='mr-2 shadow-md'
+                        >
+                          <IconUser size={16} />
+                        </Avatar>
+                        <div className='min-w-0'>
+                          <Text className='text-lg font-medium'>
+                            {t('在线设备')}
+                          </Text>
+                          <div className='text-xs text-gray-600'>
+                            {t('当前在线 {{count}} 台设备', { count: devices.length })}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        type='primary'
+                        theme='outline'
+                        onClick={fetchDevices}
+                        loading={devicesLoading}
+                      >
+                        {t('刷新')}
+                      </Button>
+                    </div>
+                    <Table
+                      columns={deviceColumns}
+                      dataSource={devices}
+                      loading={devicesLoading}
+                      pagination={false}
+                      size='small'
+                      rowKey='device_id'
+                      empty={t('暂无在线设备')}
+                    />
                   </Card>
                 )}
               </div>

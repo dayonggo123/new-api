@@ -52,3 +52,19 @@ type OpenAIVideoError struct {
 	Message string `json:"message"`
 	Code    string `json:"code"`
 }
+
+// OpenAIVideoGenerationItem mirrors the OpenAI-compatible video generation
+// result item returned by /v1/videos/{task_id}.
+type OpenAIVideoGenerationItem struct {
+	URL           string `json:"url"`
+	LastFrameURL  string `json:"last_frame_url,omitempty"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
+}
+
+// OpenAIVideoGenerationResponse mirrors the OpenAI-compatible video generation
+// result response returned by /v1/videos/{task_id}.
+type OpenAIVideoGenerationResponse struct {
+	Created int64                       `json:"created"`
+	Data    []OpenAIVideoGenerationItem `json:"data"`
+	Usage   *Usage                      `json:"usage,omitempty"`
+}

@@ -30,6 +30,7 @@ import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsSigninPoints from '../../pages/Setting/Operation/SettingsSigninPoints';
 import SettingsSEO from '../../pages/Setting/Operation/SettingsSEO';
 import SettingsTranslate from '../../pages/Setting/Operation/SettingsTranslate';
+import SettingsLogin from '../../pages/Setting/Operation/SettingsLogin';
 import SettingsImageAI from '../../pages/Setting/Operation/SettingsImageAI';
 import SettingsEchotik from '../../pages/Setting/Operation/SettingsEchotik';
 import { API, showError, toBoolean } from '../../helpers';
@@ -91,6 +92,10 @@ const OperationSetting = () => {
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
+
+    /* 登录设备设置 */
+    'login_setting.login_enable_device_limit': false,
+    'login_setting.login_max_online_devices': 3,
   });
 
   let [loading, setLoading] = useState(false);
@@ -167,6 +172,10 @@ const OperationSetting = () => {
         {/* SEO 设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsSEO options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 登录设备管理 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsLogin options={inputs} refresh={onRefresh} />
         </Card>
         {/* 图片 AI 设置 */}
         <Card style={{ marginTop: '10px' }}>

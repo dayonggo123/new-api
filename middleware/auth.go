@@ -144,6 +144,24 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
+	// 设备在线限制检查（仅针对 web session 登录，access token 调用方不受影响）
+	if !useAccessToken {
+		deviceID := session.Get("device_id")
+		if deviceID == nil {
+			// 兼容旧 session：尝试从 Header 获取
+			deviceID = c.Request.Header.Get("X-Device-ID")
+		}
+		if did, ok := deviceID.(string); ok && did != "" {
+			if !service.ValidateDeviceSession(id.(int), did) {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": common.TranslateMessage(c, i18n.MsgAuthSessionExpired),
+				})
+				c.Abort()
+				return
+			}
+		}
+	}
 	// 防止不同newapi版本冲突，导致数据不通用
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
 	c.Set("username", username)

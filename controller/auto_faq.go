@@ -336,8 +336,10 @@ func startAutoFAQBatchTask(taskType string, ids []int) string {
 }
 
 func processAutoFAQBatchTask(task *AutoFAQBatchTask, ids []int) {
+	common.SysLog(fmt.Sprintf("[AutoFAQ] task %s started, type=%s total=%d", task.ID, task.Type, task.Total))
 	for _, id := range ids {
 		result := AutoFAQTaskResult{Id: id}
+		common.SysLog(fmt.Sprintf("[AutoFAQ] task %s processing id=%d", task.ID, id))
 
 		if task.Type == "article" {
 			article, err := model.GetArticleById(id)
@@ -345,12 +347,14 @@ func processAutoFAQBatchTask(task *AutoFAQBatchTask, ids []int) {
 				result.Status = "failed"
 				result.Message = err.Error()
 				autoFAQTaskStore[task.ID].Failed++
+				common.SysLog(fmt.Sprintf("[AutoFAQ] task %s article %d get failed: %v", task.ID, id, err))
 			} else {
 				faqJSON, err := generateArticleFAQWithAI(article)
 				if err != nil {
 					result.Status = "failed"
 					result.Message = err.Error()
 					autoFAQTaskStore[task.ID].Failed++
+					common.SysLog(fmt.Sprintf("[AutoFAQ] task %s article %d generate failed: %v", task.ID, id, err))
 				} else {
 					article.Faq = faqJSON
 					article.UpdatedTime = time.Now().Unix()
@@ -358,10 +362,12 @@ func processAutoFAQBatchTask(task *AutoFAQBatchTask, ids []int) {
 						result.Status = "failed"
 						result.Message = err.Error()
 						autoFAQTaskStore[task.ID].Failed++
+						common.SysLog(fmt.Sprintf("[AutoFAQ] task %s article %d update failed: %v", task.ID, id, err))
 					} else {
 						result.Status = "success"
 						result.Title = article.Title
 						autoFAQTaskStore[task.ID].Completed++
+						common.SysLog(fmt.Sprintf("[AutoFAQ] task %s article %d success", task.ID, id))
 					}
 				}
 			}
@@ -371,12 +377,14 @@ func processAutoFAQBatchTask(task *AutoFAQBatchTask, ids []int) {
 				result.Status = "failed"
 				result.Message = err.Error()
 				autoFAQTaskStore[task.ID].Failed++
+				common.SysLog(fmt.Sprintf("[AutoFAQ] task %s prompt %d get failed: %v", task.ID, id, err))
 			} else {
 				faqJSON, err := generatePromptFAQWithAI(prompt)
 				if err != nil {
 					result.Status = "failed"
 					result.Message = err.Error()
 					autoFAQTaskStore[task.ID].Failed++
+					common.SysLog(fmt.Sprintf("[AutoFAQ] task %s prompt %d generate failed: %v", task.ID, id, err))
 				} else {
 					prompt.Faq = faqJSON
 					prompt.UpdatedTime = time.Now().Unix()
@@ -384,10 +392,12 @@ func processAutoFAQBatchTask(task *AutoFAQBatchTask, ids []int) {
 						result.Status = "failed"
 						result.Message = err.Error()
 						autoFAQTaskStore[task.ID].Failed++
+						common.SysLog(fmt.Sprintf("[AutoFAQ] task %s prompt %d update failed: %v", task.ID, id, err))
 					} else {
 						result.Status = "success"
 						result.Title = prompt.Title
 						autoFAQTaskStore[task.ID].Completed++
+						common.SysLog(fmt.Sprintf("[AutoFAQ] task %s prompt %d success", task.ID, id))
 					}
 				}
 			}
@@ -400,6 +410,7 @@ func processAutoFAQBatchTask(task *AutoFAQBatchTask, ids []int) {
 	}
 
 	autoFAQTaskStore[task.ID].Status = "completed"
+	common.SysLog(fmt.Sprintf("[AutoFAQ] task %s completed: success=%d failed=%d", task.ID, task.Completed, task.Failed))
 	// 2 小时后清理任务
 	go func(tid string) {
 		time.Sleep(2 * time.Hour)

@@ -77,12 +77,45 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	instance := VeoInstance{Prompt: req.Prompt}
+
+	// Main image input (image-to-video first frame).
 	if img := ExtractMultipartImage(c, info); img != nil {
 		instance.Image = img
 	} else if len(req.Images) > 0 {
 		if parsed := ParseImageInput(req.Images[0]); parsed != nil {
 			instance.Image = parsed
 			info.Action = constant.TaskActionGenerate
+		}
+	} else if req.Image != "" {
+		if parsed := ParseImageInput(req.Image); parsed != nil {
+			instance.Image = parsed
+			info.Action = constant.TaskActionGenerate
+		}
+	}
+
+	// Reference images (style/asset references, up to 3).
+	if refs := req.ReferenceImages; len(refs) > 0 {
+		for i, ref := range refs {
+			if i >= 3 {
+				break
+			}
+			if parsed := ParseImageInput(ref); parsed != nil {
+				instance.ReferenceImages = append(instance.ReferenceImages, *parsed)
+			}
+		}
+	}
+
+	// First / last frame interpolation.
+	if first := getMetadataString(req.Metadata, "first_frame"); first != "" {
+		if parsed := ParseImageInput(first); parsed != nil {
+			instance.FirstFrame = parsed
+			info.Action = constant.TaskActionFirstTailGenerate
+		}
+	}
+	if last := getMetadataString(req.Metadata, "last_frame"); last != "" {
+		if parsed := ParseImageInput(last); parsed != nil {
+			instance.LastFrame = parsed
+			info.Action = constant.TaskActionFirstTailGenerate
 		}
 	}
 
@@ -93,12 +126,38 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if params.DurationSeconds == 0 && req.Duration > 0 {
 		params.DurationSeconds = req.Duration
 	}
+	if params.Resolution == "" && req.Resolution != "" {
+		params.Resolution = req.Resolution
+	}
 	if params.Resolution == "" && req.Size != "" {
 		params.Resolution = SizeToVeoResolution(req.Size)
+	}
+	if params.AspectRatio == "" && req.AspectRatio != "" {
+		params.AspectRatio = req.AspectRatio
 	}
 	if params.AspectRatio == "" && req.Size != "" {
 		params.AspectRatio = SizeToVeoAspectRatio(req.Size)
 	}
+	if params.NegativePrompt == "" {
+		params.NegativePrompt = getMetadataString(req.Metadata, "negative_prompt")
+	}
+	if params.PersonGeneration == "" {
+		params.PersonGeneration = getMetadataString(req.Metadata, "person_generation")
+	}
+	if params.GenerateAudio == nil {
+		if v := getMetadataBool(req.Metadata, "generate_audio"); v != nil {
+			params.GenerateAudio = v
+		}
+	}
+	if params.Seed == nil && req.Seed != 0 {
+		params.Seed = common.GetPointer(req.Seed)
+	}
+	if params.Seed == nil {
+		if seed := getMetadataInt(req.Metadata, "seed"); seed != 0 {
+			params.Seed = common.GetPointer(seed)
+		}
+	}
+
 	params.Resolution = strings.ToLower(params.Resolution)
 	params.SampleCount = 1
 
@@ -256,6 +315,9 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	}
 	modelName := extractModelFromOperationName(upstreamName)
 	if strings.TrimSpace(modelName) == "" {
+		modelName = task.Properties.OriginModelName
+	}
+	if strings.TrimSpace(modelName) == "" {
 		modelName = "veo-3.0-generate-001"
 	}
 
@@ -269,6 +331,17 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		video.CompletedAt = task.FinishTime
 	} else if task.UpdatedAt > 0 {
 		video.CompletedAt = task.UpdatedAt
+	}
+
+	url := task.GetResultURL()
+	if url == "" {
+		url = taskcommon.BuildProxyURL(task.TaskID)
+	}
+	if url == "" {
+		url = task.PrivateData.ResultURL
+	}
+	if url != "" {
+		video.SetMetadata("url", url)
 	}
 
 	return common.Marshal(video)
@@ -294,4 +367,51 @@ func extractModelFromOperationName(name string) string {
 		}
 	}
 	return ""
+}
+
+func getMetadataString(metadata map[string]any, key string) string {
+	if metadata == nil {
+		return ""
+	}
+	v, ok := metadata[key]
+	if !ok {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func getMetadataInt(metadata map[string]any, key string) int {
+	if metadata == nil {
+		return 0
+	}
+	v, ok := metadata[key]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case int64:
+		return int(n)
+	}
+	return 0
+}
+
+func getMetadataBool(metadata map[string]any, key string) *bool {
+	if metadata == nil {
+		return nil
+	}
+	v, ok := metadata[key]
+	if !ok {
+		return nil
+	}
+	if b, ok := v.(bool); ok {
+		return &b
+	}
+	return nil
 }

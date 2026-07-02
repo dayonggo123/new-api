@@ -1,0 +1,51 @@
+sequenceDiagram
+    participant C as Client
+    participant R as Gin Router /v1/videos/generations
+    participant Ctrl as controller.RelayTask
+    participant RTS as relay.RelayTaskSubmit
+    participant VA as VolcengineVideoAdaptor
+    participant Up as VolcEngine API
+    participant DB as model.Task
+    participant TP as service.TaskPollingLoop
+    participant Fetch as controller.RelayTaskFetch
+
+    C->>R: POST /v1/videos/generations {model,prompt,image,size,duration,...}
+    R->>Ctrl: TokenAuth + Distribute
+    Ctrl->>Ctrl: relaycommon.GenRelayInfo(RelayFormatTask)
+    Ctrl->>RTS: RelayTaskSubmit(c, info)
+    RTS->>RTS: InitChannelMeta / select channel
+    RTS->>VA: Init(info)
+    RTS->>VA: ValidateRequestAndSetAction(c, info)
+    VA->>VA: parse/validate request, store task_request in context
+    RTS->>RTS: ModelMappedHelper + ModelPriceHelper
+    RTS->>RTS: PreConsumeBilling
+    RTS->>VA: BuildRequestBody(c, info)
+    VA->>VA: TaskSubmitReq -> VolcengineVideoRequest
+    VA->>VA: defaults: duration=5, resolution=720p, generate_audio=true
+    RTS->>VA: DoRequest(c, info, body)
+    VA->>Up: POST /api/v3/contents/generations/tasks
+    Up-->>VA: {id: task-xxx}
+    VA->>VA: build OpenAIVideo {id: task_xxx, status: queued}
+    VA-->>RTS: upstream task id, response body
+    RTS-->>Ctrl: TaskSubmitResult
+    Ctrl->>Ctrl: SettleBilling + LogTaskConsumption
+    Ctrl->>DB: Insert task (platform="45", status=NOT_START)
+    Ctrl-->>C: {id: task_xxx, object: video, status: queued, ...}
+
+    loop Every 15 seconds
+        TP->>DB: query unfinished tasks grouped by platform
+        TP->>TP: DispatchPlatformUpdate
+        TP->>VA: FetchTask(baseUrl, key, {task_id})
+        VA->>Up: GET /api/v3/contents/generations/tasks/{id}
+        Up-->>VA: {status, content.video_url, content.last_frame_url, usage}
+        VA->>TP: ParseTaskResult(respBody)
+        TP->>DB: update status/progress/result_url/fail_reason
+        TP->>TP: settleTaskBillingOnComplete / RefundTaskQuota
+    end
+
+    C->>R: GET /v1/videos/{task_id}
+    R->>Fetch: controller.RelayTaskFetch
+    Fetch->>DB: query task by task_id
+    Fetch->>VA: ConvertToOpenAIVideo(originTask)
+    VA-->>Fetch: OpenAIVideoGenerationResponse JSON
+    Fetch-->>C: {created, data:[{url, last_frame_url, revised_prompt}], usage}

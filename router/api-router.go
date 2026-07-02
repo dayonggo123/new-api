@@ -141,6 +141,8 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
 				adminRoute.DELETE("/:id/bindings/:binding_type", controller.AdminClearUserBinding)
 				adminRoute.GET("/:id", controller.GetUser)
+				adminRoute.GET("/:id/devices", controller.GetUserDeviceSessions)
+				adminRoute.DELETE("/:id/devices/:device_id", controller.KickUserDevice)
 				adminRoute.POST("/", controller.CreateUser)
 				adminRoute.POST("/manage", controller.ManageUser)
 				adminRoute.PUT("/", controller.UpdateUser)
@@ -577,6 +579,25 @@ func SetApiRouter(router *gin.Engine) {
 		// EchoTik proxy routes (token auth)
 		apiRouter.GET("/public/echotik/video/ranklist", middleware.TokenAuthReadOnly(), controller.EchotikVideoRanklist)
 		apiRouter.GET("/admin/echotik/status", middleware.AdminAuth(), controller.EchotikSettingStatus)
+
+		// TK Material Library Routes
+		tkMaterialAdminRoute := apiRouter.Group("/admin/tk/materials")
+		tkMaterialAdminRoute.Use(middleware.AdminAuth())
+		{
+			tkMaterialAdminRoute.GET("/", controller.AdminListTKMaterials)
+			tkMaterialAdminRoute.POST("/", controller.AdminUploadTKMaterial)
+			tkMaterialAdminRoute.GET("/categories", controller.AdminListTKMaterialCategories)
+			tkMaterialAdminRoute.GET("/stats", controller.AdminTKMaterialCategoryStats)
+			tkMaterialAdminRoute.DELETE("/:id", controller.AdminDeleteTKMaterial)
+			tkMaterialAdminRoute.POST("/import/notion", controller.AdminImportTKMaterialsFromNotion)
+		}
+		tkMaterialPublicRoute := apiRouter.Group("/public/tk/materials")
+		{
+			tkMaterialPublicRoute.GET("/", controller.PublicListTKMaterials)
+			tkMaterialPublicRoute.GET("/random", controller.PublicGetRandomTKMaterials)
+			tkMaterialPublicRoute.GET("/:id", controller.PublicGetTKMaterial)
+			tkMaterialPublicRoute.POST("/", controller.PublicUploadTKMaterial)
+		}
 
 		// App Release Admin Routes
 		apiRouter.GET("/admin/releases", middleware.AdminAuth(), controller.GetAllAppReleases)

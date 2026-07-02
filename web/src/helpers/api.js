@@ -26,16 +26,20 @@ import {
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
+function getDeviceIdFromLocalStorage() {
+  return localStorage.getItem('device_id') || '';
+}
+
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
     ? import.meta.env.VITE_REACT_APP_SERVER_URL
     : '',
   headers: {
     'New-API-User': getUserIdFromLocalStorage(),
+    'X-Device-ID': getDeviceIdFromLocalStorage(),
     'Cache-Control': 'no-store',
   },
 });
-
 
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
@@ -48,7 +52,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -87,6 +90,7 @@ export function updateAPI() {
       : '',
     headers: {
       'New-API-User': getUserIdFromLocalStorage(),
+      'X-Device-ID': getDeviceIdFromLocalStorage(),
       'Cache-Control': 'no-store',
     },
   });

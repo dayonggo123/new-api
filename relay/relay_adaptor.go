@@ -36,11 +36,13 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
+	taskomniflash "github.com/QuantumNous/new-api/relay/channel/task/omniflash"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
 	taskvertex "github.com/QuantumNous/new-api/relay/channel/task/vertex"
 	taskVidu "github.com/QuantumNous/new-api/relay/channel/task/vidu"
 	taskveo "github.com/QuantumNous/new-api/relay/channel/task/veo"
+	"github.com/QuantumNous/new-api/relay/channel/task/volcenginevideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/wanxiang"
 	"github.com/QuantumNous/new-api/relay/channel/task/duoyuan"
 	"github.com/QuantumNous/new-api/relay/channel/task/apimart"
@@ -148,6 +150,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 	//	return &aiproxy.Adaptor{}
 	case constant.TaskPlatformSuno:
 		return &suno.TaskAdaptor{}
+	case constant.TaskPlatformOmniFlash:
+		return &taskomniflash.TaskAdaptor{}
 	}
 	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
 		switch channelType {
@@ -161,8 +165,10 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskvertex.TaskAdaptor{}
 		case constant.ChannelTypeVidu:
 			return &taskVidu.TaskAdaptor{}
-		case constant.ChannelTypeDoubaoVideo, constant.ChannelTypeVolcEngine:
+		case constant.ChannelTypeDoubaoVideo:
 			return &taskdoubao.TaskAdaptor{}
+		case constant.ChannelTypeVolcEngine:
+			return &volcenginevideo.TaskAdaptor{}
 		case constant.ChannelTypeSora, constant.ChannelTypeOpenAI:
 			return &tasksora.TaskAdaptor{}
 		case constant.ChannelTypeGemini:

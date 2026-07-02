@@ -31,6 +31,11 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+type FileUploadAdaptor interface {
+	ConvertFileRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.FileUploadRequest) (any, error)
+	DoFileResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError)
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 

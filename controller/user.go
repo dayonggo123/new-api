@@ -147,6 +147,15 @@ func setupLogin(user *model.User, c *gin.Context) {
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
+
+	// 设备在线管理
+	deviceID := service.GenerateDeviceID()
+	if err := service.RegisterDeviceSession(user.Id, deviceID, c); err != nil {
+		common.SysLog(fmt.Sprintf("[DeviceSession] register failed for user %d: %v", user.Id, err))
+		// 注册失败不影响登录，但 device_id 仍返回给前端
+	}
+	session.Set("device_id", deviceID)
+
 	err := session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
@@ -162,12 +171,26 @@ func setupLogin(user *model.User, c *gin.Context) {
 			"role":         user.Role,
 			"status":       user.Status,
 			"group":        user.Group,
+			"device_id":    deviceID,
 		},
 	})
 }
 
 func Logout(c *gin.Context) {
 	session := sessions.Default(c)
+	userID := session.Get("id")
+	deviceID := session.Get("device_id")
+	if uid, ok := userID.(int); ok {
+		var did string
+		if d, ok := deviceID.(string); ok {
+			did = d
+		} else {
+			did = service.GetDeviceIDFromRequest(c)
+		}
+		if did != "" {
+			_ = service.RemoveDeviceSession(uid, did)
+		}
+	}
 	session.Clear()
 	err := session.Save()
 	if err != nil {
@@ -342,6 +365,69 @@ func GetUser(c *gin.Context) {
 		"data":    user,
 	})
 	return
+}
+
+// GetUserDeviceSessions 获取用户在线设备列表
+func GetUserDeviceSessions(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	user, err := model.GetUserById(id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	myRole := c.GetInt("role")
+	if myRole <= user.Role && myRole != common.RoleRootUser {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return
+	}
+
+	devices, err := service.GetUserDeviceSessions(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    devices,
+	})
+}
+
+// KickUserDevice 管理员强制踢掉用户某个设备
+func KickUserDevice(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	deviceID := c.Param("device_id")
+	if deviceID == "" {
+		common.ApiErrorMsg(c, "device_id 不能为空")
+		return
+	}
+	user, err := model.GetUserById(id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	myRole := c.GetInt("role")
+	if myRole <= user.Role && myRole != common.RoleRootUser {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return
+	}
+
+	if err := service.RemoveDeviceSession(id, deviceID); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "设备已踢下线",
+	})
 }
 
 func GenerateAccessToken(c *gin.Context) {

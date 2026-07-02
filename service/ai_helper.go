@@ -30,12 +30,14 @@ type FaqItem struct {
 // GenerateSEOForPrompt 调用 AI 为提示词生成 SEO 关键词、介绍文案和 FAQ
 func GenerateSEOForPrompt(prompt *model.Prompt) (*AISEOResult, error) {
 	cfg := operation_setting.GetSEOSetting()
+	common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt cfg: enabled=%v baseURL=%s model=%s hasKey=%v", cfg.SeoAIEnabled, cfg.SeoAIBaseURL, cfg.SeoAIModel, cfg.SeoAIApiKey != ""))
 	if !cfg.SeoAIEnabled || cfg.SeoAIApiKey == "" || cfg.SeoAIBaseURL == "" {
-		return nil, fmt.Errorf("seo ai not configured")
+		return nil, fmt.Errorf("seo ai not configured: enabled=%v hasKey=%v hasBaseURL=%v", cfg.SeoAIEnabled, cfg.SeoAIApiKey != "", cfg.SeoAIBaseURL != "")
 	}
 
 	// 构建用户输入
 	userContent := buildAIInput(prompt)
+	common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt prompt=%d userInputLen=%d", prompt.Id, len(userContent)))
 
 	// 构建请求体
 	reqBody := map[string]interface{}{
@@ -49,25 +51,30 @@ func GenerateSEOForPrompt(prompt *model.Prompt) (*AISEOResult, error) {
 
 	jsonData, err := common.Marshal(reqBody)
 	if err != nil {
+		common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt marshal error: %v", err))
 		return nil, err
 	}
 
 	client := &http.Client{Timeout: aiHelperTimeout}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cfg.SeoAIBaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
+		common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt request build error: %v", err))
 		return nil, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+cfg.SeoAIApiKey)
 
+	common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt calling AI api: baseURL=%s model=%s", cfg.SeoAIBaseURL, cfg.SeoAIModel))
 	resp, err := client.Do(req)
 	if err != nil {
+		common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt AI api do error: %v", err))
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt AI api non-200: status=%d", resp.StatusCode))
 		return nil, fmt.Errorf("ai api returned status %d", resp.StatusCode)
 	}
 
@@ -79,23 +86,29 @@ func GenerateSEOForPrompt(prompt *model.Prompt) (*AISEOResult, error) {
 		} `json:"choices"`
 	}
 	if err := common.DecodeJson(resp.Body, &apiResp); err != nil {
+		common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt decode response error: %v", err))
 		return nil, fmt.Errorf("parse ai response failed: %w", err)
 	}
 
 	if len(apiResp.Choices) == 0 {
+		common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt AI response empty choices"))
 		return nil, fmt.Errorf("ai response empty")
 	}
 
 	content := apiResp.Choices[0].Message.Content
+	common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt AI raw content len=%d", len(content)))
 
 	// 解析 JSON（AI 可能包裹在 markdown code block 中）
 	content = extractJSONFromMarkdown(content)
+	common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt extracted JSON content: %s", truncateForLog(content, 500)))
 
 	var result AISEOResult
 	if err := common.Unmarshal([]byte(content), &result); err != nil {
+		common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt parse seo json failed: %v", err))
 		return nil, fmt.Errorf("parse seo json failed: %w, content=%s", err, content)
 	}
 
+	common.SysLog(fmt.Sprintf("[SEO] GenerateSEOForPrompt success: prompt=%d keywords=%q intro=%q faq_len=%d", prompt.Id, result.Keywords, result.Intro, len(result.Faq)))
 	return &result, nil
 }
 
@@ -166,4 +179,11 @@ func extractJSONFromMarkdown(content string) string {
 
 func trimWhitespace(s string) string {
 	return string(bytes.TrimSpace([]byte(s)))
+}
+
+func truncateForLog(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

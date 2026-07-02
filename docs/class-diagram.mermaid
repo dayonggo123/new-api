@@ -1,0 +1,153 @@
+classDiagram
+    class TaskSubmitReq {
+        +string Prompt
+        +string Model
+        +string Image
+        +[]string Images
+        +[]string ReferenceImages
+        +[]string VideoURLs
+        +[]string ReferenceAudio
+        +string Size
+        +string AspectRatio
+        +int Duration
+        +string Seconds
+        +bool GenerateAudio
+        +string Resolution
+        +string Ratio
+        +int Seed
+        +bool Watermark
+        +bool CameraFixed
+        +int Frames
+        +string Priority
+        +string ServiceTier
+        +string CallbackURL
+        +Map~string,any~ Metadata
+        +HasImage() bool
+        +GetPrompt() string
+    }
+
+    class VolcengineVideoRequest {
+        +string Model
+        +[]VolcengineContentItem Content
+        +bool GenerateAudio
+        +string Ratio
+        +int Duration
+        +string Resolution
+        +bool Watermark
+        +int Seed
+        +bool CameraFixed
+        +int Frames
+        +string Priority
+        +string ServiceTier
+        +string CallbackURL
+    }
+
+    class VolcengineContentItem {
+        +string Type
+        +string Text
+        +string Role
+        +MediaURL ImageURL
+        +MediaURL VideoURL
+        +MediaURL AudioURL
+    }
+
+    class MediaURL {
+        +string URL
+    }
+
+    class VolcengineVideoSubmitResponse {
+        +string ID
+    }
+
+    class VolcengineVideoTaskResult {
+        +string ID
+        +string Status
+        +VolcengineVideoContent Content
+        +int CreatedAt
+        +int UpdatedAt
+        +VolcengineUsage Usage
+    }
+
+    class VolcengineVideoContent {
+        +string VideoURL
+        +string LastFrameURL
+    }
+
+    class VolcengineUsage {
+        +int CompletionTokens
+        +int TotalTokens
+    }
+
+    class VolcengineVideoAdaptor {
+        +int ChannelType
+        +string apiKey
+        +string baseURL
+        +Init(info)
+        +ValidateRequestAndSetAction(c, info) TaskError
+        +EstimateBilling(c, info) Map~string,float64~
+        +BuildRequestURL(info) string
+        +BuildRequestHeader(c, req, info)
+        +BuildRequestBody(c, info) io.Reader
+        +DoRequest(c, info, body) http.Response
+        +DoResponse(c, resp, info) Tuple~string, []byte, TaskError~
+        +FetchTask(baseUrl, key, body, proxy) http.Response
+        +ParseTaskResult(respBody) TaskInfo
+        +ConvertToOpenAIVideo(originTask) []byte
+        +GetModelList() []string
+        +GetChannelName() string
+    }
+
+    class TaskAdaptor {
+        <<interface>>
+        +Init(info)
+        +ValidateRequestAndSetAction(c, info) TaskError
+        +EstimateBilling(c, info) Map~string,float64~
+        +AdjustBillingOnSubmit(info, taskData) Map~string,float64~
+        +AdjustBillingOnComplete(task, taskResult) int
+        +BuildRequestURL(info) string
+        +BuildRequestHeader(c, req, info)
+        +BuildRequestBody(c, info) io.Reader
+        +DoRequest(c, info, body) http.Response
+        +DoResponse(c, resp, info) Tuple~string, []byte, TaskError~
+        +FetchTask(baseUrl, key, body, proxy) http.Response
+        +ParseTaskResult(respBody) TaskInfo
+        +GetModelList() []string
+        +GetChannelName() string
+    }
+
+    class OpenAIVideoConverter {
+        <<interface>>
+        +ConvertToOpenAIVideo(originTask) []byte
+    }
+
+    class OpenAIVideoGenerationResponse {
+        +int64 Created
+        +[]OpenAIVideoGenerationItem Data
+        +Usage Usage
+    }
+
+    class OpenAIVideoGenerationItem {
+        +string URL
+        +string LastFrameURL
+        +string RevisedPrompt
+    }
+
+    class VideoMappingHelper {
+        <<helper>>
+        +ParseSizeToRatio(size string) Tuple~string, float64~
+        +EstimateDurationRatio(duration int) float64
+        +EstimateResolutionRatio(resolution string) float64
+        +HasVideoReference(req TaskSubmitReq) bool
+    }
+
+    VolcengineVideoAdaptor ..|> TaskAdaptor : implements
+    VolcengineVideoAdaptor ..|> OpenAIVideoConverter : implements
+    VolcengineVideoAdaptor --> VolcengineVideoRequest : builds
+    VolcengineVideoAdaptor --> VolcengineVideoTaskResult : parses
+    VolcengineVideoAdaptor --> OpenAIVideoGenerationResponse : converts
+    VolcengineVideoRequest --> VolcengineContentItem : contains
+    VolcengineContentItem --> MediaURL
+    VolcengineVideoTaskResult --> VolcengineVideoContent
+    VolcengineVideoTaskResult --> VolcengineUsage
+    VideoMappingHelper ..> TaskSubmitReq : uses
+    VideoMappingHelper ..> VolcengineVideoRequest : uses

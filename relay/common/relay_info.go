@@ -675,13 +675,33 @@ type TaskSubmitReq struct {
 	Images          []string               `json:"images,omitempty"`
 	ImageURLs       []string               `json:"image_urls,omitempty"`
 	ReferenceImages []string               `json:"reference_images,omitempty"`
+	ReferenceVideo  []string               `json:"reference_video,omitempty"`
+	ReferenceAudio  []string               `json:"reference_audio,omitempty"`
 	VideoURLs       []string               `json:"video_urls,omitempty"`
 	Size            string                 `json:"size,omitempty"`
 	AspectRatio     string                 `json:"aspect_ratio,omitempty"`
+	Ratio           string                 `json:"ratio,omitempty"`
 	Duration        int                    `json:"duration,omitempty"`
 	Seconds         string                 `json:"seconds,omitempty"`
+	GenerateAudio   *bool                  `json:"generate_audio,omitempty"`
+	Resolution      string                 `json:"resolution,omitempty"`
+	Seed            int                    `json:"seed,omitempty"`
+	Watermark       *bool                  `json:"watermark,omitempty"`
+	CameraFixed     *bool                  `json:"camera_fixed,omitempty"`
+	Frames          int                    `json:"frames,omitempty"`
+	Priority        string                 `json:"priority,omitempty"`
+	ServiceTier     string                 `json:"service_tier,omitempty"`
+	CallbackURL     string                 `json:"callback_url,omitempty"`
 	InputReference  string                 `json:"input_reference,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+}
+
+func (t *TaskSubmitReq) HasVideoReference() bool {
+	return len(t.ReferenceVideo) > 0 || len(t.VideoURLs) > 0
+}
+
+func (t *TaskSubmitReq) HasAudioReference() bool {
+	return len(t.ReferenceAudio) > 0
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -701,6 +721,8 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		ReferenceImages json.RawMessage `json:"reference_images,omitempty"`
 		Images          json.RawMessage `json:"images,omitempty"`
 		VideoURLs       json.RawMessage `json:"video_urls,omitempty"`
+		ReferenceVideo  json.RawMessage `json:"reference_video,omitempty"`
+		ReferenceAudio  json.RawMessage `json:"reference_audio,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -752,6 +774,30 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 			var str string
 			if err := common.Unmarshal(aux.VideoURLs, &str); err == nil && str != "" {
 				t.VideoURLs = []string{str}
+			}
+		}
+	}
+
+	if len(aux.ReferenceVideo) > 0 {
+		var arr []string
+		if err := common.Unmarshal(aux.ReferenceVideo, &arr); err == nil {
+			t.ReferenceVideo = arr
+		} else {
+			var str string
+			if err := common.Unmarshal(aux.ReferenceVideo, &str); err == nil && str != "" {
+				t.ReferenceVideo = []string{str}
+			}
+		}
+	}
+
+	if len(aux.ReferenceAudio) > 0 {
+		var arr []string
+		if err := common.Unmarshal(aux.ReferenceAudio, &arr); err == nil {
+			t.ReferenceAudio = arr
+		} else {
+			var str string
+			if err := common.Unmarshal(aux.ReferenceAudio, &str); err == nil && str != "" {
+				t.ReferenceAudio = []string{str}
 			}
 		}
 	}

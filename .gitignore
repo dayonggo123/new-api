@@ -42,3 +42,4 @@ status-monitor/status.json
 # Build artifacts / local tools
 clean-chinese-i18n
 clean-chinese-i18n-linux
+.gemini-enhancement-backup/

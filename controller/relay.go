@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -46,6 +48,12 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.RerankHelper(c, info)
 	case relayconstant.RelayModeEmbeddings:
 		err = relay.EmbeddingHelper(c, info)
+	case relayconstant.RelayModeFiles:
+		if c.Request.Method == http.MethodPost {
+			err = relay.FileHelper(c, info)
+		} else {
+			err = relay.FileOperationHelper(c, info)
+		}
 	case relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact:
 		err = relay.ResponsesHelper(c, info)
 	default:
@@ -482,6 +490,86 @@ func RelayTaskFetch(c *gin.Context) {
 	}
 }
 
+// RelayVideo handles POST /v1/videos/generations. It parses the OpenAI-style
+// video generation request, determines the task platform (Gemini Veo / Omni
+// Flash / other task channels) and delegates to the task submission flow.
+func RelayVideo(c *gin.Context) {
+	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &dto.TaskError{
+			Code:       "gen_relay_info_failed",
+			Message:    err.Error(),
+			StatusCode: http.StatusInternalServerError,
+		})
+		return
+	}
+
+	imageReq := &dto.ImageRequest{}
+	if err := common.UnmarshalBodyReusable(c, imageReq); err != nil {
+		respondTaskError(c, service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest))
+		return
+	}
+	if imageReq.Model == "" {
+		respondTaskError(c, service.TaskErrorWrapperLocal(errors.New("model is required"), "invalid_request", http.StatusBadRequest))
+		return
+	}
+	if imageReq.Prompt == "" {
+		respondTaskError(c, service.TaskErrorWrapperLocal(errors.New("prompt is required"), "invalid_request", http.StatusBadRequest))
+		return
+	}
+
+	channelType := c.GetInt("channel_type")
+	if channelType == 0 && relayInfo.ChannelMeta != nil {
+		channelType = relayInfo.ChannelMeta.ChannelType
+	}
+
+	var platform constant.TaskPlatform
+	if model_setting.IsGeminiOmniFlashModel(imageReq.Model) {
+		platform = constant.TaskPlatformOmniFlash
+	} else if channelType > 0 {
+		platform = constant.TaskPlatform(strconv.Itoa(channelType))
+	} else {
+		platform = relay.GetTaskPlatform(c)
+	}
+
+	c.Set("platform", string(platform))
+	c.Set("channel_type", 0)
+	c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
+
+	taskReq := relaycommon.TaskSubmitReq{
+		Prompt: imageReq.Prompt,
+		Model:  imageReq.Model,
+		Size:   imageReq.Size,
+	}
+	if imageReq.N != nil && *imageReq.N > 0 {
+		// Veo / Omni Flash currently generate one video at a time.
+	}
+	if len(imageReq.Image) > 0 {
+		var refs []string
+		if err := common.Unmarshal(imageReq.Image, &refs); err == nil {
+			taskReq.ReferenceImages = refs
+		} else {
+			var single string
+			if err := common.Unmarshal(imageReq.Image, &single); err == nil && single != "" {
+				taskReq.ReferenceImages = []string{single}
+			}
+		}
+	}
+	if len(imageReq.Extra) > 0 {
+		metadata := make(map[string]any)
+		for k, v := range imageReq.Extra {
+			var val any
+			if err := common.Unmarshal(v, &val); err == nil {
+				metadata[k] = val
+			}
+		}
+		taskReq.Metadata = metadata
+	}
+	c.Set("task_request", taskReq)
+
+	RelayTask(c)
+}
+
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
@@ -597,6 +685,9 @@ func RelayTask(c *gin.Context) {
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
+		if taskReq, err := relaycommon.GetTaskRequest(c); err == nil {
+			task.Properties.Input = taskReq.GetPrompt()
+		}
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
 		}

@@ -28,6 +28,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -59,17 +60,29 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && (channel.Type == constant.ChannelTypeVeo || channel.Type == constant.ChannelTypeGetToken || channel.Type == constant.ChannelTypeBogeiAI || channel.Type == constant.ChannelTypeZhangyuge) {
 		return string(constant.EndpointTypeOpenAIVideo)
 	}
+	// VolcEngine 豆包视频/Seedance 视频模型默认走视频生成测试。
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(strings.ToLower(modelName), "seedance") {
+		return string(constant.EndpointTypeOpenAIVideo)
+	}
 	// 图像生成模型自动检测
+	lowerModelName := strings.ToLower(modelName)
 	if strings.HasPrefix(modelName, "gpt-image") || strings.HasPrefix(modelName, "dall-e") ||
-		strings.Contains(modelName, "imagen") || strings.Contains(modelName, "nano-banana") {
+		strings.Contains(modelName, "imagen") || strings.Contains(modelName, "nano-banana") ||
+		strings.Contains(lowerModelName, "seedream") {
 		return string(constant.EndpointTypeImageGeneration)
 	}
 	// 音频转录模型自动检测
 	if strings.HasPrefix(strings.ToLower(modelName), "whisper-") {
 		return string(constant.EndpointTypeAudioTranscription)
 	}
-	// Gemini 渠道自动检测
+	// Gemini 渠道自动检测：根据模型名区分图片/视频/聊天
 	if channel != nil && channel.Type == constant.ChannelTypeGemini {
+		if model_setting.IsGeminiVideoModel(modelName) || model_setting.IsGeminiOmniFlashModel(modelName) {
+			return string(constant.EndpointTypeOpenAIVideo)
+		}
+		if model_setting.IsGeminiNativeImageModel(modelName) {
+			return string(constant.EndpointTypeImageGeneration)
+		}
 		return string(constant.EndpointTypeGemini)
 	}
 	// 万象AI媒体生成模型自动检测
@@ -399,12 +412,16 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	adaptor.Init(info)
 
-	// Task platform channels (BogeiAI, etc.) use task adaptor for testing.
-	// Skip ChannelTypeVeo because its upstream requires multipart form data,
-	// while the task adaptor test path uses JSON body.
+	// Task platform channels use the task adaptor for testing. Skip ChannelTypeVeo
+	// because its upstream requires multipart form data, while the task adaptor
+	// test path uses a JSON body.
 	// Task adaptor only handles image/video generation requests (ImageRequest).
 	// For chat/completion requests (GeneralOpenAIRequest), use the normal adaptor path.
 	platform := relay.GetTaskPlatform(c)
+	// Gemini Omni Flash runs through a dedicated task platform, not the Gemini Veo adaptor.
+	if channel.Type == constant.ChannelTypeGemini && model_setting.IsGeminiOmniFlashModel(info.OriginModelName) {
+		platform = constant.TaskPlatformOmniFlash
+	}
 	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil && channel.Type != constant.ChannelTypeVeo {
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
 			taskAdaptor.Init(info)
@@ -863,10 +880,12 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		strings.Contains(lowerModel, "nano") || strings.Contains(lowerModel, "banana") ||
 		strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
 	isWanXiangMedia := (isWanXiangChannel || isWanXiangBaseURL) && hasMediaKeyword
-	if endpointType == "" && (isWanXiangMedia || strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") || strings.Contains(lowerModel, "omni-flash") || strings.Contains(lowerModel, "gpt-image")) {
+	if endpointType == "" && (isWanXiangMedia || strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") || strings.Contains(lowerModel, "omni-flash") || strings.Contains(lowerModel, "gpt-image") || strings.Contains(lowerModel, "seedream")) {
 		size := "1024x1024"
 		if strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "omni-flash") {
 			size = "1280x720"
+		} else if strings.Contains(lowerModel, "seedream") {
+			size = "1920x1920"
 		}
 		return &dto.ImageRequest{
 			Model:  model,
@@ -887,11 +906,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			}
 		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
+			size := "1024x1024"
+			if strings.Contains(lowerModel, "seedream") {
+				size = "1920x1920"
+			}
 			return &dto.ImageRequest{
 				Model:  model,
 				Prompt: "a beautiful sunset over ocean",
 				N:      lo.ToPtr(uint(1)),
-				Size:   "1024x1024",
+				Size:   size,
 			}
 		case constant.EndpointTypeOpenAIVideo:
 			// 返回 ImageRequest

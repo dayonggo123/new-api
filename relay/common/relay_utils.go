@@ -92,20 +92,61 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		Image:       formData.Get("image"),
 		Size:        formData.Get("size"),
 		AspectRatio: formData.Get("aspect_ratio"),
+		Ratio:       formData.Get("ratio"),
+		Resolution:  formData.Get("resolution"),
+		Priority:    formData.Get("priority"),
+		ServiceTier: formData.Get("service_tier"),
+		CallbackURL: formData.Get("callback_url"),
 		Metadata:    make(map[string]interface{}),
 	}
 
+	if durationStr := formData.Get("duration"); durationStr != "" {
+		if duration, err := strconv.Atoi(durationStr); err == nil {
+			req.Duration = duration
+		}
+	}
 	if durationStr := formData.Get("seconds"); durationStr != "" {
 		if duration, err := strconv.Atoi(durationStr); err == nil {
 			req.Duration = duration
 		}
 	}
+	if seedStr := formData.Get("seed"); seedStr != "" {
+		if seed, err := strconv.Atoi(seedStr); err == nil {
+			req.Seed = seed
+		}
+	}
+	if framesStr := formData.Get("frames"); framesStr != "" {
+		if frames, err := strconv.Atoi(framesStr); err == nil {
+			req.Frames = frames
+		}
+	}
+	if generateAudio := parseBoolFormValue(formData.Get("generate_audio")); generateAudio != nil {
+		req.GenerateAudio = generateAudio
+	}
+	if watermark := parseBoolFormValue(formData.Get("watermark")); watermark != nil {
+		req.Watermark = watermark
+	}
+	if cameraFixed := parseBoolFormValue(formData.Get("camera_fixed")); cameraFixed != nil {
+		req.CameraFixed = cameraFixed
+	}
 
 	if images := formData["images"]; len(images) > 0 {
 		req.Images = images
 	}
+	if imageURLs := formData["image_urls"]; len(imageURLs) > 0 {
+		req.ImageURLs = imageURLs
+	}
 	if refImages := formData["reference_images"]; len(refImages) > 0 {
 		req.ReferenceImages = refImages
+	}
+	if refVideos := formData["reference_video"]; len(refVideos) > 0 {
+		req.ReferenceVideo = refVideos
+	}
+	if videoURLs := formData["video_urls"]; len(videoURLs) > 0 {
+		req.VideoURLs = videoURLs
+	}
+	if refAudio := formData["reference_audio"]; len(refAudio) > 0 {
+		req.ReferenceAudio = refAudio
 	}
 
 	for key, values := range formData {
@@ -120,6 +161,22 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		}
 	}
 	return req, nil
+}
+
+func parseBoolFormValue(v string) *bool {
+	v = strings.TrimSpace(strings.ToLower(v))
+	if v == "" {
+		return nil
+	}
+	if v == "true" || v == "1" || v == "yes" || v == "on" {
+		b := true
+		return &b
+	}
+	if v == "false" || v == "0" || v == "no" || v == "off" {
+		b := false
+		return &b
+	}
+	return nil
 }
 
 func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
@@ -192,11 +249,26 @@ func isKnownTaskField(field string) bool {
 		"mode":             true,
 		"image":            true,
 		"images":           true,
+		"image_urls":       true,
 		"reference_images": true,
+		"reference_video":  true,
+		"reference_audio":  true,
+		"video_urls":       true,
 		"size":             true,
 		"aspect_ratio":     true,
+		"ratio":            true,
 		"duration":         true,
-		"input_reference":  true, // Sora 特有字段
+		"seconds":          true,
+		"generate_audio":   true,
+		"resolution":       true,
+		"seed":             true,
+		"watermark":        true,
+		"camera_fixed":     true,
+		"frames":           true,
+		"priority":         true,
+		"service_tier":     true,
+		"callback_url":     true,
+		"input_reference":  true,
 	}
 	return knownFields[field]
 }
