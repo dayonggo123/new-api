@@ -198,6 +198,10 @@ const LoginForm = () => {
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
+        if (data.device_id) {
+          localStorage.setItem('device_id', data.device_id);
+          updateAPI();
+        }
         navigate('/');
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
@@ -248,6 +252,10 @@ const LoginForm = () => {
           setUserData(data);
           updateAPI();
           showSuccess('登录成功！');
+          if (data.device_id) {
+            localStorage.setItem('device_id', data.device_id);
+            updateAPI();
+          }
           if (username === 'root' && password === '123456') {
             Modal.error({
               title: '您正在使用默认密码！',
@@ -300,6 +308,10 @@ const LoginForm = () => {
         showSuccess('登录成功！');
         setUserData(data);
         updateAPI();
+        if (data.device_id) {
+          localStorage.setItem('device_id', data.device_id);
+          updateAPI();
+        }
         navigate('/');
       } else {
         showError(message);
@@ -489,6 +501,9 @@ const LoginForm = () => {
   const handle2FASuccess = (data) => {
     userDispatch({ type: 'login', payload: data });
     setUserData(data);
+    if (data.device_id) {
+      localStorage.setItem('device_id', data.device_id);
+    }
     updateAPI();
     showSuccess('登录成功！');
     navigate('/console');

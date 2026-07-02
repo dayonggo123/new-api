@@ -131,6 +131,7 @@ export function showError(error) {
         case 401:
           // 清除用户状态
           localStorage.removeItem('user');
+          localStorage.removeItem('device_id');
           // toast.error('错误：未登录或登录已过期，请重新登录！', showErrorOptions);
           window.location.href = '/login?expired=true';
           break;
