@@ -25,6 +25,8 @@ var ModelList = []string{
 	// 文本模型
 	"doubao-seed-1-6-thinking-250715",
 	"seed-1-6-thinking-250715",
+	// 文件上传伪模型（用于 /v1/files 路由选择 VolcEngine 渠道）
+	"volcengine-files",
 }
 
 // SeedreamImageModelAliases maps user-facing model aliases to the real VolcEngine

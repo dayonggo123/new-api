@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -47,6 +48,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateRerankRequest(c)
 	case types.RelayFormatOpenAIAudio:
 		request, err = GetAndValidAudioRequest(c, relayMode)
+	case types.RelayFormatFiles:
+		request, err = GetAndValidateFileUploadRequest(c, relayMode)
 	case types.RelayFormatOpenAIRealtime:
 		request = &dto.BaseRequest{}
 	default:
@@ -339,6 +342,63 @@ func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatch
 		return nil, err
 	}
 	return request, nil
+}
+
+func GetAndValidateFileUploadRequest(c *gin.Context, relayMode int) (*dto.FileUploadRequest, error) {
+	request := &dto.FileUploadRequest{}
+
+	contentType := c.Request.Header.Get("Content-Type")
+	if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
+		mf, err := common.ParseMultipartFormReusable(c)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse file upload form request: %w", err)
+		}
+		defer mf.RemoveAll()
+
+		if files, ok := mf.File["file"]; ok && len(files) > 0 {
+			request.File = files[0]
+		}
+		request.URL = getFirstFormValue(mf.Value, "url")
+		request.Purpose = getFirstFormValue(mf.Value, "purpose")
+		if request.Purpose == "" {
+			request.Purpose = "user_data"
+		}
+		request.ExpireAt = parseExpireAt(getFirstFormValue(mf.Value, "expire_at"))
+		if preprocessConfigs := getFirstFormValue(mf.Value, "preprocess_configs"); preprocessConfigs != "" {
+			request.PreprocessConfigs = json.RawMessage(preprocessConfigs)
+		}
+		if tos := getFirstFormValue(mf.Value, "tos"); tos != "" {
+			request.TOS = json.RawMessage(tos)
+		}
+	} else {
+		// Try JSON body for URL-based upload
+		err := common.UnmarshalBodyReusable(c, request)
+		if err != nil {
+			return nil, err
+		}
+		if request.Purpose == "" {
+			request.Purpose = "user_data"
+		}
+	}
+
+	if request.File == nil && request.URL == "" {
+		return nil, types.NewErrorWithStatusCode(errors.New("file or url is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()).SetParam("file")
+	}
+	if request.File != nil && request.URL != "" {
+		return nil, types.NewErrorWithStatusCode(errors.New("file and url cannot be provided at the same time"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	return request, nil
+}
+
+func parseExpireAt(value string) int64 {
+	if value == "" {
+		return 0
+	}
+	if n, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return n
+	}
+	return 0
 }
 
 func getFirstFormValue(values map[string][]string, key string) string {

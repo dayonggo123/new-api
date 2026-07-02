@@ -336,6 +336,12 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/files") {
+		if c.Request.Method == http.MethodPost {
+			modelRequest.Model = "volcengine-files"
+		}
+		relayMode := relayconstant.RelayModeFiles
+		c.Set("relay_mode", relayMode)
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		req, err := getModelFromRequest(c)
 		if err != nil {

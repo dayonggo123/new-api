@@ -52,6 +52,8 @@ const (
 	RelayModeGemini
 
 	RelayModeResponsesCompact
+
+	RelayModeFiles
 )
 
 func Path2RelayMode(path string) int {
@@ -88,6 +90,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRealtime
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
+	} else if strings.HasPrefix(path, "/v1/files") {
+		relayMode = RelayModeFiles
 	} else if strings.HasPrefix(path, "/v1/media/generate") {
 		relayMode = RelayModeVideoSubmit
 	} else if strings.HasPrefix(path, "/v1/videos/generations") {
