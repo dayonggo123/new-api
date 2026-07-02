@@ -60,8 +60,10 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 		return string(constant.EndpointTypeOpenAIVideo)
 	}
 	// 图像生成模型自动检测
+	lowerModelName := strings.ToLower(modelName)
 	if strings.HasPrefix(modelName, "gpt-image") || strings.HasPrefix(modelName, "dall-e") ||
-		strings.Contains(modelName, "imagen") || strings.Contains(modelName, "nano-banana") {
+		strings.Contains(modelName, "imagen") || strings.Contains(modelName, "nano-banana") ||
+		strings.Contains(lowerModelName, "seedream") {
 		return string(constant.EndpointTypeImageGeneration)
 	}
 	// 音频转录模型自动检测
@@ -863,7 +865,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		strings.Contains(lowerModel, "nano") || strings.Contains(lowerModel, "banana") ||
 		strings.Contains(lowerModel, "image") || strings.Contains(lowerModel, "video")
 	isWanXiangMedia := (isWanXiangChannel || isWanXiangBaseURL) && hasMediaKeyword
-	if endpointType == "" && (isWanXiangMedia || strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") || strings.Contains(lowerModel, "omni-flash") || strings.Contains(lowerModel, "gpt-image")) {
+	if endpointType == "" && (isWanXiangMedia || strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "gemini") || strings.Contains(lowerModel, "omni-flash") || strings.Contains(lowerModel, "gpt-image") || strings.Contains(lowerModel, "seedream")) {
 		size := "1024x1024"
 		if strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "omni-flash") {
 			size = "1280x720"
