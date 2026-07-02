@@ -116,6 +116,12 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
 
+		// video generation routes
+		httpRouter.POST("/videos/generations", func(c *gin.Context) {
+			controller.RelayVideo(c)
+		})
+		httpRouter.GET("/videos/:task_id", controller.RelayTaskFetch)
+
 		// embedding related routes
 		httpRouter.POST("/embeddings", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatEmbedding)

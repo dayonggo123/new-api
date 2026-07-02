@@ -28,6 +28,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -74,8 +75,14 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if strings.HasPrefix(strings.ToLower(modelName), "whisper-") {
 		return string(constant.EndpointTypeAudioTranscription)
 	}
-	// Gemini 渠道自动检测
+	// Gemini 渠道自动检测：根据模型名区分图片/视频/聊天
 	if channel != nil && channel.Type == constant.ChannelTypeGemini {
+		if model_setting.IsGeminiVideoModel(modelName) || model_setting.IsGeminiOmniFlashModel(modelName) {
+			return string(constant.EndpointTypeOpenAIVideo)
+		}
+		if model_setting.IsGeminiNativeImageModel(modelName) {
+			return string(constant.EndpointTypeImageGeneration)
+		}
 		return string(constant.EndpointTypeGemini)
 	}
 	// 万象AI媒体生成模型自动检测
@@ -405,12 +412,16 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	adaptor.Init(info)
 
-	// Task platform channels (BogeiAI, etc.) use task adaptor for testing.
-	// Skip ChannelTypeVeo because its upstream requires multipart form data,
-	// while the task adaptor test path uses JSON body.
+	// Task platform channels use the task adaptor for testing. Skip ChannelTypeVeo
+	// because its upstream requires multipart form data, while the task adaptor
+	// test path uses a JSON body.
 	// Task adaptor only handles image/video generation requests (ImageRequest).
 	// For chat/completion requests (GeneralOpenAIRequest), use the normal adaptor path.
 	platform := relay.GetTaskPlatform(c)
+	// Gemini Omni Flash runs through a dedicated task platform, not the Gemini Veo adaptor.
+	if channel.Type == constant.ChannelTypeGemini && model_setting.IsGeminiOmniFlashModel(info.OriginModelName) {
+		platform = constant.TaskPlatformOmniFlash
+	}
 	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil && channel.Type != constant.ChannelTypeVeo {
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
 			taskAdaptor.Init(info)

@@ -586,26 +586,11 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					})
 				}
 			} else {
-				source := part.ToFileSource()
-				if source == nil {
-					continue
-				}
-				base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Gemini")
+				geminiParts, err := OpenAIContent2GeminiParts(c, []dto.MediaContent{part}, info)
 				if err != nil {
-					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
+					return nil, fmt.Errorf("convert media content failed: %w", err)
 				}
-
-				// 校验 MimeType 是否在 Gemini 支持的白名单中
-				if _, ok := geminiSupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
-					return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), getSupportedMimeTypesList())
-				}
-
-				parts = append(parts, dto.GeminiPart{
-					InlineData: &dto.GeminiInlineData{
-						MimeType: mimeType,
-						Data:     base64Data,
-					},
-				})
+				parts = append(parts, geminiParts...)
 			}
 		}
 
