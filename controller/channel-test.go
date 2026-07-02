@@ -59,6 +59,10 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && (channel.Type == constant.ChannelTypeVeo || channel.Type == constant.ChannelTypeGetToken || channel.Type == constant.ChannelTypeBogeiAI || channel.Type == constant.ChannelTypeZhangyuge) {
 		return string(constant.EndpointTypeOpenAIVideo)
 	}
+	// VolcEngine 豆包视频/Seedance 视频模型默认走视频生成测试。
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(strings.ToLower(modelName), "seedance") {
+		return string(constant.EndpointTypeOpenAIVideo)
+	}
 	// 图像生成模型自动检测
 	lowerModelName := strings.ToLower(modelName)
 	if strings.HasPrefix(modelName, "gpt-image") || strings.HasPrefix(modelName, "dall-e") ||
