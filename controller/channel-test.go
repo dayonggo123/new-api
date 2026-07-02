@@ -869,6 +869,8 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		size := "1024x1024"
 		if strings.Contains(lowerModel, "veo") || strings.Contains(lowerModel, "omni-flash") {
 			size = "1280x720"
+		} else if strings.Contains(lowerModel, "seedream") {
+			size = "1920x1920"
 		}
 		return &dto.ImageRequest{
 			Model:  model,
@@ -889,11 +891,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			}
 		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
+			size := "1024x1024"
+			if strings.Contains(lowerModel, "seedream") {
+				size = "1920x1920"
+			}
 			return &dto.ImageRequest{
 				Model:  model,
 				Prompt: "a beautiful sunset over ocean",
 				N:      lo.ToPtr(uint(1)),
-				Size:   "1024x1024",
+				Size:   size,
 			}
 		case constant.EndpointTypeOpenAIVideo:
 			// 返回 ImageRequest
