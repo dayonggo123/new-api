@@ -422,7 +422,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	if channel.Type == constant.ChannelTypeGemini && model_setting.IsGeminiOmniFlashModel(info.OriginModelName) {
 		platform = constant.TaskPlatformOmniFlash
 	}
-	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil && channel.Type != constant.ChannelTypeVeo {
+	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil && channel.Type != constant.ChannelTypeVeo && channel.Type != constant.ChannelTypeVolcEngine {
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
 			taskAdaptor.Init(info)
 
