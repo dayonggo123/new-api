@@ -55,6 +55,7 @@ import TierManagement from './pages/TierManagement';
 import TagManagement from './pages/TagManagement';
 import PopupManagement from './pages/PopupManagement';
 import BannerManagement from './pages/BannerManagement';
+import TKMaterialManagement from './pages/TKMaterialManagement';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
@@ -309,6 +310,14 @@ function App() {
           element={
             <AdminRoute>
               <BannerManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/tk-material'
+          element={
+            <AdminRoute>
+              <TKMaterialManagement />
             </AdminRoute>
           }
         />

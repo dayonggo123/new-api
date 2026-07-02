@@ -580,6 +580,25 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/echotik/video/ranklist", middleware.TokenAuthReadOnly(), controller.EchotikVideoRanklist)
 		apiRouter.GET("/admin/echotik/status", middleware.AdminAuth(), controller.EchotikSettingStatus)
 
+		// TK Material Library Routes
+		tkMaterialAdminRoute := apiRouter.Group("/admin/tk/materials")
+		tkMaterialAdminRoute.Use(middleware.AdminAuth())
+		{
+			tkMaterialAdminRoute.GET("/", controller.AdminListTKMaterials)
+			tkMaterialAdminRoute.POST("/", controller.AdminUploadTKMaterial)
+			tkMaterialAdminRoute.GET("/categories", controller.AdminListTKMaterialCategories)
+			tkMaterialAdminRoute.GET("/stats", controller.AdminTKMaterialCategoryStats)
+			tkMaterialAdminRoute.DELETE("/:id", controller.AdminDeleteTKMaterial)
+			tkMaterialAdminRoute.POST("/import/notion", controller.AdminImportTKMaterialsFromNotion)
+		}
+		tkMaterialPublicRoute := apiRouter.Group("/public/tk/materials")
+		{
+			tkMaterialPublicRoute.GET("/", controller.PublicListTKMaterials)
+			tkMaterialPublicRoute.GET("/random", controller.PublicGetRandomTKMaterials)
+			tkMaterialPublicRoute.GET("/:id", controller.PublicGetTKMaterial)
+			tkMaterialPublicRoute.POST("/", controller.PublicUploadTKMaterial)
+		}
+
 		// App Release Admin Routes
 		apiRouter.GET("/admin/releases", middleware.AdminAuth(), controller.GetAllAppReleases)
 		apiRouter.POST("/admin/releases", middleware.AdminAuth(), controller.UploadAppRelease)

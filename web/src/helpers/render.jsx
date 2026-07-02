@@ -65,6 +65,7 @@ import {
   Key,
   BarChart3,
   Image as ImageIcon,
+  Images,
   CheckSquare,
   CreditCard,
   Layers,
@@ -130,6 +131,8 @@ export function getLucideIcon(key, selected = false) {
       return <BarChart3 {...commonProps} color={iconColor} />;
     case 'midjourney':
       return <ImageIcon {...commonProps} color={iconColor} />;
+    case 'tk_material':
+      return <Images {...commonProps} color={iconColor} />;
     case 'task':
       return <CheckSquare {...commonProps} color={iconColor} />;
     case 'topup':
