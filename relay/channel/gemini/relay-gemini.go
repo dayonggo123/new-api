@@ -590,22 +590,34 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				if source == nil {
 					continue
 				}
-				base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Gemini")
+				var geminiPart *dto.GeminiPart
+				var err error
+				switch part.Type {
+				case dto.ContentTypeImageURL:
+					geminiPart, err = buildImageGeminiPart(c, source)
+				case dto.ContentTypeVideoUrl, dto.ContentTypeInputAudio, dto.ContentTypeFile:
+					geminiPart, err = buildMediaGeminiPart(c, source, part.Type)
+				default:
+					// Fallback to image-style handling for backward compatibility.
+					geminiPart, err = buildImageGeminiPart(c, source)
+				}
 				if err != nil {
-					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
+					return nil, fmt.Errorf("convert media part failed: %w", err)
 				}
-
-				// 校验 MimeType 是否在 Gemini 支持的白名单中
-				if _, ok := geminiSupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
-					return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), getSupportedMimeTypesList())
+				if geminiPart == nil {
+					continue
 				}
-
-				parts = append(parts, dto.GeminiPart{
-					InlineData: &dto.GeminiInlineData{
-						MimeType: mimeType,
-						Data:     base64Data,
-					},
-				})
+				// Validate MIME type for inlineData parts.
+				if geminiPart.InlineData != nil {
+					if _, ok := geminiSupportedMimeTypes[strings.ToLower(geminiPart.InlineData.MimeType)]; !ok {
+						return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", geminiPart.InlineData.MimeType, source.GetIdentifier(), getSupportedMimeTypesList())
+					}
+				}
+				if shouldAttachThoughtSignature && !signatureAttached && geminiPart.InlineData != nil {
+					geminiPart.ThoughtSignature = json.RawMessage(strconv.Quote(thoughtSignatureBypassValue))
+					signatureAttached = true
+				}
+				parts = append(parts, *geminiPart)
 			}
 		}
 

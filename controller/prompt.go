@@ -491,12 +491,16 @@ func GetPublicPromptCategories(c *gin.Context) {
 
 // generatePromptSEO 异步调用 AI 生成 SEO 关键词和介绍文案
 func generatePromptSEO(prompt *model.Prompt) {
+	common.SysLog(fmt.Sprintf("[SEO] start generate seo for prompt %d", prompt.Id))
 	result, err := service.GenerateSEOForPrompt(prompt)
 	if err != nil {
 		logger.LogError(context.Background(), fmt.Sprintf("generate seo for prompt %d failed: %v", prompt.Id, err))
+		common.SysLog(fmt.Sprintf("[SEO] generate seo for prompt %d failed: %v", prompt.Id, err))
 		return
 	}
+	common.SysLog(fmt.Sprintf("[SEO] generate seo for prompt %d success, keywords=%q intro=%q faq_len=%d", prompt.Id, result.Keywords, result.Intro, len(result.Faq)))
 	service.UpdatePromptSEO(prompt.Id, result)
+	common.SysLog(fmt.Sprintf("[SEO] update prompt seo done for prompt %d", prompt.Id))
 }
 
 // ==================== Admin: SEO Management ====================
