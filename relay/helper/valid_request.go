@@ -347,6 +347,10 @@ func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatch
 func GetAndValidateFileUploadRequest(c *gin.Context, relayMode int) (*dto.FileUploadRequest, error) {
 	request := &dto.FileUploadRequest{}
 
+	if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodDelete {
+		return request, nil
+	}
+
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
 		mf, err := common.ParseMultipartFormReusable(c)

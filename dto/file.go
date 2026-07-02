@@ -23,17 +23,33 @@ type FileUploadRequest struct {
 // FileUploadResponse represents the standard OpenAI-compatible file object
 // returned by the /v1/files endpoint.
 type FileUploadResponse struct {
-	ID                string          `json:"id"`
-	Object            string          `json:"object"`
-	Purpose           string          `json:"purpose"`
-	Filename          string          `json:"filename"`
-	Bytes             int64           `json:"bytes"`
-	MimeType          string          `json:"mime_type"`
-	CreatedAt         int64           `json:"created_at"`
-	ExpireAt          int64           `json:"expire_at"`
-	Status            string          `json:"status"`
-	URL               string          `json:"url,omitempty"`
+	ID              string          `json:"id"`
+	Object          string          `json:"object"`
+	Purpose         string          `json:"purpose"`
+	Filename        string          `json:"filename"`
+	Bytes           int64           `json:"bytes"`
+	MimeType        string          `json:"mime_type"`
+	CreatedAt       int64           `json:"created_at"`
+	ExpireAt        int64           `json:"expire_at"`
+	Status          string          `json:"status"`
+	StatusDetails   string          `json:"status_details,omitempty"`
+	URL             string          `json:"url,omitempty"`
 	PreprocessConfigs json.RawMessage `json:"preprocess_configs,omitempty"`
+}
+
+// FileListResponse represents the OpenAI-compatible list of files returned by
+// GET /v1/files.
+type FileListResponse struct {
+	Object string             `json:"object"`
+	Data   []FileUploadResponse `json:"data"`
+}
+
+// FileDeleteResponse represents the OpenAI-compatible response from
+// DELETE /v1/files/{file_id}.
+type FileDeleteResponse struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Deleted bool   `json:"deleted"`
 }
 
 func (f *FileUploadRequest) GetTokenCountMeta() *types.TokenCountMeta {

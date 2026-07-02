@@ -49,7 +49,11 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 	case relayconstant.RelayModeEmbeddings:
 		err = relay.EmbeddingHelper(c, info)
 	case relayconstant.RelayModeFiles:
-		err = relay.FileHelper(c, info)
+		if c.Request.Method == http.MethodPost {
+			err = relay.FileHelper(c, info)
+		} else {
+			err = relay.FileOperationHelper(c, info)
+		}
 	case relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact:
 		err = relay.ResponsesHelper(c, info)
 	default:

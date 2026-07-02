@@ -89,3 +89,45 @@ func FileHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	return nil
 }
+
+// FileOperationHelper handles GET / DELETE file operations (list, retrieve, delete)
+// by forwarding the request to the upstream channel and delegating response handling
+// to the channel adaptor.
+func FileOperationHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+	info.InitChannelMeta(c)
+
+	adaptor := GetAdaptor(info.ApiType)
+	if adaptor == nil {
+		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+	}
+	adaptor.Init(info)
+
+	resp, err := adaptor.DoRequest(c, info, nil)
+	if err != nil {
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+
+	var httpResp *http.Response
+	if resp != nil {
+		httpResp = resp.(*http.Response)
+		if httpResp.StatusCode != http.StatusOK && httpResp.StatusCode != http.StatusCreated {
+			statusCodeMappingStr := c.GetString("status_code_mapping")
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
+		}
+	}
+
+	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
+	if newAPIError != nil {
+		statusCodeMappingStr := c.GetString("status_code_mapping")
+		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		return newAPIError
+	}
+
+	if usage != nil {
+		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
+	}
+
+	return nil
+}

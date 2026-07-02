@@ -337,7 +337,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/files") {
-		if c.Request.Method == http.MethodPost {
+		if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodGet || c.Request.Method == http.MethodDelete {
 			modelRequest.Model = "volcengine-files"
 		}
 		relayMode := relayconstant.RelayModeFiles

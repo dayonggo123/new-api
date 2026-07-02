@@ -237,6 +237,11 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 			header.Set("X-OpenRouter-Title", "New API")
 		}
 	}
+	if info.RelayMode == relayconstant.RelayModeFiles {
+		if contentType, ok := c.Get(openaiFileUploadContentTypeContextKey); ok && contentType != "" {
+			header.Set("Content-Type", contentType.(string))
+		}
+	}
 	return nil
 }
 
@@ -648,6 +653,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		err, usage = OpenaiSTTHandler(c, resp, info, a.ResponseFormat)
 	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
 		usage, err = OpenaiHandlerWithUsage(c, info, resp)
+	case relayconstant.RelayModeFiles:
+		usage, err = OaiFileHandler(c, resp, info)
 	case relayconstant.RelayModeRerank:
 		usage, err = common_handler.RerankHandler(c, info, resp)
 	case relayconstant.RelayModeResponses:
