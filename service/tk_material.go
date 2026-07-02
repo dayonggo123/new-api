@@ -15,9 +15,7 @@ import (
 )
 
 const (
-	tkMaterialUploadDir  = "./uploads/tk_materials"
-	tkMaterialPermDir    = "./uploads/permanent"
-	tkMaterialPermSubDir = "tk_materials"
+	tkMaterialUploadDir = "./uploads/tk_materials"
 )
 
 // TKMaterialUploadResult stores the result of a single uploaded file.
@@ -33,12 +31,8 @@ type TKMaterialUploadResult struct {
 }
 
 // UploadTKMaterialFiles saves uploaded image files and returns metadata.
-// If permanent is true, files are stored under ./uploads/permanent/tk_materials/.
 func UploadTKMaterialFiles(c *gin.Context, files []*multipart.FileHeader, permanent bool) ([]TKMaterialUploadResult, error) {
 	dir := tkMaterialUploadDir
-	if permanent {
-		dir = filepath.Join(tkMaterialPermDir, tkMaterialPermSubDir)
-	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create upload directory: %w", err)
 	}
@@ -81,11 +75,7 @@ func UploadTKMaterialFiles(c *gin.Context, files []*multipart.FileHeader, perman
 			continue
 		}
 
-		urlPath := filename
-		if permanent {
-			urlPath = tkMaterialPermSubDir + "/" + filename
-		}
-		res.URL = fmt.Sprintf("%s/uploads/%s", baseURL, urlPath)
+		res.URL = fmt.Sprintf("%s/uploads/tk_materials/%s", baseURL, filename)
 		res.ThumbnailURL = res.URL
 		res.Filename = filename
 		res.FileType = contentType

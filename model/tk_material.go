@@ -31,12 +31,13 @@ func (TKMaterial) TableName() string {
 	return "tk_materials"
 }
 
-// TKMaterialCategories returns all supported scene categories.
+// TKMaterialCategories returns all supported scene categories (including sub-categories).
 func TKMaterialCategories() []string {
 	return []string{
 		"浴室", "客厅", "厨房", "卧室", "车库", "院子",
 		"街景", "健身房", "车", "机场", "农村", "公园",
 		"超市", "仓库",
+		"分析 UGC/男", "分析 UGC/女",
 	}
 }
 

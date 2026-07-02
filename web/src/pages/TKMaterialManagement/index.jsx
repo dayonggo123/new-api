@@ -31,11 +31,42 @@ import { useTranslation } from 'react-i18next';
 
 const { Title, Text } = Typography;
 
-const CATEGORIES = [
-  '浴室', '客厅', '厨房', '卧室', '车库', '院子',
-  '街景', '健身房', '车', '机场', '农村', '公园',
-  '超市', '仓库',
+// 一级分类 + 二级分类
+const CATEGORY_GROUPS = [
+  {
+    label: '场景',
+    value: '场景',
+    children: ['浴室', '客厅', '厨房', '卧室', '车库', '院子', '街景', '健身房', '车', '机场', '农村', '公园', '超市', '仓库'],
+  },
+  {
+    label: '分析 UGC',
+    value: '分析 UGC',
+    children: ['男', '女'],
+  },
 ];
+
+// 构建完整的 category 存储值
+function buildCategory(groupValue, childValue) {
+  if (!childValue) return '';
+  if (groupValue === '分析 UGC') {
+    return `分析 UGC/${childValue}`;
+  }
+  return childValue;
+}
+
+// 解析完整 category 为分组+子分类
+function parseCategory(category) {
+  if (!category) return { group: '', child: '' };
+  if (category.startsWith('分析 UGC/')) {
+    return { group: '分析 UGC', child: category.replace('分析 UGC/', '') };
+  }
+  return { group: '场景', child: category };
+}
+
+// 所有扁平化的 category 值（用于统计/导入默认值）
+const ALL_CATEGORIES = CATEGORY_GROUPS.flatMap((g) =>
+  g.children.map((child) => buildCategory(g.value, child))
+);
 
 export default function TKMaterialManagement() {
   const { t } = useTranslation();
@@ -54,6 +85,8 @@ export default function TKMaterialManagement() {
   const [importFormApi, setImportFormApi] = useState(null);
   const [fileList, setFileList] = useState([]);
   const uploadRef = useRef(null);
+
+  const [uploadCategoryGroup, setUploadCategoryGroup] = useState('');
 
   const loadStats = useCallback(async () => {
     try {
@@ -96,7 +129,12 @@ export default function TKMaterialManagement() {
       const res = await API.delete(`/api/admin/tk/materials/${id}`);
       if (res.data.success) {
         showSuccess(t('删除成功'));
-        loadData();
+        // 如果删除后当前页已经没有数据且不是第一页，回到上一页
+        if (data.length === 1 && page > 1) {
+          setPage(page - 1);
+        } else {
+          loadData();
+        }
         loadStats();
       } else {
         showError(res.data.message);
@@ -117,7 +155,7 @@ export default function TKMaterialManagement() {
   const handleUpload = async () => {
     if (!formApi) return;
     const values = formApi.getValues();
-    const selectedCategory = values.category;
+    const selectedCategory = buildCategory(values.categoryGroup, values.categoryChild);
     if (!selectedCategory) {
       showError(t('请选择分类'));
       return;
@@ -134,7 +172,6 @@ export default function TKMaterialManagement() {
     try {
       const res = await API.post('/api/admin/tk/materials', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        params: { permanent: true },
       });
       if (res.data.success) {
         showSuccess(t('上传成功'));
@@ -164,7 +201,7 @@ export default function TKMaterialManagement() {
       const res = await API.post('/api/admin/tk/materials/import/notion', {
         token: values.token,
         database_id: values.database_id,
-        categories: values.categories || CATEGORIES,
+        categories: values.categories || ALL_CATEGORIES,
       });
       if (res.data.success) {
         const result = res.data.data;
@@ -205,14 +242,26 @@ export default function TKMaterialManagement() {
           src={url}
           alt='material'
           style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }}
+          onError={(e) => {
+            e.target.src = '';
+            e.target.alt = t('加载失败');
+          }}
         />
       ),
     },
     {
       title: t('分类'),
       dataIndex: 'category',
-      width: 120,
-      render: (cat) => <Tag color='blue'>{cat}</Tag>,
+      width: 140,
+      render: (cat) => {
+        const { group, child } = parseCategory(cat);
+        return (
+          <Space>
+            {group && <Tag color='light-blue'>{group}</Tag>}
+            <Tag color='blue'>{child}</Tag>
+          </Space>
+        );
+      },
     },
     {
       title: t('来源'),
@@ -276,7 +325,16 @@ export default function TKMaterialManagement() {
     },
   ];
 
-  const categoryOptions = CATEGORIES.map((cat) => ({ value: cat, label: cat }));
+  // 当前选中的分组和子分类
+  const { group: selectedGroup, child: selectedChild } = parseCategory(category);
+
+  const groupOptions = CATEGORY_GROUPS.map((g) => ({ value: g.value, label: g.label }));
+  const childOptions = (CATEGORY_GROUPS.find((g) => g.value === selectedGroup)?.children || []).map(
+    (child) => ({ value: child, label: child })
+  );
+
+  // 上传表单用的分组/子分类选项
+  const uploadGroupOptions = CATEGORY_GROUPS.map((g) => ({ value: g.value, label: g.label }));
 
   return (
     <div className='p-6'>
@@ -291,11 +349,16 @@ export default function TKMaterialManagement() {
           <div>
             <Text strong>{t('分类统计：')}</Text>
             <Space wrap>
-              {CATEGORIES.map((cat) => (
-                <Tag key={cat} color='light-blue'>
-                  {cat}: {stats[cat] || 0}
-                </Tag>
-              ))}
+              {CATEGORY_GROUPS.map((group) =>
+                group.children.map((child) => {
+                  const fullCat = buildCategory(group.value, child);
+                  return (
+                    <Tag key={fullCat} color='light-blue'>
+                      {group.label}/{child}: {stats[fullCat] || 0}
+                    </Tag>
+                  );
+                })
+              )}
             </Space>
           </div>
         }
@@ -305,14 +368,25 @@ export default function TKMaterialManagement() {
       <Card style={{ marginBottom: 24 }}>
         <Space wrap>
           <Select
-            placeholder={t('按分类筛选')}
-            style={{ width: 160 }}
-            value={category}
+            placeholder={t('选择一级分类')}
+            style={{ width: 140 }}
+            value={selectedGroup}
             onChange={(v) => {
-              setCategory(v);
+              setCategory(buildCategory(v, ''));
               setPage(1);
             }}
-            optionList={[{ value: '', label: t('全部分类') }, ...categoryOptions]}
+            optionList={[{ value: '', label: t('全部分类') }, ...groupOptions]}
+          />
+          <Select
+            placeholder={t('选择二级分类')}
+            style={{ width: 140 }}
+            value={selectedChild}
+            disabled={!selectedGroup}
+            onChange={(v) => {
+              setCategory(buildCategory(selectedGroup, v));
+              setPage(1);
+            }}
+            optionList={[{ value: '', label: t('全部') }, ...childOptions]}
           />
           <Input
             prefix={<IconSearch />}
@@ -389,11 +463,28 @@ export default function TKMaterialManagement() {
       >
         <Form getFormApi={setFormApi}>
           <Form.Select
-            field='category'
-            label={t('分类')}
-            placeholder={t('请选择分类')}
-            rules={[{ required: true, message: t('请选择分类') }]}
-            optionList={categoryOptions}
+            field='categoryGroup'
+            label={t('一级分类')}
+            placeholder={t('请选择一级分类')}
+            rules={[{ required: true, message: t('请选择一级分类') }]}
+            optionList={uploadGroupOptions}
+            onChange={(v) => {
+              setUploadCategoryGroup(v);
+              formApi?.setValue('categoryChild', '');
+            }}
+            style={{ width: '100%' }}
+          />
+          <Form.Select
+            field='categoryChild'
+            label={t('二级分类')}
+            placeholder={t('请选择二级分类')}
+            rules={[{ required: true, message: t('请选择二级分类') }]}
+            optionList={[
+              { value: '', label: t('请选择') },
+              ...(CATEGORY_GROUPS.find((g) => g.value === uploadCategoryGroup)?.children || []).map(
+                (child) => ({ value: child, label: child })
+              ),
+            ]}
             style={{ width: '100%' }}
           />
           <Form.Slot label={t('图片')}>
@@ -453,7 +544,7 @@ export default function TKMaterialManagement() {
               field='categories'
               label={t('导入分类（列名）')}
               placeholder={t('输入列名后回车')}
-              initValue={CATEGORIES}
+              initValue={ALL_CATEGORIES}
               style={{ width: '100%' }}
             />
           </Form>

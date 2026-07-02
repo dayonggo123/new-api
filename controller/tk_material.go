@@ -24,11 +24,15 @@ func AdminListTKMaterials(c *gin.Context) {
 	}
 	category := c.Query("category")
 	keyword := c.Query("keyword")
-	status := -1
+	status := 1 // default to enabled materials only
 	if s := c.Query("status"); s != "" {
 		if v, err := strconv.Atoi(s); err == nil {
 			status = v
 		}
+	}
+	// status=-1 means query all statuses
+	if status == -1 {
+		status = -1
 	}
 
 	materials, total, err := model.TKMaterialListAll(category, keyword, status, page, pageSize)
