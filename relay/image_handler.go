@@ -36,13 +36,7 @@ func handleTaskImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.Ne
 		return types.NewErrorWithStatusCode(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode, types.ErrOptionWithSkipRetry())
 	}
 
-	// 结算
-	if settleErr := service.SettleBilling(c, info, result.Quota); settleErr != nil {
-		common.SysError("settle task billing error: " + settleErr.Error())
-	}
-	service.LogTaskConsumption(c, info)
-
-	// 插入任务
+	// 插入任务（必须在结算和返回客户端前成功落库）
 	task := model.InitTask(result.Platform, info)
 	task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 	task.PrivateData.BillingSource = info.BillingSource
@@ -61,7 +55,18 @@ func handleTaskImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.Ne
 	task.Action = info.Action
 	if insertErr := task.Insert(); insertErr != nil {
 		common.SysError("insert task error: " + insertErr.Error())
+		// 任务落库失败，上游任务可能已提交；退款并返回错误，避免客户端看到虚假成功
+		if info.Billing != nil {
+			info.Billing.Refund(c)
+		}
+		return types.NewErrorWithStatusCode(insertErr, types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
+
+	// 结算
+	if settleErr := service.SettleBilling(c, info, result.Quota); settleErr != nil {
+		common.SysError("settle task billing error: " + settleErr.Error())
+	}
+	service.LogTaskConsumption(c, info)
 
 	// Register to async_image system so downstream clients polling /v1/images/tasks/{task_id} can find it
 	service.RegisterAsyncImageTask(info.PublicTaskID, info)
