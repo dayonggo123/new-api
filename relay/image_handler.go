@@ -282,11 +282,10 @@ func runSyncImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAP
 // quota, persists a QUEUED task record, returns 200 to the client immediately,
 // and lets the worker pool execute the upstream call later.
 func handleSyncImageAsTaskRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
-	publicTaskID := model.GenerateTaskID()
-	info.PublicTaskID = publicTaskID
 	if info.TaskRelayInfo == nil {
 		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
 	}
+	publicTaskID := model.GenerateTaskID()
 	info.TaskRelayInfo.PublicTaskID = publicTaskID
 
 	imageReq, ok := info.Request.(*dto.ImageRequest)
@@ -318,11 +317,6 @@ func handleSyncImageAsTaskRelay(c *gin.Context, info *relaycommon.RelayInfo) *ty
 	quota := info.PriceData.Quota
 	if quota == 0 {
 		quota = info.PriceData.QuotaToPreConsume
-	}
-
-	// Pre-consume quota so the user is charged at submission time. Refund on failure.
-	if preConsumeErr := service.PreConsumeBilling(c, quota, info); preConsumeErr != nil {
-		return preConsumeErr
 	}
 
 	task, err := queue.CreateTask(info, requestPayload, quota)
