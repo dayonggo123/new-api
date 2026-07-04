@@ -43,12 +43,26 @@ func AsyncImageTaskFetch(c *gin.Context) {
 		if task.ChannelType == constant.ChannelTypeAPIMart || task.ChannelType == constant.ChannelTypeDuoYuanTanSuo || task.ChannelType == constant.ChannelTypeZhangyuge {
 			result = convertTaskQueryToOpenAIVideo(result, task.TaskID)
 		}
-		rewriteImageURLsInResponse(result, c)
+		// 同步图片异步化渠道（OpenAI/Gemini/VolcEngine）存储的响应已经包含持久化代理 URL，
+		// 避免重复重写导致嵌套代理 URL。
+		if !isSyncImageAsyncChannel(task.ChannelType) {
+			rewriteImageURLsInResponse(result, c)
+		}
 		c.JSON(statusCode, result)
 		return
 	}
 
 	c.Data(statusCode, "application/json", body)
+}
+
+// isSyncImageAsyncChannel returns true for channels whose image generation is
+// wrapped as a sync-to-async task.
+func isSyncImageAsyncChannel(channelType int) bool {
+	switch channelType {
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeGemini, constant.ChannelTypeVolcEngine:
+		return true
+	}
+	return false
 }
 
 // convertTaskQueryToOpenAIVideo 将 APIMart/DuoYuanTanSuo 的查询响应 {code, data, error}
