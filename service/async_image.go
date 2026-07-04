@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
@@ -163,6 +164,12 @@ func RecoverAsyncImageTaskFromDB(taskID string) *AsyncImageTask {
 	return task
 }
 func PollAsyncImageTask(task *AsyncImageTask) ([]byte, int, error) {
+	// For synchronous image channels (OpenAI/Gemini/VolcEngine), the result is
+	// already stored in the DB task record. Return it directly.
+	if task.UpstreamTaskID == "" && isSyncImageAsyncChannel(task.ChannelType) {
+		return pollSyncImageTaskFromDB(task)
+	}
+
 	queryID := task.TaskID
 	if task.UpstreamTaskID != "" {
 		queryID = task.UpstreamTaskID
@@ -192,4 +199,48 @@ func PollAsyncImageTask(task *AsyncImageTask) ([]byte, int, error) {
 		return nil, 0, err
 	}
 	return body, resp.StatusCode, nil
+}
+
+func isSyncImageAsyncChannel(channelType int) bool {
+	switch channelType {
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeGemini, constant.ChannelTypeVolcEngine:
+		return true
+	}
+	return false
+}
+
+func pollSyncImageTaskFromDB(task *AsyncImageTask) ([]byte, int, error) {
+	var dbTask model.Task
+	if err := model.DB.Where("task_id = ?", task.TaskID).First(&dbTask).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, http.StatusNotFound, fmt.Errorf("task not found")
+		}
+		return nil, http.StatusInternalServerError, err
+	}
+
+	// If the task is not completed yet, return a pending status response.
+	if dbTask.Status != model.TaskStatusSuccess {
+		statusStr := string(dbTask.Status)
+		switch dbTask.Status {
+		case model.TaskStatusQueued, model.TaskStatusSubmitted, model.TaskStatusInProgress:
+			statusStr = "in_progress"
+		case model.TaskStatusFailure:
+			statusStr = "failed"
+		}
+		body, _ := common.Marshal(map[string]any{
+			"id":         task.TaskID,
+			"object":     "video",
+			"status":     statusStr,
+			"progress":   0,
+			"created_at": dbTask.CreatedAt,
+		})
+		return body, http.StatusOK, nil
+	}
+
+	// Return the stored image response directly
+	body := dbTask.Data
+	if len(body) == 0 {
+		body = []byte("{}")
+	}
+	return body, http.StatusOK, nil
 }

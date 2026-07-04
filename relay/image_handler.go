@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -14,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -77,6 +80,53 @@ func handleTaskImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.Ne
 	return nil
 }
 
+func isSyncImageAsyncChannel(channelType int) bool {
+	switch channelType {
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeGemini, constant.ChannelTypeVolcEngine:
+		return true
+	}
+	return false
+}
+
+// syncImageResponseWriter captures the response body of a synchronous image generation
+// without forwarding it to the downstream client. This lets us store the result as a
+// completed task and return a task_id instead.
+type syncImageResponseWriter struct {
+	gin.ResponseWriter
+	body       *bytes.Buffer
+	statusCode int
+	header     http.Header
+	written    bool
+}
+
+func newSyncImageResponseWriter(w gin.ResponseWriter) *syncImageResponseWriter {
+	return &syncImageResponseWriter{
+		ResponseWriter: w,
+		body:           &bytes.Buffer{},
+		statusCode:     http.StatusOK,
+		header:         http.Header{},
+	}
+}
+
+func (w *syncImageResponseWriter) WriteHeader(code int) {
+	if !w.written {
+		w.statusCode = code
+		w.written = true
+	}
+}
+
+func (w *syncImageResponseWriter) Write(b []byte) (int, error) {
+	return w.body.Write(b)
+}
+
+func (w *syncImageResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *syncImageResponseWriter) Status() int {
+	return w.statusCode
+}
+
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
@@ -93,6 +143,20 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return handleTaskImageRelay(c, info)
 	}
 
+	// 火山方舟 / OpenAI / Google Gemini 的图片生成也包装成异步任务，
+	// 使下游可以通过 /v1/images/tasks/{task_id} 查询结果。
+	if isSyncImageAsyncChannel(info.ChannelType) &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations ||
+			info.RelayMode == relayconstant.RelayModeImagesEdits) {
+		return handleSyncImageAsTaskRelay(c, info)
+	}
+
+	return runSyncImageRelay(c, info)
+}
+
+// runSyncImageRelay executes the original synchronous image generation flow.
+// It is extracted from ImageHelper so that handleSyncImageAsTaskRelay can capture its output.
+func runSyncImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	imageReq, ok := info.Request.(*dto.ImageRequest)
 	if !ok {
 		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected dto.ImageRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -168,7 +232,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.
 				httpResp.StatusCode = http.StatusOK
 			} else {
-				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+				newAPIError := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 				// reset status code 重置状态码
 				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 				return newAPIError
@@ -252,6 +316,104 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil
+}
+
+// handleSyncImageAsTaskRelay runs a synchronous image generation but stores the result
+// as a completed task and returns a task_id to the downstream client.
+func handleSyncImageAsTaskRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	// Generate public task ID
+	publicTaskID := model.GenerateTaskID()
+	info.PublicTaskID = publicTaskID
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+	info.TaskRelayInfo.PublicTaskID = publicTaskID
+
+	// Capture the synchronous image response so we can store it as task data
+	// and return a task_id to the client instead of the raw image.
+	recorder := newSyncImageResponseWriter(c.Writer)
+	c.Writer = recorder
+
+	// Run the existing synchronous image generation path
+	err := runSyncImageRelay(c, info)
+
+	// Restore original writer
+	c.Writer = recorder.ResponseWriter
+
+	if err != nil {
+		return err
+	}
+
+	if recorder.statusCode != http.StatusOK {
+		// Upstream returned a non-200 success code. Pass it through as-is.
+		recorder.ResponseWriter.WriteHeader(recorder.statusCode)
+		if recorder.body.Len() > 0 {
+			recorder.ResponseWriter.Write(recorder.body.Bytes())
+		}
+		return nil
+	}
+
+	capturedBody := recorder.body.Bytes()
+	if len(capturedBody) == 0 {
+		return types.NewError(fmt.Errorf("empty image response"), types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
+	}
+
+	// Create task record with the captured image response as completed data
+	platform := constant.TaskPlatform(strconv.Itoa(info.ChannelType))
+	task := model.InitTask(platform, info)
+	task.Status = model.TaskStatusSuccess
+	task.Progress = "100%"
+	task.StartTime = task.SubmitTime
+	task.FinishTime = time.Now().Unix()
+	task.Action = constant.TaskActionGenerate
+	task.Data = capturedBody
+	task.Quota = info.PriceData.Quota
+	if task.Quota == 0 {
+		task.Quota = info.PriceData.QuotaToPreConsume
+	}
+
+	// Extract result URL from the captured image response for convenience
+	if url := extractImageURLFromResponse(capturedBody); url != "" {
+		task.PrivateData.ResultURL = url
+	}
+
+	if insertErr := task.Insert(); insertErr != nil {
+		common.SysError("insert sync image task error: " + insertErr.Error())
+		return types.NewErrorWithStatusCode(insertErr, types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+	}
+
+	// Register in async image system so polling can find it
+	service.RegisterAsyncImageTask(publicTaskID, info)
+
+	// Return OpenAI-compatible task response to the client
+	resp := dto.NewOpenAIVideo()
+	resp.ID = publicTaskID
+	resp.TaskID = publicTaskID
+	resp.Status = dto.VideoStatusCompleted
+	resp.Progress = 100
+	resp.CreatedAt = task.SubmitTime
+	resp.CompletedAt = task.FinishTime
+	resp.Model = info.OriginModelName
+	if task.PrivateData.ResultURL != "" {
+		resp.SetMetadata("url", task.PrivateData.ResultURL)
+	}
+	c.JSON(http.StatusOK, resp)
+	return nil
+}
+
+// extractImageURLFromResponse extracts the first image URL from an OpenAI-compatible
+// image response, if present.
+func extractImageURLFromResponse(body []byte) string {
+	var imgResp dto.ImageResponse
+	if err := common.Unmarshal(body, &imgResp); err != nil {
+		return ""
+	}
+	for _, item := range imgResp.Data {
+		if item.Url != "" {
+			return item.Url
+		}
+	}
+	return ""
 }
 
 // rewriteImageResponseWithProxyURLs reads the upstream image generation response,
