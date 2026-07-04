@@ -319,6 +319,16 @@ func handleSyncImageAsTaskRelay(c *gin.Context, info *relaycommon.RelayInfo) *ty
 		quota = info.PriceData.QuotaToPreConsume
 	}
 
+	// Capture the downstream Host so that the worker can generate correct image
+	// proxy URLs when it rewrites upstream image URLs later. Go does not put the
+	// Host header in Request.Header, so we explicitly preserve it here.
+	if info.RequestHeaders == nil {
+		info.RequestHeaders = make(map[string]string)
+	}
+	if info.RequestHeaders["Host"] == "" {
+		info.RequestHeaders["Host"] = c.Request.Host
+	}
+
 	task, err := queue.CreateTask(info, requestPayload, quota)
 	if err != nil {
 		common.SysError("create image task error: " + err.Error())

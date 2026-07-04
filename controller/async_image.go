@@ -24,9 +24,12 @@ func AsyncImageTaskFetch(c *gin.Context) {
 	userID := c.GetInt("id")
 	if userID > 0 {
 		dbTask, exists, err := service.GetImageTaskWorkerPoolManager().Queue().GetTaskByID(userID, taskID)
-		if err == nil && exists && dbTask != nil && isSyncImageAsyncChannel(dbTask.ChannelId) {
-			c.JSON(http.StatusOK, buildImageGenerationTaskResponse(dbTask))
-			return
+		if err == nil && exists && dbTask != nil {
+			channel, channelErr := model.GetChannelById(dbTask.ChannelId, true)
+			if channelErr == nil && channel != nil && isSyncImageAsyncChannel(channel.Type) {
+				c.JSON(http.StatusOK, buildImageGenerationTaskResponse(dbTask))
+				return
+			}
 		}
 	}
 
