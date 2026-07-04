@@ -77,7 +77,7 @@ func (q *ImageTaskQueue) Dequeue(channelID int, limit int) ([]*model.Task, error
 	err := model.DB.Where("channel_id = ?", channelID).
 		Where("action = ?", constant.TaskActionImageGenerate).
 		Where("status = ?", model.TaskStatusQueued).
-		Where("next_retry_at = ? OR next_retry_at <= ?", 0, now).
+		Where(nextRetryAtJSONFilter(), now).
 		Order("submit_time").
 		Limit(limit).
 		Find(&tasks).Error
@@ -85,6 +85,19 @@ func (q *ImageTaskQueue) Dequeue(channelID int, limit int) ([]*model.Task, error
 		return nil, fmt.Errorf("dequeue image tasks failed: %w", err)
 	}
 	return tasks, nil
+}
+
+// nextRetryAtJSONFilter returns a database-aware WHERE clause that filters on
+// private_data.next_retry_at. It treats unset/missing values as 0 (ready).
+// Supports SQLite, MySQL, and PostgreSQL.
+func nextRetryAtJSONFilter() string {
+	if common.UsingPostgreSQL {
+		return `COALESCE((private_data->>'next_retry_at')::bigint, 0) <= ?`
+	}
+	if common.UsingMySQL {
+		return `COALESCE(JSON_EXTRACT(private_data, '$.next_retry_at'), 0) <= ?`
+	}
+	return `COALESCE(json_extract(private_data, '$.next_retry_at'), 0) <= ?`
 }
 
 // MarkInProgress attempts to CAS a task from QUEUED to IN_PROGRESS. It returns
