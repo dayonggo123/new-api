@@ -67,8 +67,8 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	}
 	// 图像生成模型自动检测
 	lowerModelName := strings.ToLower(modelName)
-	if strings.HasPrefix(modelName, "gpt-image") || strings.HasPrefix(modelName, "dall-e") ||
-		strings.Contains(modelName, "imagen") || strings.Contains(modelName, "nano-banana") ||
+	if strings.HasPrefix(lowerModelName, "gpt-image") || strings.HasPrefix(lowerModelName, "dall-e") ||
+		strings.Contains(lowerModelName, "imagen") || strings.Contains(lowerModelName, "nano-banana") ||
 		strings.Contains(lowerModelName, "seedream") {
 		return string(constant.EndpointTypeImageGeneration)
 	}
