@@ -79,8 +79,18 @@ func handleTaskImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.Ne
 }
 
 func isSyncImageAsyncChannel(channelType int) bool {
-	switch channelType {
-	case constant.ChannelTypeOpenAI, constant.ChannelTypeGemini, constant.ChannelTypeVolcEngine:
+	// Task image channels (APIMart/DuoYuanTanSuo/Zhangyuge/Veo) have their own
+	// dedicated task relay flow; they should not be wrapped as sync-to-async.
+	if isTaskImageChannel(channelType) {
+		return false
+	}
+	// OpenAI-compatible channels (including OpenAIMax, OpenRouter, Xinference,
+	// Custom, etc.) use the OpenAI image generation adaptor and should be
+	// wrapped so downstream clients can poll by task_id.
+	apiType, _ := common.ChannelType2APIType(channelType)
+	switch apiType {
+	case constant.APITypeOpenAI, constant.APITypeOpenRouter, constant.APITypeXinference,
+		constant.APITypeGemini, constant.APITypeVolcEngine:
 		return true
 	}
 	return false

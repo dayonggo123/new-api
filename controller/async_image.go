@@ -137,6 +137,7 @@ func buildImageGenerationTaskResponse(task *model.Task) map[string]any {
 
 	resp := map[string]any{
 		"id":         task.TaskID,
+		"task_id":    task.TaskID,
 		"object":     "image.generation",
 		"status":     status,
 		"progress":   progress,
@@ -166,10 +167,20 @@ func buildImageGenerationTaskResponse(task *model.Task) map[string]any {
 }
 
 // isSyncImageAsyncChannel returns true for channels whose image generation is
-// wrapped as a sync-to-async task.
+// wrapped as a sync-to-async task. This covers OpenAI-compatible channels
+// (OpenAI, OpenAIMax, OpenRouter, Xinference, Custom, etc.) as well as Gemini
+// and VolcEngine. Task image channels (APIMart, DuoYuanTanSuo, Zhangyuge, Veo)
+// are excluded because they have their own dedicated task relay flow.
 func isSyncImageAsyncChannel(channelType int) bool {
 	switch channelType {
-	case constant.ChannelTypeOpenAI, constant.ChannelTypeGemini, constant.ChannelTypeVolcEngine:
+	case constant.ChannelTypeAPIMart, constant.ChannelTypeDuoYuanTanSuo, constant.ChannelTypeZhangyuge,
+		constant.ChannelTypeVeo:
+		return false
+	}
+	apiType, _ := common.ChannelType2APIType(channelType)
+	switch apiType {
+	case constant.APITypeOpenAI, constant.APITypeOpenRouter, constant.APITypeXinference,
+		constant.APITypeGemini, constant.APITypeVolcEngine:
 		return true
 	}
 	return false
