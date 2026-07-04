@@ -1,0 +1,118 @@
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant R as router/relay-router.go
+    participant IH as relay/image_handler.go
+    participant Bill as service/billing.go
+    participant Q as service/image_task_queue.go
+    participant DB as Task 表
+
+    C->>R: POST /v1/images/generations
+    R->>IH: ImageHelper(c, info)
+    IH->>IH: 校验请求、模型映射
+    IH->>Bill: PreConsumeBilling(c, quota, info)
+    Bill-->>IH: BillingSession
+    IH->>Q: CreateTask(info, requestPayload, quota)
+    Q->>DB: INSERT task (status=QUEUED, progress=0%, action=image_generation)
+    DB-->>Q: task_id
+    Q-->>IH: task
+    IH-->>C: 202 {id, task_id, status: queued, progress: 0}
+
+---
+
+sequenceDiagram
+    autonumber
+    participant WP as service/image_task_worker.go
+    participant Q as service/image_task_queue.go
+    participant DB as Task 表
+    participant EX as service/image_task_executor.go
+    participant CTX as service/image_task_context.go
+    participant Up as 上游渠道
+    participant IP as service/image_proxy.go
+    participant Bill as service/task_billing.go
+
+    loop 每个渠道固定 goroutine
+        WP->>Q: Dequeue(channelID, limit=1)
+        Q->>DB: SELECT ... WHERE status='QUEUED' AND channel_id=? ORDER BY submit_time LIMIT 1
+        DB-->>Q: task
+        Q->>DB: UPDATE status=IN_PROGRESS (CAS)
+        DB-->>Q: success
+        Q-->>WP: task
+        WP->>EX: Execute(ctx, task)
+        EX->>CTX: BuildRelayInfoFromTask(task)
+        CTX-->>EX: relayInfo
+        EX->>Up: 调用 adaptor.DoRequest + DoResponse
+        Up-->>EX: image response bytes
+        EX->>IP: RegisterImageProxyURL(upstreamURL)
+        IP-->>EX: proxyID
+        EX->>EX: rewriteImageResponseWithProxyURLs
+        EX->>Q: MarkSuccess(task, data, resultURL)
+        Q->>DB: UPDATE status=SUCCESS, data=..., finish_time=... (CAS)
+        DB-->>Q: success
+        Q-->>EX: ok
+        EX->>Bill: SettleBilling(ctx, relayInfo, actualQuota)
+    end
+
+---
+
+sequenceDiagram
+    autonumber
+    participant EX as service/image_task_executor.go
+    participant Retry as service/image_task_retry.go
+    participant Q as service/image_task_queue.go
+    participant DB as Task 表
+    participant Bill as service/task_billing.go
+
+    EX->>EX: 上游调用失败
+    EX->>Retry: ShouldRetry(task, err)
+    Retry-->>EX: true / false
+    alt 允许重试
+        EX->>Retry: ComputeNextRetryAt(retryCount)
+        Retry-->>EX: nextRetryAt
+        EX->>Q: MarkRetry(task, reason, nextRetryAt)
+        Q->>DB: UPDATE status=QUEUED, retry_count++, next_retry_at=..., fail_reason (CAS)
+    else 达到最大重试次数
+        EX->>Q: MarkFailure(task, reason)
+        Q->>DB: UPDATE status=FAILURE, progress=100%, finish_time=... (CAS)
+        DB-->>Q: success
+        Q-->>EX: ok
+        EX->>Bill: RefundTaskQuota(ctx, task, reason)
+    end
+
+---
+
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant AC as controller/async_image.go
+    participant Q as service/image_task_queue.go
+    participant DB as Task 表
+
+    C->>AC: GET /v1/images/tasks/{task_id}
+    AC->>AC: TokenAuth
+    AC->>Q: GetTaskByID(userID, taskID)
+    Q->>DB: SELECT * FROM task WHERE user_id=? AND task_id=?
+    DB-->>Q: task
+    Q-->>AC: task
+    AC->>AC: ToImageGenerationResponse(task)
+    AC-->>C: 200 {id, object:image.generation, status, progress, data/error}
+
+---
+
+sequenceDiagram
+    autonumber
+    participant M as main.go
+    participant WP as service/image_task_worker.go
+    participant Q as service/image_task_queue.go
+    participant DB as Task 表
+
+    M->>WP: StartImageTaskWorkers(ctx)
+    WP->>Q: RecoverIncompleteTasks()
+    Q->>DB: SELECT * FROM task WHERE status IN ('QUEUED','IN_PROGRESS')
+    DB-->>Q: tasks
+    Q-->>WP: tasks
+    loop 对每个 IN_PROGRESS 任务
+        WP->>Q: MarkRetry(task, "服务重启后恢复", now)
+        Q->>DB: UPDATE status=QUEUED, retry_count++, next_retry_at=now
+    end
+    WP->>WP: 为每个有未完成任务或已配置并发数的 channel 启动 Worker Pool

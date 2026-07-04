@@ -3,9 +3,12 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +18,16 @@ func AsyncImageTaskFetch(c *gin.Context) {
 	if taskID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "task_id is required"})
 		return
+	}
+
+	// 同步图片异步化渠道（OpenAI/Gemini/VolcEngine）直接读 DB，返回统一任务包装格式。
+	userID := c.GetInt("id")
+	if userID > 0 {
+		dbTask, exists, err := service.GetImageTaskWorkerPoolManager().Queue().GetTaskByID(userID, taskID)
+		if err == nil && exists && dbTask != nil && isSyncImageAsyncChannel(dbTask.ChannelId) {
+			c.JSON(http.StatusOK, buildImageGenerationTaskResponse(dbTask))
+			return
+		}
 	}
 
 	task := service.GetAsyncImageTask(taskID)
@@ -43,8 +56,7 @@ func AsyncImageTaskFetch(c *gin.Context) {
 		if task.ChannelType == constant.ChannelTypeAPIMart || task.ChannelType == constant.ChannelTypeDuoYuanTanSuo || task.ChannelType == constant.ChannelTypeZhangyuge {
 			result = convertTaskQueryToOpenAIVideo(result, task.TaskID)
 		}
-		// 同步图片异步化渠道（OpenAI/Gemini/VolcEngine）存储的响应已经包含持久化代理 URL，
-		// 避免重复重写导致嵌套代理 URL。
+		// 非同步图片异步化渠道需要重写 URL。
 		if !isSyncImageAsyncChannel(task.ChannelType) {
 			rewriteImageURLsInResponse(result, c)
 		}
@@ -53,6 +65,101 @@ func AsyncImageTaskFetch(c *gin.Context) {
 	}
 
 	c.Data(statusCode, "application/json", body)
+}
+
+// AsyncImageTaskCancel cancels an image generation task that is still in
+// QUEUED or IN_PROGRESS. It refunds the pre-consumed quota and returns the
+// updated task status.
+func AsyncImageTaskCancel(c *gin.Context) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "task_id is required"})
+		return
+	}
+
+	userID := c.GetInt("id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	queue := service.GetImageTaskWorkerPoolManager().Queue()
+	task, exists, err := queue.GetTaskByID(userID, taskID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+		return
+	}
+
+	ok, err := queue.CancelTask(userID, taskID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !ok {
+		c.JSON(http.StatusConflict, gin.H{"error": "task cannot be cancelled"})
+		return
+	}
+
+	// Refund the pre-consumed quota.
+	if task.Status == model.TaskStatusQueued || task.Status == model.TaskStatusInProgress {
+		service.RefundTaskQuota(c, task, "任务已取消")
+	}
+
+	c.JSON(http.StatusOK, buildImageGenerationTaskResponse(task))
+}
+
+// buildImageGenerationTaskResponse builds a unified image.generation task
+// response from a Task model record.
+func buildImageGenerationTaskResponse(task *model.Task) map[string]any {
+	progress := 0
+	if task.Progress != "" {
+		p, _ := strconv.Atoi(task.Progress)
+		progress = p
+	}
+
+	status := task.Status.ToVideoStatus()
+	if task.Status == model.TaskStatusQueued {
+		status = dto.VideoStatusQueued
+	} else if task.Status == model.TaskStatusInProgress {
+		status = dto.VideoStatusInProgress
+	} else if task.Status == model.TaskStatusFailure {
+		status = dto.VideoStatusFailed
+	} else if task.Status == model.TaskStatusSuccess {
+		status = dto.VideoStatusCompleted
+	}
+
+	resp := map[string]any{
+		"id":         task.TaskID,
+		"object":     "image.generation",
+		"status":     status,
+		"progress":   progress,
+		"created_at": task.CreatedAt,
+	}
+
+	if task.Status == model.TaskStatusSuccess {
+		resp["completed_at"] = task.FinishTime
+		if task.PrivateData.ResultURL != "" {
+			resp["metadata"] = map[string]any{
+				"url": task.PrivateData.ResultURL,
+			}
+		}
+		if len(task.Data) > 0 {
+			resp["data"] = task.Data
+		}
+	}
+
+	if task.Status == model.TaskStatusFailure && task.FailReason != "" {
+		resp["error"] = map[string]any{
+			"message": task.FailReason,
+			"code":    "task_failed",
+		}
+	}
+
+	return resp
 }
 
 // isSyncImageAsyncChannel returns true for channels whose image generation is

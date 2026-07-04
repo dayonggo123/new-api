@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -86,45 +84,6 @@ func isSyncImageAsyncChannel(channelType int) bool {
 		return true
 	}
 	return false
-}
-
-// syncImageResponseWriter captures the response body of a synchronous image generation
-// without forwarding it to the downstream client. This lets us store the result as a
-// completed task and return a task_id instead.
-type syncImageResponseWriter struct {
-	gin.ResponseWriter
-	body       *bytes.Buffer
-	statusCode int
-	header     http.Header
-	written    bool
-}
-
-func newSyncImageResponseWriter(w gin.ResponseWriter) *syncImageResponseWriter {
-	return &syncImageResponseWriter{
-		ResponseWriter: w,
-		body:           &bytes.Buffer{},
-		statusCode:     http.StatusOK,
-		header:         http.Header{},
-	}
-}
-
-func (w *syncImageResponseWriter) WriteHeader(code int) {
-	if !w.written {
-		w.statusCode = code
-		w.written = true
-	}
-}
-
-func (w *syncImageResponseWriter) Write(b []byte) (int, error) {
-	return w.body.Write(b)
-}
-
-func (w *syncImageResponseWriter) Header() http.Header {
-	return w.header
-}
-
-func (w *syncImageResponseWriter) Status() int {
-	return w.statusCode
 }
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
@@ -268,7 +227,7 @@ func runSyncImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAP
 
 	// Intercept image generation responses to replace temporary upstream URLs
 	// with persistent local proxy URLs.
-	httpResp = rewriteImageResponseWithProxyURLs(c, httpResp)
+	httpResp = service.RewriteImageResponseWithProxyURLs(c, httpResp)
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
@@ -318,10 +277,11 @@ func runSyncImageRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAP
 	return nil
 }
 
-// handleSyncImageAsTaskRelay runs a synchronous image generation but stores the result
-// as a completed task and returns a task_id to the downstream client.
+// handleSyncImageAsTaskRelay converts a synchronous image generation request
+// (OpenAI / Gemini / VolcEngine) into an asynchronous task. It pre-consumes
+// quota, persists a QUEUED task record, returns 200 to the client immediately,
+// and lets the worker pool execute the upstream call later.
 func handleSyncImageAsTaskRelay(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
-	// Generate public task ID
 	publicTaskID := model.GenerateTaskID()
 	info.PublicTaskID = publicTaskID
 	if info.TaskRelayInfo == nil {
@@ -329,149 +289,69 @@ func handleSyncImageAsTaskRelay(c *gin.Context, info *relaycommon.RelayInfo) *ty
 	}
 	info.TaskRelayInfo.PublicTaskID = publicTaskID
 
-	// Capture the synchronous image response so we can store it as task data
-	// and return a task_id to the client instead of the raw image.
-	recorder := newSyncImageResponseWriter(c.Writer)
-	c.Writer = recorder
+	imageReq, ok := info.Request.(*dto.ImageRequest)
+	if !ok {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("invalid request type, expected dto.ImageRequest, got %T", info.Request),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
 
-	// Run the existing synchronous image generation path
-	err := runSyncImageRelay(c, info)
-
-	// Restore original writer
-	c.Writer = recorder.ResponseWriter
-
+	request, err := common.DeepCopy(imageReq)
 	if err != nil {
-		return err
+		return types.NewError(
+			fmt.Errorf("failed to copy request to ImageRequest: %w", err),
+			types.ErrorCodeInvalidRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
 	}
 
-	if recorder.statusCode != http.StatusOK {
-		// Upstream returned a non-200 success code. Pass it through as-is.
-		recorder.ResponseWriter.WriteHeader(recorder.statusCode)
-		if recorder.body.Len() > 0 {
-			recorder.ResponseWriter.Write(recorder.body.Bytes())
+	err = helper.ModelMappedHelper(c, info, request)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+
+	queue := service.NewImageTaskQueue()
+	requestPayload := service.SerializeImageRequest(info, request)
+	quota := info.PriceData.Quota
+	if quota == 0 {
+		quota = info.PriceData.QuotaToPreConsume
+	}
+
+	// Pre-consume quota so the user is charged at submission time. Refund on failure.
+	if preConsumeErr := service.PreConsumeBilling(c, quota, info); preConsumeErr != nil {
+		return preConsumeErr
+	}
+
+	task, err := queue.CreateTask(info, requestPayload, quota)
+	if err != nil {
+		common.SysError("create image task error: " + err.Error())
+		if info.Billing != nil {
+			info.Billing.Refund(c)
 		}
-		return nil
+		return types.NewErrorWithStatusCode(
+			err,
+			types.ErrorCodeBadResponseStatusCode,
+			http.StatusInternalServerError,
+			types.ErrOptionWithSkipRetry(),
+		)
 	}
 
-	capturedBody := recorder.body.Bytes()
-	if len(capturedBody) == 0 {
-		return types.NewError(fmt.Errorf("empty image response"), types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
-	}
-
-	// Create task record with the captured image response as completed data
-	platform := constant.TaskPlatform(strconv.Itoa(info.ChannelType))
-	task := model.InitTask(platform, info)
-	task.Status = model.TaskStatusSuccess
-	task.Progress = "100%"
-	task.StartTime = task.SubmitTime
-	task.FinishTime = time.Now().Unix()
-	task.Action = constant.TaskActionGenerate
-	task.Data = capturedBody
-	task.Quota = info.PriceData.Quota
-	if task.Quota == 0 {
-		task.Quota = info.PriceData.QuotaToPreConsume
-	}
-
-	// Extract result URL from the captured image response for convenience
-	if url := extractImageURLFromResponse(capturedBody); url != "" {
-		task.PrivateData.ResultURL = url
-	}
-
-	if insertErr := task.Insert(); insertErr != nil {
-		common.SysError("insert sync image task error: " + insertErr.Error())
-		return types.NewErrorWithStatusCode(insertErr, types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
-	}
-
-	// Register in async image system so polling can find it
+	// Register in the async image system so in-memory polling can find it
+	// without a DB lookup.
 	service.RegisterAsyncImageTask(publicTaskID, info)
 
-	// Return OpenAI-compatible task response to the client
+	// Return 200 OK with a queued task reference.
 	resp := dto.NewOpenAIVideo()
 	resp.ID = publicTaskID
 	resp.TaskID = publicTaskID
-	resp.Status = dto.VideoStatusCompleted
-	resp.Progress = 100
+	resp.Object = "image.generation"
+	resp.Status = dto.VideoStatusQueued
+	resp.Progress = 0
 	resp.CreatedAt = task.SubmitTime
-	resp.CompletedAt = task.FinishTime
 	resp.Model = info.OriginModelName
-	if task.PrivateData.ResultURL != "" {
-		resp.SetMetadata("url", task.PrivateData.ResultURL)
-	}
 	c.JSON(http.StatusOK, resp)
 	return nil
-}
-
-// extractImageURLFromResponse extracts the first image URL from an OpenAI-compatible
-// image response, if present.
-func extractImageURLFromResponse(body []byte) string {
-	var imgResp dto.ImageResponse
-	if err := common.Unmarshal(body, &imgResp); err != nil {
-		return ""
-	}
-	for _, item := range imgResp.Data {
-		if item.Url != "" {
-			return item.Url
-		}
-	}
-	return ""
-}
-
-// rewriteImageResponseWithProxyURLs reads the upstream image generation response,
-// replaces temporary upstream image URLs with persistent local proxy URLs,
-// and returns a new http.Response with the modified body.
-func rewriteImageResponseWithProxyURLs(c *gin.Context, resp *http.Response) *http.Response {
-	if resp == nil || resp.Body == nil {
-		return resp
-	}
-	// Only rewrite JSON image responses (skip b64_json, stream, etc.)
-	contentType := resp.Header.Get("Content-Type")
-	if !strings.Contains(contentType, "application/json") {
-		return resp
-	}
-	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		return resp
-	}
-
-	var imgResp dto.ImageResponse
-	if err := common.Unmarshal(body, &imgResp); err != nil {
-		// Not a valid image response, restore body and return as-is
-		resp.Body = io.NopCloser(bytes.NewReader(body))
-		return resp
-	}
-
-	modified := false
-	scheme := "https"
-	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	host := c.GetHeader("X-Forwarded-Host")
-	if host == "" {
-		host = c.Request.Host
-	}
-	baseURL := scheme + "://" + host
-
-	for i := range imgResp.Data {
-		if imgResp.Data[i].Url != "" && imgResp.Data[i].B64Json == "" {
-			proxyID := service.RegisterImageProxyURL(imgResp.Data[i].Url)
-			imgResp.Data[i].Url = baseURL + "/image-proxy/" + proxyID + ".png"
-			modified = true
-		}
-	}
-
-	if !modified {
-		resp.Body = io.NopCloser(bytes.NewReader(body))
-		return resp
-	}
-
-	newBody, err := common.Marshal(imgResp)
-	if err != nil {
-		resp.Body = io.NopCloser(bytes.NewReader(body))
-		return resp
-	}
-	resp.Body = io.NopCloser(bytes.NewReader(newBody))
-	resp.ContentLength = int64(len(newBody))
-	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(newBody)))
-	return resp
 }

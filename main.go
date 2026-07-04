@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"log"
@@ -59,6 +60,7 @@ func main() {
 	}
 
 	defer func() {
+		service.StopImageTaskWorkers()
 		err := model.CloseDB()
 		if err != nil {
 			common.FatalLog("failed to close database: " + err.Error())
@@ -145,6 +147,11 @@ func main() {
 		return a
 	}
 
+	// Wire image generation task adaptor factory (breaks service -> relay import cycle)
+	service.GetImageTaskAdaptorFunc = func(apiType int) service.ImageTaskAdaptor {
+		return relay.GetAdaptor(apiType)
+	}
+
 	// Channel upstream model update check task
 	controller.StartChannelUpstreamModelUpdateTask()
 
@@ -216,6 +223,9 @@ func main() {
 	if port == "" {
 		port = strconv.Itoa(*common.Port)
 	}
+
+	// Start background image generation worker pool after DB and routing are ready.
+	service.StartImageTaskWorkers(context.Background())
 
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)

@@ -1,0 +1,122 @@
+classDiagram
+    class model.Task {
+        +int64 ID
+        +int64 CreatedAt
+        +int64 UpdatedAt
+        +string TaskID
+        +TaskPlatform Platform
+        +int UserId
+        +string Group
+        +int ChannelId
+        +int Quota
+        +string Action
+        +TaskStatus Status
+        +string FailReason
+        +int64 SubmitTime
+        +int64 StartTime
+        +int64 FinishTime
+        +string Progress
+        +Properties Properties
+        +TaskPrivateData PrivateData
+        +json.RawMessage Data
+        +Insert() error
+        +Update() error
+        +UpdateWithStatus(fromStatus TaskStatus) bool, error
+        +Snapshot() taskSnapshot
+    }
+
+    class model.TaskPrivateData {
+        +string Key
+        +string UpstreamTaskID
+        +string ResultURL
+        +string BillingSource
+        +int SubscriptionId
+        +int TokenId
+        +TaskBillingContext BillingContext
+        +string RequestPayload
+        +int RetryCount
+        +int64 NextRetryAt
+        +string DownstreamBaseURL
+    }
+
+    class model.TaskBillingContext {
+        +float64 ModelPrice
+        +float64 GroupRatio
+        +float64 ModelRatio
+        +map[string]float64 OtherRatios
+        +string OriginModelName
+        +bool PerCallBilling
+    }
+
+    class service.ImageTaskQueue {
+        +CreateTask(relayInfo RelayInfo, requestPayload []byte, quota int) Task, error
+        +Dequeue(channelID int, limit int) []Task
+        +MarkInProgress(task Task) bool, error
+        +MarkSuccess(task Task, data []byte, resultURL string) bool, error
+        +MarkRetry(task Task, reason string, nextRetryAt int64) bool, error
+        +MarkFailure(task Task, reason string) bool, error
+        +GetTaskByID(userID int, taskID string) Task, bool, error
+        +RecoverIncompleteTasks() []Task
+        +CancelTask(userID int, taskID string) bool, error
+    }
+
+    class service.ImageTaskWorkerPool {
+        +int ChannelID
+        +int Concurrency
+        +ImageTaskQueue Queue
+        +ImageTaskExecutor Executor
+        +Start(ctx context.Context)
+        +Stop()
+    }
+
+    class service.ImageTaskExecutor {
+        +Execute(ctx context.Context, task Task) error
+        -callUpstream(ctx, task Task) []byte, error
+        -rewriteResultURLs(ctx, data []byte, baseURL string) []byte
+    }
+
+    class service.RetryPolicy {
+        +ShouldRetry(task Task, err error) bool
+        +NextRetryAt(retryCount int) int64
+    }
+
+    class service.ImageTaskMetrics {
+        +RecordEnqueue(channelID int)
+        +RecordDequeue(channelID int)
+        +RecordSuccess(channelID int, duration time.Duration)
+        +RecordFailure(channelID int, duration time.Duration, retryCount int)
+        +QueueDepth(channelID int, status TaskStatus) int
+    }
+
+    class relay.ImageHandler {
+        +ImageHelper(c *gin.Context, info *relaycommon.RelayInfo)
+        +handleImageTaskRelay(c *gin.Context, info *relaycommon.RelayInfo)
+    }
+
+    class controller.AsyncImageController {
+        +AsyncImageTaskFetch(c *gin.Context)
+        +AsyncImageTaskCancel(c *gin.Context)
+    }
+
+    class service.BillingSession {
+        +Settle(actualQuota int) error
+        +Refund() error
+        +GetPreConsumedQuota() int
+    }
+
+    class service.ImageProxyService {
+        +RegisterImageProxyURL(upstreamURL string) string
+        +GetImageProxyURL(proxyID string) string
+    }
+
+    model.Task --> model.TaskPrivateData : contains
+    model.TaskPrivateData --> model.TaskBillingContext : contains
+    service.ImageTaskWorkerPool --> service.ImageTaskQueue : uses
+    service.ImageTaskWorkerPool --> service.ImageTaskExecutor : uses
+    service.ImageTaskExecutor --> service.ImageTaskQueue : updates status
+    service.ImageTaskExecutor --> service.ImageProxyService : register & rewrite URLs
+    service.ImageTaskExecutor --> service.BillingSession : settle/refund
+    service.ImageTaskExecutor --> service.RetryPolicy : retry decision
+    relay.ImageHandler --> service.ImageTaskQueue : creates task
+    relay.ImageHandler --> service.BillingSession : pre-consume
+    controller.AsyncImageController --> service.ImageTaskQueue : query & cancel

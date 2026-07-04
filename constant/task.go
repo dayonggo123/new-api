@@ -17,6 +17,10 @@ const (
 	TaskActionFirstTailGenerate = "firstTailGenerate"
 	TaskActionReferenceGenerate = "referenceGenerate"
 	TaskActionRemix             = "remixGenerate"
+
+	// TaskActionImageGenerate is the action value for asynchronous image
+	// generation tasks (OpenAI / Gemini / VolcEngine).
+	TaskActionImageGenerate = "image_generation"
 )
 
 var SunoModel2Action = map[string]string{

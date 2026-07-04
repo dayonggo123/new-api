@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -132,4 +135,79 @@ func FetchAndCacheProxyImage(id string) (string, error) {
 		return "", fmt.Errorf("write cache failed: %w", err)
 	}
 	return cachePath, nil
+}
+
+// RewriteImageResponseWithProxyURLs reads an upstream image generation response,
+// replaces temporary upstream image URLs with persistent local proxy URLs, and
+// returns a new http.Response with the modified body.
+func RewriteImageResponseWithProxyURLs(c *gin.Context, resp *http.Response) *http.Response {
+	if resp == nil || resp.Body == nil {
+		return resp
+	}
+	// Only rewrite JSON image responses (skip b64_json, stream, etc.)
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		return resp
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return resp
+	}
+
+	var imgResp dto.ImageResponse
+	if err := common.Unmarshal(body, &imgResp); err != nil {
+		// Not a valid image response, restore body and return as-is
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		return resp
+	}
+
+	modified := false
+	scheme := "https"
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	baseURL := scheme + "://" + host
+
+	for i := range imgResp.Data {
+		if imgResp.Data[i].Url != "" && imgResp.Data[i].B64Json == "" {
+			proxyID := RegisterImageProxyURL(imgResp.Data[i].Url)
+			imgResp.Data[i].Url = baseURL + "/image-proxy/" + proxyID + ".png"
+			modified = true
+		}
+	}
+
+	if !modified {
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		return resp
+	}
+
+	newBody, err := common.Marshal(imgResp)
+	if err != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		return resp
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(newBody))
+	resp.ContentLength = int64(len(newBody))
+	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(newBody)))
+	return resp
+}
+
+// ExtractImageURLFromResponse extracts the first image URL from an OpenAI-
+// compatible image response, if present.
+func ExtractImageURLFromResponse(body []byte) string {
+	var imgResp dto.ImageResponse
+	if err := common.Unmarshal(body, &imgResp); err != nil {
+		return ""
+	}
+	for _, item := range imgResp.Data {
+		if item.Url != "" {
+			return item.Url
+		}
+	}
+	return ""
 }

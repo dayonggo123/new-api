@@ -52,10 +52,10 @@ type Task struct {
 	Group      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
 	ChannelId  int                   `json:"channel_id" gorm:"index"`
 	Quota      int                   `json:"quota"`
-	Action     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
-	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
+	Action     string                `json:"action" gorm:"type:varchar(40);index:idx_task_channel_status"`         // 任务类型, song, lyrics, description-mode
+	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index:idx_task_status_submit_time,idx_task_channel_status"` // 任务状态
 	FailReason string                `json:"fail_reason"`
-	SubmitTime int64                 `json:"submit_time" gorm:"index"`
+	SubmitTime int64                 `json:"submit_time" gorm:"index:idx_task_status_submit_time"`
 	StartTime  int64                 `json:"start_time" gorm:"index"`
 	FinishTime int64                 `json:"finish_time" gorm:"index"`
 	Progress   string                `json:"progress" gorm:"type:varchar(20);index"`
@@ -98,15 +98,21 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	Key               string              `json:"key,omitempty"`
+	UpstreamTaskID    string              `json:"upstream_task_id,omitempty"` // 上游真实 task ID
+	ResultURL         string              `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
-	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
-	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
-	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
-	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
-	RequestPayload string              `json:"request_payload,omitempty"` // 保存提交时传给上游的请求体（用于调试）
+	BillingSource     string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
+	SubscriptionId    int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
+	TokenId           int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
+	BillingContext    *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	RequestPayload    string              `json:"request_payload,omitempty"` // 保存提交时传给上游的请求体（用于调试和 Worker 重放）
+	RetryCount        int                 `json:"retry_count,omitempty"`     // 已重试次数
+	NextRetryAt       int64               `json:"next_retry_at,omitempty"`   // 下次可重试时间戳（Unix 秒）
+	DownstreamBaseURL string              `json:"downstream_base_url,omitempty"` // 用于生成图片代理 URL 的下游 Base URL
+	// RelayMode stores the original relay mode (generations / edits) so the worker
+	// can rebuild the correct adaptor request URL.
+	RelayMode int `json:"relay_mode,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
