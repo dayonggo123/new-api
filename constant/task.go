@@ -20,7 +20,7 @@ const (
 
 	// TaskActionImageGenerate is the action value for asynchronous image
 	// generation tasks (OpenAI / Gemini / VolcEngine).
-	TaskActionImageGenerate = "image_generation"
+	TaskActionImageGenerate = "imageGenerate"
 )
 
 var SunoModel2Action = map[string]string{

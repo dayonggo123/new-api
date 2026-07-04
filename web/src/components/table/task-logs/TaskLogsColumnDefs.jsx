@@ -33,6 +33,7 @@ import {
   Hash,
   Video,
   Sparkles,
+  Image,
 } from 'lucide-react';
 import {
   TASK_ACTION_FIRST_TAIL_GENERATE,
@@ -143,8 +144,9 @@ const renderType = (type, t) => {
         </Tag>
       );
     case TASK_ACTION_IMAGE_GENERATE:
+    case 'image_generation':
       return (
-        <Tag color='purple' shape='circle' prefixIcon={<Sparkles size={14} />}>
+        <Tag color='purple' shape='circle' prefixIcon={<Image size={14} />}>
           {t('图片生成')}
         </Tag>
       );
@@ -169,6 +171,12 @@ const renderPlatform = (platform, t) => {
     );
   }
   switch (platform) {
+    case 'image':
+      return (
+        <Tag color='purple' shape='circle'>
+          {t('图片生成')}
+        </Tag>
+      );
     case 'suno':
       return (
         <Tag color='green' shape='circle'>
@@ -429,9 +437,25 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_REFERENCE_GENERATE ||
           record.action === TASK_ACTION_REMIX_GENERATE ||
           record.action === TASK_ACTION_VIDEO_GENERATE;
+        const isImageTask =
+          record.action === TASK_ACTION_IMAGE_GENERATE ||
+          record.action === 'image_generation';
         const isSuccess = record.status === 'SUCCESS';
         const resultUrl = record.result_url;
         const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        if (isSuccess && isImageTask && hasResultUrl) {
+          return (
+            <a
+              href='#'
+              onClick={(e) => {
+                e.preventDefault();
+                window.open(resultUrl, '_blank');
+              }}
+            >
+              {t('点击预览图片')}
+            </a>
+          );
+        }
         if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a
