@@ -44,6 +44,7 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
+	taskID      string
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
@@ -422,6 +423,19 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	if channel.Type == constant.ChannelTypeGemini && model_setting.IsGeminiOmniFlashModel(info.OriginModelName) {
 		platform = constant.TaskPlatformOmniFlash
 	}
+
+	// Sync-to-async image channels (OpenAI-compatible, Gemini, VolcEngine) should
+	// use the image task queue for image generation tests. This prevents OpenAI
+	// image generation from being routed through the Sora video task adaptor, which
+	// expects a video response containing a task_id and would fail with "task_id is
+	// empty". It also ensures the channel test response includes a task_id matching
+	// the production /v1/images/generations flow.
+	if isSyncImageAsyncChannel(channel.Type) && info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		if imageReq, ok := request.(*dto.ImageRequest); ok {
+			return testSyncImageAsyncImageChannel(c, w, channel, info, adaptor, imageReq, priceData)
+		}
+	}
+
 	if taskAdaptor := relay.GetTaskAdaptor(platform); taskAdaptor != nil && channel.Type != constant.ChannelTypeVeo && channel.Type != constant.ChannelTypeVolcEngine {
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
 			taskAdaptor.Init(info)
@@ -1092,11 +1106,16 @@ func TestChannel(c *gin.Context) {
 		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"success": true,
 		"message": "",
 		"time":    consumedTime,
-	})
+	}
+	if result.taskID != "" {
+		resp["task_id"] = result.taskID
+	}
+	c.JSON(http.StatusOK, resp)
+	return
 }
 
 var testAllChannelsLock sync.Mutex
@@ -1294,4 +1313,176 @@ func extractMultipartContentType(buf *bytes.Buffer) string {
 		return "multipart/form-data"
 	}
 	return "multipart/form-data; boundary=" + boundary
+}
+
+// testSyncImageAsyncImageChannel handles channel tests for image generation on
+// sync-to-async channels (OpenAI-compatible, Gemini, VolcEngine). It creates
+// a queued image task, executes the upstream synchronously to verify the channel,
+// stores the upstream result in the task, and returns the public task_id so the
+// admin frontend can poll /v1/images/tasks/{task_id} just like the production
+// /v1/images/generations flow.
+func testSyncImageAsyncImageChannel(c *gin.Context, w *httptest.ResponseRecorder, channel *model.Channel, info *relaycommon.RelayInfo, adaptor relaychannel.Adaptor, imageReq *dto.ImageRequest, priceData types.PriceData) testResult {
+	publicTaskID, task, createErr := createSyncImageAsyncImageTaskForTest(c, info, imageReq)
+	if createErr != nil {
+		return testResult{
+			context:     c,
+			localErr:    createErr,
+			newAPIError: types.NewError(createErr, types.ErrorCodeBadResponseStatusCode),
+		}
+	}
+
+	queue := service.NewImageTaskQueue()
+	if ok, markErr := queue.MarkInProgress(task); markErr != nil || !ok {
+		return testResult{
+			context:     c,
+			localErr:    fmt.Errorf("failed to mark image task in progress"),
+			newAPIError: types.NewError(fmt.Errorf("failed to mark image task in progress"), types.ErrorCodeBadResponseStatusCode),
+		}
+	}
+
+	usage, respBody, execErr := executeImageAdaptorTestUpstream(c, w, info, adaptor, imageReq)
+	if execErr != nil {
+		if _, markErr := queue.MarkFailure(task, execErr.Error()); markErr != nil {
+			common.SysError(fmt.Sprintf("channel test: mark image task failure failed: %v", markErr))
+		}
+		service.RefundTaskQuota(c, task, execErr.Error())
+		return testResult{
+			context:     c,
+			localErr:    execErr,
+			newAPIError: types.NewErrorWithStatusCode(execErr, types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError),
+		}
+	}
+
+	resultURL := service.ExtractImageURLFromResponse(respBody)
+	if ok, markErr := queue.MarkSuccess(task, respBody, resultURL); markErr != nil || !ok {
+		return testResult{
+			context:     c,
+			localErr:    fmt.Errorf("failed to mark image task success"),
+			newAPIError: types.NewError(fmt.Errorf("failed to mark image task success"), types.ErrorCodeBadResponseStatusCode),
+		}
+	}
+
+	// Record a consumption log for the channel test, mirroring the normal
+	// adaptor path. Image generation channels do not usually return meaningful
+	// token usage, so fall back to the model price/ratio when usage is empty.
+	quota := 0
+	if !priceData.UsePrice {
+		if usage != nil {
+			if u, ok := usage.(*dto.Usage); ok && u != nil {
+				quota = u.PromptTokens + int(math.Round(float64(u.CompletionTokens)*priceData.CompletionRatio))
+				quota = int(math.Round(float64(quota) * priceData.ModelRatio))
+			}
+		}
+		if priceData.ModelRatio != 0 && quota <= 0 {
+			quota = 1
+		}
+	} else {
+		quota = int(priceData.ModelPrice * common.QuotaPerUnit)
+	}
+	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
+		0, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
+	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
+		ChannelId:      channel.Id,
+		ModelName:      info.OriginModelName,
+		TokenName:      "模型测试",
+		Quota:          quota,
+		Content:        "模型测试",
+		UseTimeSeconds: 0,
+		IsStream:       info.IsStream,
+		Group:          info.UsingGroup,
+		Other:          other,
+	})
+
+	return testResult{
+		context:     c,
+		taskID:      publicTaskID,
+		localErr:    nil,
+		newAPIError: nil,
+	}
+}
+
+// createSyncImageAsyncImageTaskForTest creates a queued image task for a channel
+// test on a sync-to-async image channel. It mirrors the setup performed by
+// handleSyncImageAsTaskRelay in relay/image_handler.go.
+func createSyncImageAsyncImageTaskForTest(c *gin.Context, info *relaycommon.RelayInfo, imageReq *dto.ImageRequest) (string, *model.Task, error) {
+	publicTaskID := model.GenerateTaskID()
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+	info.TaskRelayInfo.PublicTaskID = publicTaskID
+
+	if info.RequestHeaders == nil {
+		info.RequestHeaders = make(map[string]string)
+	}
+	if info.RequestHeaders["Host"] == "" {
+		info.RequestHeaders["Host"] = c.Request.Host
+	}
+
+	queue := service.NewImageTaskQueue()
+	requestPayload := service.SerializeImageRequest(info, imageReq)
+	quota := info.PriceData.Quota
+	if quota == 0 {
+		quota = info.PriceData.QuotaToPreConsume
+	}
+
+	task, err := queue.CreateTask(info, requestPayload, quota)
+	if err != nil {
+		return "", nil, err
+	}
+
+	service.RegisterAsyncImageTask(publicTaskID, info)
+	return publicTaskID, task, nil
+}
+
+// executeImageAdaptorTestUpstream runs the normal adaptor pipeline for an image
+// generation channel test and returns the captured upstream response body. It is
+// used by testSyncImageAsyncImageChannel to actually verify the upstream channel
+// before returning the task_id.
+func executeImageAdaptorTestUpstream(c *gin.Context, w *httptest.ResponseRecorder, info *relaycommon.RelayInfo, adaptor relaychannel.Adaptor, imageReq *dto.ImageRequest) (any, []byte, error) {
+	convertedRequest, err := adaptor.ConvertImageRequest(c, info, *imageReq)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	jsonData, err := common.Marshal(convertedRequest)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(info.ParamOverride) > 0 {
+		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	requestBody := bytes.NewBuffer(jsonData)
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
+
+	resp, err := adaptor.DoRequest(c, info, requestBody)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	httpResp := resp.(*http.Response)
+	if httpResp.StatusCode != http.StatusOK {
+		return nil, nil, service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+	}
+
+	usage, respErr := adaptor.DoResponse(c, httpResp, info)
+	if respErr != nil {
+		return nil, nil, respErr
+	}
+
+	result := w.Result()
+	respBody, err := readTestResponseBody(result.Body, false)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if bodyErr := detectErrorFromTestResponseBody(respBody); bodyErr != nil {
+		return nil, nil, bodyErr
+	}
+
+	return usage, respBody, nil
 }
