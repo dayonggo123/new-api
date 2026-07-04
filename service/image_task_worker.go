@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -226,7 +227,7 @@ func (m *ImageTaskWorkerPoolManager) listChannelsWithQueuedTasks() ([]int, error
 	}
 	err := model.DB.Model(&model.Task{}).
 		Distinct("channel_id").
-		Where("action = ?", "image_generation").
+		Where("action = ?", constant.TaskActionImageGenerate).
 		Where("status = ?", model.TaskStatusQueued).
 		Find(&rows).Error
 	if err != nil {
