@@ -182,6 +182,31 @@ func SetApiRouter(router *gin.Engine) {
 			bannerAdminRoute.DELETE("/:id", controller.AdminDeleteBanner)
 		}
 
+		// Curated workflow templates
+		apiRouter.GET("/curated/templates", controller.GetCuratedTemplates)
+		apiRouter.GET("/curated/templates/:id", controller.GetCuratedTemplate)
+		apiRouter.GET("/curated/templates/:id/execution-plan", controller.GetCuratedTemplateExecutionPlan)
+		apiRouter.GET("/curated/categories", controller.GetCuratedCategories)
+
+		curatedTemplateAdminRoute := apiRouter.Group("/admin/curated/templates")
+		curatedTemplateAdminRoute.Use(middleware.AdminAuth())
+		{
+			curatedTemplateAdminRoute.GET("/", controller.AdminListCuratedTemplates)
+			curatedTemplateAdminRoute.POST("/", controller.AdminCreateCuratedTemplate)
+			curatedTemplateAdminRoute.PUT("/:id", controller.AdminUpdateCuratedTemplate)
+			curatedTemplateAdminRoute.DELETE("/:id", controller.AdminDeleteCuratedTemplate)
+			curatedTemplateAdminRoute.PATCH("/:id/status", controller.AdminUpdateCuratedTemplateStatus)
+		}
+
+		curatedCategoryAdminRoute := apiRouter.Group("/admin/curated/categories")
+		curatedCategoryAdminRoute.Use(middleware.AdminAuth())
+		{
+			curatedCategoryAdminRoute.GET("/", controller.AdminListCuratedCategories)
+			curatedCategoryAdminRoute.POST("/", controller.AdminCreateCuratedCategory)
+			curatedCategoryAdminRoute.PUT("/:id", controller.AdminUpdateCuratedCategory)
+			curatedCategoryAdminRoute.DELETE("/:id", controller.AdminDeleteCuratedCategory)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		// Plans list is publicly accessible (like pricing)
 		apiRouter.GET("/subscription/plans", middleware.TryUserAuth(), controller.GetSubscriptionPlans)

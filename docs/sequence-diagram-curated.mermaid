@@ -1,0 +1,59 @@
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant R as Gin Router
+    participant Ctrl as CuratedTemplateController
+    participant S as CuratedTemplateService
+    participant Cache as CuratedCache
+    participant M as CuratedTemplate(Model)
+    participant DB as Database
+
+    C->>R: GET /api/curated/templates?category=...&page=1&pageSize=20
+    R->>Ctrl: 路由分发
+    Ctrl->>Ctrl: 绑定 CuratedTemplateListQuery
+    Ctrl->>Ctrl: 校验 pageSize (1-100)
+    Ctrl->>S: GetCuratedTemplates(query)
+    S->>Cache: 查询列表缓存（P1）
+    alt 缓存命中
+        Cache-->>S: 返回缓存结果
+    else 缓存未命中
+        S->>M: 构造分页查询条件
+        M->>DB: SELECT COUNT(*) + SELECT ... LIMIT/OFFSET
+        DB-->>M: 返回模板记录
+        M-->>S: []CuratedTemplate
+        S->>S: 转换为 CuratedTemplateListItem
+        S->>S: 默认剔除 ExecutionPlan（除非 includeDetails=true）
+        S->>Cache: 写入列表缓存（P1）
+    end
+    S-->>Ctrl: CuratedTemplateListResponse
+    Ctrl->>Ctrl: 封装 {success, data, message}
+    Ctrl-->>R: JSON 响应
+    R-->>C: 200 OK
+
+    autonumber 1
+    participant C2 as Admin Client
+    participant R2 as Gin Router
+    participant A as middleware.AdminAuth
+    participant Ctrl2 as CuratedTemplateController
+    participant S2 as CuratedTemplateService
+    participant M2 as CuratedTemplate(Model)
+    participant DB2 as Database
+    participant Cache2 as CuratedCache
+
+    C2->>R2: POST /api/admin/curated/templates
+    R2->>A: 鉴权检查
+    A-->>R2: 通过
+    R2->>Ctrl2: 路由分发
+    Ctrl2->>Ctrl2: 绑定 AdminUpsertTemplateRequest
+    Ctrl2->>Ctrl2: 校验必填字段（title、templateId、category）
+    Ctrl2->>S2: AdminCreateTemplate(req)
+    S2->>S2: 校验 templateId 唯一性
+    S2->>M2: 创建 CuratedTemplate 对象
+    M2->>DB2: INSERT INTO curated_templates
+    DB2-->>M2: 新记录
+    M2-->>S2: 返回结果
+    S2->>Cache2: 失效相关缓存（P1）
+    S2-->>Ctrl2: success
+    Ctrl2->>Ctrl2: 封装 {success, data: template, message: ""}
+    Ctrl2-->>R2: JSON 响应
+    R2-->>C2: 200 OK

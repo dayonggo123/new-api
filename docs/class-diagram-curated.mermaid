@@ -1,0 +1,140 @@
+classDiagram
+    class CuratedTemplate {
+        +int Id
+        +string TemplateId
+        +string Title
+        +string Category
+        +string CoverImageUrl
+        +string PreviewMediaUrl
+        +string Description
+        +string Prompt
+        +json.RawMessage InputSlots
+        +json.RawMessage Params
+        +json.RawMessage ExecutionPlan
+        +float64 EstimatedPrice
+        +int SortOrder
+        +bool Enabled
+        +int HotScore
+        +int64 CreatedAt
+        +int64 UpdatedAt
+        +TableName() string
+        +Insert() error
+        +Update() error
+        +Delete() error
+    }
+
+    class CuratedCategory {
+        +int Id
+        +string Key
+        +string Name
+        +string IconUrl
+        +int SortOrder
+        +bool Enabled
+        +int64 CreatedAt
+        +int64 UpdatedAt
+        +TableName() string
+        +Insert() error
+        +Update() error
+        +Delete() error
+    }
+
+    class CuratedTemplateListQuery {
+        +string Category
+        +string Keyword
+        +int Page
+        +int PageSize
+        +string SortBy
+        +bool IncludeDetails
+    }
+
+    class CuratedTemplateListResponse {
+        +int Total
+        +int Page
+        +int PageSize
+        +[]CuratedTemplateListItem List
+    }
+
+    class CuratedTemplateListItem {
+        +string Id
+        +string Title
+        +string Category
+        +string CoverImageUrl
+        +string PreviewMediaUrl
+        +string Description
+        +float64 EstimatedPrice
+        +json.RawMessage InputSlots
+        +json.RawMessage Params
+        +json.RawMessage ExecutionPlan
+        +int SortOrder
+        +bool Enabled
+        +int HotScore
+        +int64 CreatedAt
+        +int64 UpdatedAt
+    }
+
+    class CuratedTemplateDetailResponse {
+        +string Prompt
+    }
+
+    class CuratedCategoryListResponse {
+        +[]CuratedCategoryResponse Categories
+    }
+
+    class CuratedCategoryResponse {
+        +string Key
+        +string Name
+        +string IconUrl
+        +int SortOrder
+        +bool Enabled
+    }
+
+    class CuratedTemplateService {
+        +GetCuratedTemplates(query CuratedTemplateListQuery) CuratedTemplateListResponse
+        +GetCuratedTemplateByTemplateId(templateId string) CuratedTemplate
+        +GetCuratedTemplateExecutionPlan(templateId string) json.RawMessage
+        +AdminListCuratedTemplates(page int, pageSize int) CuratedTemplateListResponse
+        +AdminCreateTemplate(req AdminUpsertTemplateRequest) error
+        +AdminUpdateTemplate(id int, req AdminUpsertTemplateRequest) error
+        +AdminDeleteTemplate(id int) error
+        +AdminUpdateTemplateStatus(id int, enabled bool) error
+        +toListItem(template CuratedTemplate, includeDetails bool) CuratedTemplateListItem
+    }
+
+    class CuratedCategoryService {
+        +GetCuratedCategories() CuratedCategoryListResponse
+        +AdminListCuratedCategories() []CuratedCategory
+        +AdminCreateCategory(req AdminUpsertCategoryRequest) error
+        +AdminUpdateCategory(id int, req AdminUpsertCategoryRequest) error
+        +AdminDeleteCategory(id int) error
+    }
+
+    class CuratedTemplateController {
+        +GetCuratedTemplates(c *gin.Context)
+        +GetCuratedTemplate(c *gin.Context)
+        +GetCuratedTemplateExecutionPlan(c *gin.Context)
+        +AdminListCuratedTemplates(c *gin.Context)
+        +AdminCreateCuratedTemplate(c *gin.Context)
+        +AdminUpdateCuratedTemplate(c *gin.Context)
+        +AdminDeleteCuratedTemplate(c *gin.Context)
+        +AdminUpdateCuratedTemplateStatus(c *gin.Context)
+    }
+
+    class CuratedCategoryController {
+        +GetCuratedCategories(c *gin.Context)
+        +AdminListCuratedCategories(c *gin.Context)
+        +AdminCreateCuratedCategory(c *gin.Context)
+        +AdminUpdateCuratedCategory(c *gin.Context)
+        +AdminDeleteCuratedCategory(c *gin.Context)
+    }
+
+    CuratedTemplateService --> CuratedTemplate : 读写
+    CuratedCategoryService --> CuratedCategory : 读写
+    CuratedTemplateService --> CuratedTemplateListQuery : 接收参数
+    CuratedTemplateService --> CuratedTemplateListResponse : 返回数据
+    CuratedTemplateService --> CuratedTemplateDetailResponse : 返回数据
+    CuratedCategoryService --> CuratedCategoryListResponse : 返回数据
+    CuratedTemplateController --> CuratedTemplateService : 调用
+    CuratedCategoryController --> CuratedCategoryService : 调用
+    CuratedTemplateListResponse --> CuratedTemplateListItem : 包含
+    CuratedTemplateDetailResponse --> CuratedTemplateListItem : 继承
+    CuratedCategoryListResponse --> CuratedCategoryResponse : 包含
