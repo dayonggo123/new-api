@@ -16,6 +16,7 @@ import (
 )
 
 const appReleaseDownloadDir = "./downloads"
+const maxAppReleaseUploadSize = 500 << 20 // 500MB
 
 // ==================== Public API ====================
 
@@ -122,6 +123,11 @@ func GetAllAppReleases(c *gin.Context) {
 
 // UploadAppRelease 上传新版本
 func UploadAppRelease(c *gin.Context) {
+	if err := c.Request.ParseMultipartForm(maxAppReleaseUploadSize); err != nil {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "file too large"})
+		return
+	}
+
 	version := c.PostForm("version")
 	tag := c.PostForm("tag")
 	platform := c.PostForm("platform")
@@ -150,6 +156,11 @@ func UploadAppRelease(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+
+	if file.Size > maxAppReleaseUploadSize {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "file size exceeds 500MB limit"})
 		return
 	}
 
