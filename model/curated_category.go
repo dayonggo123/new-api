@@ -3,7 +3,7 @@ package model
 // CuratedCategory 一键同款模板分类表
 type CuratedCategory struct {
 	Id        int    `json:"-" gorm:"primaryKey;autoIncrement"`
-	Key       string `json:"key" gorm:"size:64;uniqueIndex"`
+	Key       string `json:"key" gorm:"column:category_key;size:64;uniqueIndex"`
 	Name      string `json:"name" gorm:"not null"`
 	IconUrl   string `json:"iconUrl" gorm:"column:icon_url"`
 	SortOrder int    `json:"sortOrder" gorm:"column:sort_order;default:0;index"`
@@ -44,7 +44,7 @@ func GetCuratedCategoryById(id int) (*CuratedCategory, error) {
 // GetCuratedCategoryByKey 根据业务 key 获取分类
 func GetCuratedCategoryByKey(key string) (*CuratedCategory, error) {
 	var category CuratedCategory
-	err := DB.Where("key = ?", key).First(&category).Error
+	err := DB.Where("category_key = ?", key).First(&category).Error
 	if err != nil {
 		return nil, err
 	}
