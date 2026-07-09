@@ -203,7 +203,7 @@ func PollAsyncImageTask(task *AsyncImageTask) ([]byte, int, error) {
 
 func isSyncImageAsyncChannel(channelType int) bool {
 	switch channelType {
-	case constant.ChannelTypeOpenAI, constant.ChannelTypeGemini, constant.ChannelTypeVolcEngine:
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeGemini, constant.ChannelTypeEasyRouter, constant.ChannelTypeVolcEngine:
 		return true
 	}
 	return false

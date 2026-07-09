@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,26 @@ func TestOpenAIContent2GeminiParts(t *testing.T) {
 		require.Len(t, parts, 1)
 		require.NotNil(t, parts[0].FileData)
 		assert.Contains(t, parts[0].FileData.FileUri, "files/abc123")
+	})
+
+	t.Run("EasyRouter forces file URI to inlineData", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		parts, err := OpenAIContent2GeminiParts(c, []dto.MediaContent{
+			{
+				Type: dto.ContentTypeFile,
+				File: &dto.MessageFile{FileData: "files/abc123"},
+			},
+		}, &relaycommon.RelayInfo{
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelType: constant.ChannelTypeEasyRouter,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+		require.Nil(t, parts[0].FileData)
+		require.NotNil(t, parts[0].InlineData)
+		assert.Equal(t, "application/octet-stream", parts[0].InlineData.MimeType)
 	})
 }
 

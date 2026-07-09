@@ -224,6 +224,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: '章鱼哥AI',
   },
+  {
+    value: 65,
+    color: 'blue',
+    label: 'EasyRouter',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

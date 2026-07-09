@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/constant"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -231,7 +232,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	action := "generateContent"
 	if info.IsStream {
 		action = "streamGenerateContent?alt=sse"
-		if info.RelayMode == constant.RelayModeGemini {
+		if info.RelayMode == relayconstant.RelayModeGemini {
 			info.DisablePing = true
 		}
 	}
@@ -240,7 +241,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
-	req.Set("x-goog-api-key", info.ApiKey)
+	if info.ChannelType == constant.ChannelTypeEasyRouter {
+		req.Set("Authorization", "Bearer "+info.ApiKey)
+	} else {
+		req.Set("x-goog-api-key", info.ApiKey)
+	}
 	return nil
 }
 
@@ -311,14 +316,14 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	if info.RelayMode == constant.RelayModeFiles {
+	if info.RelayMode == relayconstant.RelayModeFiles {
 		return doGeminiFileUploadRequest(c, info, requestBody)
 	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayMode == constant.RelayModeGemini {
+	if info.RelayMode == relayconstant.RelayModeGemini {
 		if strings.Contains(info.RequestURLPath, ":embedContent") ||
 			strings.Contains(info.RequestURLPath, ":batchEmbedContents") {
 			return NativeGeminiEmbeddingHandler(c, resp, info)
@@ -334,11 +339,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return GeminiImageHandler(c, info, resp)
 	}
 
-	if info.RelayMode == constant.RelayModeImagesGenerations && model_setting.IsGeminiNativeImageModel(info.UpstreamModelName) {
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations && model_setting.IsGeminiNativeImageModel(info.UpstreamModelName) {
 		return GeminiImageGenerationHandler(c, info, resp)
 	}
 
-	if info.RelayMode == constant.RelayModeFiles {
+	if info.RelayMode == relayconstant.RelayModeFiles {
 		return nil, handleGeminiFileUploadResponse(c, resp, info)
 	}
 

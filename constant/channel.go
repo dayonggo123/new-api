@@ -62,6 +62,7 @@ const (
 	ChannelTypeGetToken       = 62
 	ChannelTypeBogeiAI        = 63
 	ChannelTypeZhangyuge      = 64
+	ChannelTypeEasyRouter     = 65
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -131,7 +132,7 @@ var ChannelBaseURLs = []string{
 	"https://api.apimart.ai",                    //61 APIMart
 	"https://nb.gettoken.cn/openapi",            //62
 	"https://gaorui.cc",                         //63
-	"",                                          //64
+	"https://easyrouter.io",                     //64
 }
 
 var ChannelTypeNames = map[int]string{
@@ -196,6 +197,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeGetToken:       "GetToken",
 	ChannelTypeBogeiAI:        "BogeiAI",
 	ChannelTypeZhangyuge:      "ZhangyugeAI",
+	ChannelTypeEasyRouter:     "EasyRouter",
 }
 
 func GetChannelTypeName(channelType int) string {

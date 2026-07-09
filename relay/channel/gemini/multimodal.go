@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
@@ -27,7 +28,7 @@ func OpenAIContent2GeminiParts(c *gin.Context, content []dto.MediaContent, info 
 			}
 			parts = append(parts, dto.GeminiPart{Text: part.Text})
 		case dto.ContentTypeImageURL:
-			geminiPart, err := buildImageGeminiPart(c, part.ToFileSource())
+			geminiPart, err := buildImageGeminiPart(c, part.ToFileSource(), info)
 			if err != nil {
 				return nil, err
 			}
@@ -35,7 +36,7 @@ func OpenAIContent2GeminiParts(c *gin.Context, content []dto.MediaContent, info 
 				parts = append(parts, *geminiPart)
 			}
 		case dto.ContentTypeVideoUrl:
-			geminiPart, err := buildMediaGeminiPart(c, part.ToFileSource(), "video")
+			geminiPart, err := buildMediaGeminiPart(c, part.ToFileSource(), "video", info)
 			if err != nil {
 				return nil, err
 			}
@@ -43,7 +44,7 @@ func OpenAIContent2GeminiParts(c *gin.Context, content []dto.MediaContent, info 
 				parts = append(parts, *geminiPart)
 			}
 		case dto.ContentTypeInputAudio:
-			geminiPart, err := buildMediaGeminiPart(c, part.ToFileSource(), "audio")
+			geminiPart, err := buildMediaGeminiPart(c, part.ToFileSource(), "audio", info)
 			if err != nil {
 				return nil, err
 			}
@@ -51,7 +52,7 @@ func OpenAIContent2GeminiParts(c *gin.Context, content []dto.MediaContent, info 
 				parts = append(parts, *geminiPart)
 			}
 		case dto.ContentTypeFile:
-			geminiPart, err := buildMediaGeminiPart(c, part.ToFileSource(), "file")
+			geminiPart, err := buildMediaGeminiPart(c, part.ToFileSource(), "file", info)
 			if err != nil {
 				return nil, err
 			}
@@ -65,13 +66,15 @@ func OpenAIContent2GeminiParts(c *gin.Context, content []dto.MediaContent, info 
 	return parts, nil
 }
 
-func buildImageGeminiPart(c *gin.Context, source types.FileSource) (*dto.GeminiPart, error) {
+func buildImageGeminiPart(c *gin.Context, source types.FileSource, info *relaycommon.RelayInfo) (*dto.GeminiPart, error) {
 	if source == nil {
 		return nil, nil
 	}
 	// Google file_uri (files/xxx) is sent as fileData.
 	if urlSource, ok := source.(*types.URLSource); ok && strings.HasPrefix(urlSource.URL, "files/") {
-		return &dto.GeminiPart{FileData: BuildFileData(urlSource.URL, "")}, nil
+		if info == nil || info.ChannelType != constant.ChannelTypeEasyRouter {
+			return &dto.GeminiPart{FileData: BuildFileData(urlSource.URL, "")}, nil
+		}
 	}
 	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Gemini")
 	if err != nil {
@@ -85,19 +88,21 @@ func buildImageGeminiPart(c *gin.Context, source types.FileSource) (*dto.GeminiP
 	return &dto.GeminiPart{InlineData: inlineData}, nil
 }
 
-func buildMediaGeminiPart(c *gin.Context, source types.FileSource, mediaType string) (*dto.GeminiPart, error) {
+func buildMediaGeminiPart(c *gin.Context, source types.FileSource, mediaType string, info *relaycommon.RelayInfo) (*dto.GeminiPart, error) {
 	if source == nil {
 		return nil, nil
 	}
+	// EasyRouter only supports inlineData; treat all sources as base64.
+	forceInlineData := info != nil && info.ChannelType == constant.ChannelTypeEasyRouter
 	// Google file URIs (files/xxx) are always sent as fileData regardless of
 	// whether the source was parsed as a URLSource or Base64Source.
-	if url := source.GetRawData(); strings.HasPrefix(url, "files/") {
+	if url := source.GetRawData(); strings.HasPrefix(url, "files/") && !forceInlineData {
 		return &dto.GeminiPart{FileData: BuildFileData(url, "")}, nil
 	}
 
 	// Prefer fileData for URL-based media (video / audio / PDF) to avoid
 	// downloading huge payloads into memory.
-	if source.IsURL() {
+	if source.IsURL() && !forceInlineData {
 		url := source.GetRawData()
 		if strings.HasPrefix(url, "files/") {
 			return &dto.GeminiPart{FileData: BuildFileData(url, "")}, nil

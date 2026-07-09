@@ -221,7 +221,8 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 	}
 
 	attachThoughtSignature := (info.ChannelType == constant.ChannelTypeGemini ||
-		info.ChannelType == constant.ChannelTypeVertexAi) &&
+		info.ChannelType == constant.ChannelTypeVertexAi ||
+		info.ChannelType == constant.ChannelTypeEasyRouter) &&
 		model_setting.GetGeminiSettings().FunctionCallThoughtSignatureEnabled
 
 	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {

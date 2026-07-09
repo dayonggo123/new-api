@@ -85,6 +85,8 @@ func ChannelType2APITypeWithModel(channelType int, modelName string) (int, bool)
 		apiType = constant.APITypeCodex
 	case constant.ChannelTypeVeo:
 		apiType = constant.APITypeVeo
+	case constant.ChannelTypeEasyRouter:
+		apiType = constant.APITypeGemini
 	case constant.ChannelTypeAPIMart:
 		// APIMart 同时支持 task 图像模型（gpt-image 系列）和 OpenAI 兼容接口（Whisper 等）。
 		// 图像任务在 image_handler 中按 ChannelType 直接拦截，不走到此处。

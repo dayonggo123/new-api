@@ -76,8 +76,8 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if strings.HasPrefix(strings.ToLower(modelName), "whisper-") {
 		return string(constant.EndpointTypeAudioTranscription)
 	}
-	// Gemini 渠道自动检测：根据模型名区分图片/视频/聊天
-	if channel != nil && channel.Type == constant.ChannelTypeGemini {
+	// Gemini/EasyRouter 渠道自动检测：根据模型名区分图片/视频/聊天
+	if channel != nil && (channel.Type == constant.ChannelTypeGemini || channel.Type == constant.ChannelTypeEasyRouter) {
 		if model_setting.IsGeminiVideoModel(modelName) || model_setting.IsGeminiOmniFlashModel(modelName) {
 			return string(constant.EndpointTypeOpenAIVideo)
 		}
