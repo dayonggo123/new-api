@@ -132,7 +132,8 @@ var ChannelBaseURLs = []string{
 	"https://api.apimart.ai",                    //61 APIMart
 	"https://nb.gettoken.cn/openapi",            //62
 	"https://gaorui.cc",                         //63
-	"https://easyrouter.io",                     //64
+	"",                                          //64 Zhangyuge (task-based)
+	"https://easyrouter.io",                     //65 EasyRouter
 }
 
 var ChannelTypeNames = map[int]string{
