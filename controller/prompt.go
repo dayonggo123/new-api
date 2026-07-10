@@ -172,6 +172,54 @@ func AddPrompt(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "提示词内容不能为空"})
 		return
 	}
+
+	// 重采集去重：若已存在相同 source_url（优先）或相同 cover_image_url+media_type 的提示词，
+	// 则更新已有记录而非新建，避免重复提示词。老数据迁移前 source_url 为空，
+	// 因此用 cover_image_url 兜底匹配（同一 YouMind 页面的封面缩略图稳定不变）。
+	if prompt.SourceUrl != "" || (prompt.CoverImageUrl != "" && prompt.MediaType != "") {
+		var existing model.Prompt
+		q := model.DB.Model(&model.Prompt{})
+		if prompt.SourceUrl != "" {
+			q = q.Where("source_url = ?", prompt.SourceUrl)
+		} else {
+			q = q.Where("cover_image_url = ?", prompt.CoverImageUrl).
+				Where("media_type = ?", prompt.MediaType)
+		}
+		if q.First(&existing).Error == nil && existing.Id > 0 {
+			// 合并新提交的可编辑字段，保留 id / 创建时间 / 状态 / SEO / 翻译等元数据
+			existing.CategoryId = prompt.CategoryId
+			existing.Title = prompt.Title
+			existing.Content = prompt.Content
+			existing.ContentEn = prompt.ContentEn
+			existing.Description = prompt.Description
+			existing.CoverImageUrl = prompt.CoverImageUrl
+			// 仅当新提交的视频地址非空时才覆盖，避免把已有视频清空
+			if prompt.VideoUrl != "" {
+				existing.VideoUrl = prompt.VideoUrl
+			}
+			existing.Author = prompt.Author
+			existing.Source = prompt.Source
+			existing.Model = prompt.Model
+			existing.MediaType = prompt.MediaType
+			existing.Variables = prompt.Variables
+			existing.Tags = prompt.Tags
+			existing.I18n = prompt.I18n
+			existing.TitleI18n = prompt.TitleI18n
+			existing.SourceUrl = prompt.SourceUrl // 回填 source_url（老记录可能为空）
+			existing.UpdatedTime = common.GetTimestamp()
+			if err := existing.Update(); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "已更新已存在的提示词（按 source_url/cover_image_url 去重）",
+				"data":    existing,
+			})
+			return
+		}
+	}
+
 	prompt.CreatedTime = common.GetTimestamp()
 	prompt.UpdatedTime = common.GetTimestamp()
 
