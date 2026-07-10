@@ -33,6 +33,7 @@ import SettingsTranslate from '../../pages/Setting/Operation/SettingsTranslate';
 import SettingsLogin from '../../pages/Setting/Operation/SettingsLogin';
 import SettingsImageAI from '../../pages/Setting/Operation/SettingsImageAI';
 import SettingsEchotik from '../../pages/Setting/Operation/SettingsEchotik';
+import SettingsTikHub from '../../pages/Setting/Operation/SettingsTikHub';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -184,6 +185,10 @@ const OperationSetting = () => {
         {/* EchoTik 设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsEchotik options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* TikHub 设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsTikHub options={inputs} refresh={onRefresh} />
         </Card>
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>

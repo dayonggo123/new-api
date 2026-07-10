@@ -605,6 +605,10 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/echotik/video/ranklist", middleware.TokenAuthReadOnly(), controller.EchotikVideoRanklist)
 		apiRouter.GET("/admin/echotik/status", middleware.AdminAuth(), controller.EchotikSettingStatus)
 
+		// TikHub proxy routes (token auth)
+		apiRouter.GET("/public/tikhub/tiktok/video", middleware.TokenAuthReadOnly(), controller.TikHubSingleVideo)
+		apiRouter.GET("/admin/tikhub/status", middleware.AdminAuth(), controller.TikHubSettingStatus)
+
 		// TK Material Library Routes
 		tkMaterialAdminRoute := apiRouter.Group("/admin/tk/materials")
 		tkMaterialAdminRoute.Use(middleware.AdminAuth())
