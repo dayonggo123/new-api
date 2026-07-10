@@ -30,6 +30,10 @@
     batchList: document.getElementById('batchList'),
     emptyState: document.getElementById('emptyState'),
 
+    searchBar: document.getElementById('searchBar'),
+    searchInput: document.getElementById('searchInput'),
+    clearSearchBtn: document.getElementById('clearSearchBtn'),
+
     editPanel: document.getElementById('editPanel'),
     closeEditPanel: document.getElementById('closeEditPanel'),
     editId: document.getElementById('editId'),
@@ -54,6 +58,7 @@
   let batchData = [];
   let categoriesCache = [];
   let editingId = null;
+  let searchQuery = '';
 
   // 安全消息发送：自动重试，处理 SW 失活 / context invalidated
   async function safeMsg(msg) {
@@ -87,6 +92,23 @@
     els.closeEditPanel.addEventListener('click', closeEdit);
     els.saveEditBtn.addEventListener('click', saveEdit);
     els.cancelEditBtn.addEventListener('click', closeEdit);
+
+    // 搜索框事件
+    if (els.searchInput) {
+      els.searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value.trim().toLowerCase();
+        els.clearSearchBtn.style.display = searchQuery ? 'block' : 'none';
+        renderBatchList();
+      });
+    }
+    if (els.clearSearchBtn) {
+      els.clearSearchBtn.addEventListener('click', () => {
+        searchQuery = '';
+        els.searchInput.value = '';
+        els.clearSearchBtn.style.display = 'none';
+        renderBatchList();
+      });
+    }
 
     // Token 获取面板事件
     const tokenToggle = document.getElementById('tokenFetchToggle');
@@ -223,6 +245,7 @@
     if (total === 0) {
       els.batchStats.style.display = 'none';
       els.batchActionsBar.style.display = 'none';
+      els.searchBar.style.display = 'none';
       els.batchList.innerHTML = '';
       els.batchList.appendChild(els.emptyState);
       els.emptyState.style.display = 'block';
@@ -231,15 +254,44 @@
 
     els.batchStats.style.display = 'flex';
     els.batchActionsBar.style.display = 'flex';
+    els.searchBar.style.display = 'flex';
+
+    // 按搜索条件过滤
+    const filtered = getFilteredBatchData();
     els.emptyState.style.display = 'none';
 
     els.batchList.innerHTML = '';
-    batchData.forEach(item => {
+    if (filtered.length === 0) {
+      const noResult = document.createElement('div');
+      noResult.className = 'empty-state';
+      noResult.innerHTML = `<div class="empty-icon">🔍</div><p>没有匹配「${escapeHtml(searchQuery)}」的结果</p>`;
+      els.batchList.appendChild(noResult);
+      updateCheckAllState();
+      return;
+    }
+
+    filtered.forEach(item => {
       const card = createBatchItemCard(item);
       els.batchList.appendChild(card);
     });
 
     updateCheckAllState();
+  }
+
+  // 根据搜索关键词过滤（标题优先，同时匹配内容/模型/来源）
+  function getFilteredBatchData() {
+    if (!searchQuery) return batchData;
+    return batchData.filter(item => {
+      const haystack = [
+        item.title || '',
+        item.content || '',
+        item.content_en || '',
+        item.model || '',
+        item.source || '',
+        item.author || ''
+      ].join(' ').toLowerCase();
+      return haystack.includes(searchQuery);
+    });
   }
 
   // 创建单条卡片
