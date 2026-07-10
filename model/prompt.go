@@ -27,6 +27,7 @@ type Prompt struct {
 	Description   string         `json:"description"`
 	CoverImageUrl string         `json:"cover_image_url"`
 	VideoUrl      string         `json:"video_url"`
+	SourceUrl     string         `json:"source_url"`                   // 采集来源原始链接（如 YouMind/Twitter URL）
 	Author        string         `json:"author"`                     // 来源/作者，如 @username
 	Source        string         `json:"source"`                     // 采集来源平台，如 opennana / tiktok
 	Model         string         `json:"model"`                      // 使用的AI模型，如 ChatGPT
@@ -433,7 +434,7 @@ func (prompt *Prompt) Insert() error {
 }
 
 func (prompt *Prompt) Update() error {
-	return DB.Model(prompt).Select("category_id", "title", "slug", "content", "content_en", "description", "cover_image_url", "video_url", "author", "source", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n", "title_i18n", "is_translated", "translation_error", "seo_translation_error").Updates(prompt).Error
+	return DB.Model(prompt).Select("category_id", "title", "slug", "content", "content_en", "description", "cover_image_url", "video_url", "source_url", "author", "source", "model", "variables", "tags", "sort_order", "status", "media_type", "i18n", "title_i18n", "is_translated", "translation_error", "seo_translation_error").Updates(prompt).Error
 }
 
 func (prompt *Prompt) Delete() error {

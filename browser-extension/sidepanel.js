@@ -453,6 +453,7 @@
       category_id: parseInt(item.category_id) || 0,
       cover_image_url: item.cover_image_url || '',
       video_url: item.video_url || '',
+      source_url: item.source_url || '',
       status: 1,
       sort_order: 0,
       is_premium: false,

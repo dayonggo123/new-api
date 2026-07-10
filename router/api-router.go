@@ -609,6 +609,10 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/tikhub/tiktok/video", middleware.TokenAuthReadOnly(), controller.TikHubSingleVideo)
 		apiRouter.GET("/admin/tikhub/status", middleware.AdminAuth(), controller.TikHubSettingStatus)
 
+		// Prompt Video URL Repair (admin only)
+		apiRouter.GET("/admin/prompt/broken-video-urls", middleware.AdminAuth(), controller.GetBrokenPromptVideoUrls)
+		apiRouter.POST("/admin/prompt/repair-video-urls", middleware.AdminAuth(), controller.RepairPromptVideoUrls)
+
 		// TK Material Library Routes
 		tkMaterialAdminRoute := apiRouter.Group("/admin/tk/materials")
 		tkMaterialAdminRoute.Use(middleware.AdminAuth())

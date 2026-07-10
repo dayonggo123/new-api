@@ -346,6 +346,7 @@
       category_id: parseInt(els.fieldCategoryId.value) || 0,
       cover_image_url: els.fieldCoverImage.value.trim(),
       video_url: els.fieldVideoUrl ? els.fieldVideoUrl.value.trim() : '',
+      source_url: els.fieldSourceUrl ? els.fieldSourceUrl.value.trim() : '',
       status: 1,
       sort_order: 0,
       is_premium: false,
