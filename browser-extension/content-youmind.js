@@ -459,6 +459,11 @@
   // 扫描 iframe 中的 video / 图片
   function scanIframes() {
     for (const iframe of document.querySelectorAll('iframe')) {
+      // Twitter / X 视频嵌入：从 iframe src 推导
+      if (/(twitter|x)\.com|twimg\.com/i.test(iframe.src || '')) {
+        logs.push(`检测到 Twitter 嵌入 iframe: ${iframe.src}`);
+      }
+
       try {
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
         if (!doc) continue;
@@ -579,7 +584,19 @@
       }
     }
 
-    // 7) iframe 扫描
+    // 7) Twitter / X Amplify 视频：从 amplify_video_thumb 推导播放地址
+    const coverUrl = extractYouMindCover();
+    if (coverUrl && coverUrl.includes('amplify_video_thumb')) {
+      // https://pbs.twimg.com/amplify_video_thumb/TWEET_ID/img/FORMAT -> https://video.twimg.com/ext_tw_video/TWEET_ID/...
+      const tweetIdMatch = coverUrl.match(/amplify_video_thumb\/(\d+)\//);
+      if (tweetIdMatch) {
+        const tweetId = tweetIdMatch[1];
+        logs.push(`检测到 Twitter Amplify 视频, tweet_id=${tweetId}`);
+        return { url: `https://video.twimg.com/ext_tw_video/${tweetId}/pu/vid/720x720/mp4`, poster: coverUrl, logs };
+      }
+    }
+
+    // 7b) iframe 扫描（含 Twitter embed）
     const fromIframe = scanIframes();
     if (fromIframe) return { ...fromIframe, logs };
 
@@ -607,6 +624,24 @@
       const text = script.textContent || '';
       const m = text.match(/(https?:\/\/[^"'\s]+\.(mp4|mov|webm|m3u8)(\?[^"'\s]*)?)/i);
       if (m) return { url: m[1], poster: '', logs };
+      // Twitter video.twimg.com URL
+      const twVideo = text.match(/(https:\/\/video\.twimg\.com\/ext_tw_video\/[a-zA-Z0-9_\/\-\.]+mp4)/i);
+      if (twVideo) return { url: twVideo[1], poster: coverUrl, logs };
+    }
+
+    // 10) Twitter 专用：扫描页面所有 HTML 中是否有 video.twimg.com 链接
+    const allHtml = document.documentElement.innerHTML;
+    const twMatch = allHtml.match(/(https:\/\/video\.twimg\.com\/ext_tw_video\/[a-zA-Z0-9_\/\-\.]+mp4)/i);
+    if (twMatch) {
+      logs.push(`从页面 HTML 检测到 Twitter 视频: ${twMatch[1]}`);
+      return { url: twMatch[1], poster: coverUrl, logs };
+    }
+    // twitter:player:stream / twitter:player:stream:content_type meta
+    const twStreamMeta = document.querySelector('meta[name="twitter:player:stream"]')?.content
+                      || document.querySelector('meta[property="twitter:player:stream"]')?.content;
+    if (twStreamMeta) {
+      logs.push(`检测到 twitter:player:stream: ${twStreamMeta}`);
+      return { url: makeAbsoluteUrl(twStreamMeta), poster: coverUrl, logs };
     }
 
     logs.push('未找到视频 URL');
