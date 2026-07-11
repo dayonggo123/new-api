@@ -22,6 +22,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
@@ -360,7 +361,7 @@ func (a *TaskAdaptor) parseMultipartToTaskSubmitReq(c *gin.Context) (relaycommon
 			// build public URL
 			uploadsPublicURL := os.Getenv("UPLOADS_PUBLIC_URL")
 			if uploadsPublicURL == "" {
-				uploadsPublicURL = "http://localhost:3000/uploads/"
+				uploadsPublicURL = system_setting.ServerAddress + "/uploads/"
 			}
 			if !strings.HasSuffix(uploadsPublicURL, "/") {
 				uploadsPublicURL += "/"
@@ -506,7 +507,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req relaycommon.TaskSubmitReq, inf
 			// build public URL
 			uploadsPublicURL := os.Getenv("UPLOADS_PUBLIC_URL")
 			if uploadsPublicURL == "" {
-				uploadsPublicURL = "http://localhost:3000/uploads/"
+				uploadsPublicURL = system_setting.ServerAddress + "/uploads/"
 			}
 			// ensure uploadsPublicURL ends with /
 			if !strings.HasSuffix(uploadsPublicURL, "/") {

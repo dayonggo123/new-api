@@ -14,13 +14,14 @@ services:
     volumes:
       - ./data:/data
       - ./logs:/app/logs
-      - ./uploads:/data/uploads
+      - ./uploads:/app/uploads
     environment:
       - SQL_DSN=root:rAFZtETi3jebacKC@tcp(172.17.0.1:13306)/newapi
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true
       - BATCH_UPDATE_ENABLED=true
+      - UPLOADS_PUBLIC_URL=https://heharse.cloud/uploads/
 #      - STREAMING_TIMEOUT=300
 #      - SESSION_SECRET=random_string
 #      - SYNC_FREQUENCY=60
