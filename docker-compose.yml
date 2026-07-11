@@ -14,9 +14,9 @@ services:
     volumes:
       - ./data:/data
       - ./logs:/app/logs
-      - ./uploads:/app/uploads
+      - ./uploads:/data/uploads
     environment:
-      - SQL_DSN=root:rAFZtETi3jebacKC@tcp(172.17.0.1:13306)/newapi
+      - SQL_DSN=root:L23de6fd7dd68fn@tcp(172.17.0.1:13306)/newapi
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true
