@@ -48,6 +48,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/apimart"
 	"github.com/QuantumNous/new-api/relay/channel/task/bogei"
 	"github.com/QuantumNous/new-api/relay/channel/task/gettoken"
+	"github.com/QuantumNous/new-api/relay/channel/task/lingdong"
 	"github.com/QuantumNous/new-api/relay/channel/task/zhangyuge"
 	channelveo "github.com/QuantumNous/new-api/relay/channel/veo"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
@@ -183,6 +184,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &duoyuan.TaskAdaptor{}
 		case constant.ChannelTypeAPIMart:
 			return &apimart.TaskAdaptor{}
+		case constant.ChannelTypeLingdongAPI:
+			return &lingdong.TaskAdaptor{}
 		case constant.ChannelTypeGetToken:
 			return &gettoken.TaskAdaptor{}
 		case constant.ChannelTypeBogeiAI:

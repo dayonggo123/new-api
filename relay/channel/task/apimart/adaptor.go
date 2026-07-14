@@ -859,6 +859,8 @@ func (a *TaskAdaptor) GetModelList() []string {
 		"veo3.1-quality",
 		"veo3.1-lite",
 		"Omni-Flash-Ext",
+		"grok-imagine-1.5-video-apimart",
+		"grok-imagine-1.5-video-ext",
 	}
 }
 

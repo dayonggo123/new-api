@@ -229,6 +229,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'EasyRouter',
   },
+  {
+    value: 66,
+    color: 'green',
+    label: 'LingdongAPI',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

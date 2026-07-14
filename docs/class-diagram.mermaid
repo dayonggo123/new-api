@@ -1,153 +1,458 @@
 classDiagram
-    class TaskSubmitReq {
-        +string Prompt
-        +string Model
-        +string Image
-        +[]string Images
-        +[]string ReferenceImages
-        +[]string VideoURLs
-        +[]string ReferenceAudio
-        +string Size
-        +string AspectRatio
-        +int Duration
-        +string Seconds
-        +bool GenerateAudio
-        +string Resolution
-        +string Ratio
-        +int Seed
-        +bool Watermark
-        +bool CameraFixed
-        +int Frames
-        +string Priority
-        +string ServiceTier
-        +string CallbackURL
-        +Map~string,any~ Metadata
-        +HasImage() bool
-        +GetPrompt() string
+    direction TB
+
+    class Skill {
+        +Id int
+        +SkillId string
+        +Name string
+        +NameEn string
+        +Icon string
+        +Cost int
+        +SupportedNodeTypes string
+        +Description string
+        +ExecutionType string
+        +SystemPromptTemplate string
+        +UserPromptTemplate string
+        +OverrideLocal bool
+        +Status int
+        +OwnerId int
+        +Visibility int
+        +PublishStatus int
+        +Category string
+        +Tags string
+        +InputSchema string
+        +OutputSchema string
+        +Version string
+        +AvgRating float64
+        +RatingCount int
+        +InvokeCount int64
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
+        +ToResponse() SkillResponse
     }
 
-    class VolcengineVideoRequest {
-        +string Model
-        +[]VolcengineContentItem Content
-        +bool GenerateAudio
-        +string Ratio
-        +int Duration
-        +string Resolution
-        +bool Watermark
-        +int Seed
-        +bool CameraFixed
-        +int Frames
-        +string Priority
-        +string ServiceTier
-        +string CallbackURL
+    class SkillCreatorProfile {
+        +Id int
+        +UserId int
+        +DisplayName string
+        +Bio string
+        +Website string
+        +Avatar string
+        +VerifiedStatus int
+        +ContactEmail string
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
     }
 
-    class VolcengineContentItem {
-        +string Type
-        +string Text
-        +string Role
-        +MediaURL ImageURL
-        +MediaURL VideoURL
-        +MediaURL AudioURL
+    class SkillAPIKey {
+        +Id int
+        +Key string
+        +Name string
+        +UserId int
+        +SkillId string
+        +Permissions int
+        +Quota int64
+        +UsedQuota int64
+        +RateLimit int
+        +Status int
+        +ExpiredAt int64
+        +LastUsedAt int64
+        +CreatedAt int64
+        +TableName() string
+        +HasPermission(op string) bool
+        +IsGlobal() bool
     }
 
-    class MediaURL {
-        +string URL
+    class MembershipPlan {
+        +Id int
+        +Name string
+        +Description string
+        +Period string
+        +Price decimal
+        +QuotaPerMonth int64
+        +DiscountPercent int
+        +Status int
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
     }
 
-    class VolcengineVideoSubmitResponse {
-        +string ID
+    class UserMembership {
+        +Id int64
+        +UserId int
+        +PlanId int
+        +Status int
+        +StartAt int64
+        +ExpireAt int64
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
+        +IsValid() bool
     }
 
-    class VolcengineVideoTaskResult {
-        +string ID
-        +string Status
-        +VolcengineVideoContent Content
-        +int CreatedAt
-        +int UpdatedAt
-        +VolcengineUsage Usage
+    class SkillSubscription {
+        +Id int64
+        +UserId int
+        +SkillId string
+        +PricingId int
+        +Status int
+        +StartAt int64
+        +ExpireAt int64
+        +CreatedAt int64
+        +TableName() string
+        +IsValid() bool
     }
 
-    class VolcengineVideoContent {
-        +string VideoURL
-        +string LastFrameURL
+    class SkillOrder {
+        +Id int64
+        +UserId int
+        +SkillId string
+        +PricingId int
+        +OrderType string
+        +Quantity int64
+        +Amount decimal
+        +Status int
+        +PaidAt int64
+        +CreatedAt int64
+        +TableName() string
     }
 
-    class VolcengineUsage {
-        +int CompletionTokens
-        +int TotalTokens
+    class SkillExecutionLog {
+        +Id int64
+        +TaskId string
+        +SkillId string
+        +UserId int
+        +APIKeyId int
+        +Status string
+        +Input string
+        +Output string
+        +ErrorCode string
+        +ErrorMessage string
+        +LatencyMs int
+        +TokensUsed int
+        +Cost decimal
+        +Sandbox bool
+        +CreatedAt int64
+        +FinishedAt int64
+        +TableName() string
     }
 
-    class VolcengineVideoAdaptor {
-        +int ChannelType
-        +string apiKey
-        +string baseURL
-        +Init(info)
-        +ValidateRequestAndSetAction(c, info) TaskError
-        +EstimateBilling(c, info) Map~string,float64~
-        +BuildRequestURL(info) string
-        +BuildRequestHeader(c, req, info)
-        +BuildRequestBody(c, info) io.Reader
-        +DoRequest(c, info, body) http.Response
-        +DoResponse(c, resp, info) Tuple~string, []byte, TaskError~
-        +FetchTask(baseUrl, key, body, proxy) http.Response
-        +ParseTaskResult(respBody) TaskInfo
-        +ConvertToOpenAIVideo(originTask) []byte
-        +GetModelList() []string
-        +GetChannelName() string
+    class SkillBillingRecord {
+        +Id int64
+        +TaskId string
+        +SkillId string
+        +UserId int
+        +DeveloperId int
+        +SubscriptionId int64
+        +OrderId int64
+        +Amount decimal
+        +PlatformFee decimal
+        +DeveloperRevenue decimal
+        +Currency string
+        +BillingType string
+        +Status int
+        +BillingCycle string
+        +CreatedAt int64
+        +SettledAt int64
+        +TableName() string
     }
 
-    class TaskAdaptor {
-        <<interface>>
-        +Init(info)
-        +ValidateRequestAndSetAction(c, info) TaskError
-        +EstimateBilling(c, info) Map~string,float64~
-        +AdjustBillingOnSubmit(info, taskData) Map~string,float64~
-        +AdjustBillingOnComplete(task, taskResult) int
-        +BuildRequestURL(info) string
-        +BuildRequestHeader(c, req, info)
-        +BuildRequestBody(c, info) io.Reader
-        +DoRequest(c, info, body) http.Response
-        +DoResponse(c, resp, info) Tuple~string, []byte, TaskError~
-        +FetchTask(baseUrl, key, body, proxy) http.Response
-        +ParseTaskResult(respBody) TaskInfo
-        +GetModelList() []string
-        +GetChannelName() string
+    class SkillPricing {
+        +Id int
+        +SkillId string
+        +Strategy string
+        +UnitPrice decimal
+        +TokenPriceInput decimal
+        +TokenPriceOutput decimal
+        +DurationPricePerSecond decimal
+        +SubscriptionPrice decimal
+        +SubscriptionPeriod string
+        +SubscriptionQuota int64
+        +MembershipDiscount int
+        +FreeQuota int64
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
+        +CalculateCost(tokens, seconds, count, subscribed, membership) decimal
     }
 
-    class OpenAIVideoConverter {
-        <<interface>>
-        +ConvertToOpenAIVideo(originTask) []byte
+    class SkillQuotaUsage {
+        +Id int64
+        +UserId int
+        +SkillId string
+        +UsageDate string
+        +InvokeCount int64
+        +TokenCount int64
+        +Cost decimal
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
     }
 
-    class OpenAIVideoGenerationResponse {
-        +int64 Created
-        +[]OpenAIVideoGenerationItem Data
-        +Usage Usage
+    class SkillReview {
+        +Id int
+        +SkillId string
+        +ReviewerId int
+        +Status int
+        +Comment string
+        +CreatedAt int64
+        +TableName() string
     }
 
-    class OpenAIVideoGenerationItem {
-        +string URL
-        +string LastFrameURL
-        +string RevisedPrompt
+    class SkillRating {
+        +Id int
+        +SkillId string
+        +UserId int
+        +Rating int
+        +Comment string
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
     }
 
-    class VideoMappingHelper {
-        <<helper>>
-        +ParseSizeToRatio(size string) Tuple~string, float64~
-        +EstimateDurationRatio(duration int) float64
-        +EstimateResolutionRatio(resolution string) float64
-        +HasVideoReference(req TaskSubmitReq) bool
+    class SkillFavorite {
+        +Id int
+        +SkillId string
+        +UserId int
+        +CreatedAt int64
+        +TableName() string
     }
 
-    VolcengineVideoAdaptor ..|> TaskAdaptor : implements
-    VolcengineVideoAdaptor ..|> OpenAIVideoConverter : implements
-    VolcengineVideoAdaptor --> VolcengineVideoRequest : builds
-    VolcengineVideoAdaptor --> VolcengineVideoTaskResult : parses
-    VolcengineVideoAdaptor --> OpenAIVideoGenerationResponse : converts
-    VolcengineVideoRequest --> VolcengineContentItem : contains
-    VolcengineContentItem --> MediaURL
-    VolcengineVideoTaskResult --> VolcengineVideoContent
-    VolcengineVideoTaskResult --> VolcengineUsage
-    VideoMappingHelper ..> TaskSubmitReq : uses
-    VideoMappingHelper ..> VolcengineVideoRequest : uses
+    class SkillComment {
+        +Id int
+        +SkillId string
+        +UserId int
+        +ParentId int
+        +Content string
+        +Status int
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
+    }
+
+    class SkillRevenueAccount {
+        +Id int
+        +UserId int
+        +Balance decimal
+        +TotalRevenue decimal
+        +TotalWithdrawal decimal
+        +Currency string
+        +Status int
+        +CreatedAt int64
+        +UpdatedAt int64
+        +TableName() string
+    }
+
+    class SkillRevenueWithdrawal {
+        +Id int64
+        +UserId int
+        +Amount decimal
+        +Currency string
+        +Channel string
+        +Account string
+        +Status int
+        +ReviewerId int
+        +Remark string
+        +CreatedAt int64
+        +ReviewedAt int64
+        +TableName() string
+    }
+
+    class SkillService {
+        +RegisterSkill(req CreateSkillRequest, userId int) SkillResponse
+        +UpdateSkill(skillId string, req UpdateSkillRequest, userId int) SkillResponse
+        +PublishSkill(skillId string, userId int) error
+        +GetSkill(skillId string, visibility int) SkillResponse
+        +ListSkills(filter SkillFilter, page PageInfo) []SkillResponse
+        +ApproveSkill(skillId string, reviewerId int) error
+        +RejectSkill(skillId string, reviewerId int, comment string) error
+    }
+
+    class SkillStoreService {
+        +ListCategories() []SkillCategory
+        +SearchSkills(query string, filters SkillSearchFilter, page PageInfo) []SkillResponse
+        +GetRecommendations(userId int, limit int) []SkillResponse
+        +GetTrendingSkills(limit int) []SkillResponse
+        +GetSkillDetail(skillId string) SkillDetailResponse
+        +ToggleFavorite(userId int, skillId string) bool
+        +RateSkill(userId int, skillId string, req RatingRequest) SkillRating
+        +AddComment(userId int, req CommentRequest) SkillComment
+        +ListComments(skillId string, page PageInfo) []SkillComment
+    }
+
+    class SkillMembershipService {
+        +ListPlans() []MembershipPlan
+        +SubscribePlan(userId int, planId int) UserMembership
+        +GetUserMembership(userId int) UserMembership
+        +CancelMembership(userId int) error
+        +RenewMembership(userId int) UserMembership
+    }
+
+    class SkillBillingService {
+        +ChargeSkillUsage(userId int, log SkillExecutionLog) SkillBillingRecord
+        +ChargeSkillSubscription(userId int, skillId string, pricingId int) SkillBillingRecord
+        +ChargeMembership(userId int, planId int) UserMembership
+        +ChargeOrder(userId int, skillId string, pricingId int, quantity int64) SkillOrder
+        +Refund(orderId int64) error
+        +SettleBillingCycle(cycle string) error
+        +GetUserBill(userId int, cycle string) []SkillBillingRecord
+    }
+
+    class SkillExecutor {
+        +Execute(ctx context.Context, skill Skill, input map) ExecuteResult
+        +ExecuteAsync(ctx context.Context, skill Skill, input map, callback string) string
+        +RenderPrompt(template string, input map) string
+        +CallLLM(ctx context.Context, req LLMRequest) LLMResponse
+    }
+
+    class SkillUserService {
+        +InvokeSkill(userId int, skillId string, input map) ExecuteResult
+        +GetUsageHistory(userId int, page PageInfo) []SkillExecutionLog
+        +GetFavorites(userId int, page PageInfo) []SkillResponse
+        +GetSubscriptions(userId int) []SkillSubscription
+        +GetOrders(userId int) []SkillOrder
+        +GetBills(userId int, page PageInfo) []SkillBillingRecord
+    }
+
+    class SkillCreatorService {
+        +ListMySkills(userId int) []SkillResponse
+        +GetSkillStats(userId int, skillId string) SkillStats
+        +GetRevenueStats(userId int, start, end string) RevenueStats
+    }
+
+    class SkillRevenueService {
+        +GetRevenueAccount(userId int) SkillRevenueAccount
+        +GetRevenueStats(userId int, start, end string) RevenueStats
+        +ApplyWithdrawal(userId int, req WithdrawalRequest) SkillRevenueWithdrawal
+        +ApproveWithdrawal(id int64, reviewerId int) error
+        +RejectWithdrawal(id int64, reviewerId int, remark string) error
+        +SettleDeveloperRevenue(cycle string) error
+    }
+
+    class SkillUserController {
+        +InvokeSkill(c *gin.Context)
+        +GetUsageHistory(c *gin.Context)
+        +GetFavorites(c *gin.Context)
+        +GetSubscriptions(c *gin.Context)
+        +GetOrders(c *gin.Context)
+        +GetBills(c *gin.Context)
+    }
+
+    class SkillCreatorController {
+        +ListMySkills(c *gin.Context)
+        +CreateSkill(c *gin.Context)
+        +UpdateSkill(c *gin.Context)
+        +DeleteSkill(c *gin.Context)
+        +PublishSkill(c *gin.Context)
+        +SetSkillPricing(c *gin.Context)
+        +GetCreatorDashboard(c *gin.Context)
+        +GetRevenueDashboard(c *gin.Context)
+    }
+
+    class SkillStoreController {
+        +ListCategories(c *gin.Context)
+        +SearchSkills(c *gin.Context)
+        +GetSkillDetail(c *gin.Context)
+        +GetRecommendations(c *gin.Context)
+        +GetTrendingSkills(c *gin.Context)
+        +RateSkill(c *gin.Context)
+        +ToggleFavorite(c *gin.Context)
+        +AddComment(c *gin.Context)
+        +ListComments(c *gin.Context)
+    }
+
+    class SkillMembershipController {
+        +ListPlans(c *gin.Context)
+        +GetMyMembership(c *gin.Context)
+        +SubscribePlan(c *gin.Context)
+        +CancelMembership(c *gin.Context)
+    }
+
+    class SkillRevenueController {
+        +GetRevenueAccount(c *gin.Context)
+        +GetRevenueStats(c *gin.Context)
+        +ApplyWithdrawal(c *gin.Context)
+        +ListWithdrawals(c *gin.Context)
+    }
+
+    class SkillAdminController {
+        +ListPendingSkills(c *gin.Context)
+        +ReviewSkill(c *gin.Context)
+        +ListAllSkills(c *gin.Context)
+        +ManageCategories(c *gin.Context)
+        +ManageMembershipPlans(c *gin.Context)
+        +SetFeaturedSkills(c *gin.Context)
+        +UpdatePlatformPricing(c *gin.Context)
+        +GetPlatformDashboard(c *gin.Context)
+        +ListWithdrawals(c *gin.Context)
+        +ReviewWithdrawal(c *gin.Context)
+    }
+
+    class SkillInvokeController {
+        +InvokeSync(c *gin.Context)
+        +InvokeAsync(c *gin.Context)
+        +GetTaskStatus(c *gin.Context)
+    }
+
+    class SkillAuthMiddleware {
+        +Authenticate(c *gin.Context) SkillAPIKey
+        +CheckPermission(c *gin.Context, skillId string, op string) error
+    }
+
+    Skill "1" --> "0..1" SkillPricing : has
+    Skill "1" --> "0..*" SkillExecutionLog : produces
+    Skill "1" --> "0..*" SkillBillingRecord : bills
+    Skill "1" --> "0..*" SkillSubscription : subscribed_by
+    Skill "1" --> "0..*" SkillOrder : ordered_by
+    Skill "1" --> "0..*" SkillRating : rated_by
+    Skill "1" --> "0..*" SkillFavorite : favorited_by
+    Skill "1" --> "0..*" SkillComment : commented_by
+    Skill "1" --> "0..*" SkillReview : reviewed_by
+    User "1" --> "0..1" SkillCreatorProfile : has
+    User "1" --> "0..1" SkillRevenueAccount : has
+    User "1" --> "0..1" UserMembership : has
+    User "1" --> "0..*" SkillRevenueWithdrawal : applies
+    MembershipPlan "1" --> "0..*" UserMembership : subscribed_by
+    SkillAPIKey "1" --> "0..*" SkillExecutionLog : uses
+    SkillAPIKey "1" --> "0..*" SkillQuotaUsage : consumes
+
+    SkillService ..> Skill : manages
+    SkillStoreService ..> Skill : discovers
+    SkillStoreService ..> SkillRating : manages
+    SkillStoreService ..> SkillFavorite : manages
+    SkillStoreService ..> SkillComment : manages
+    SkillMembershipService ..> MembershipPlan : manages
+    SkillMembershipService ..> UserMembership : manages
+    SkillUserService ..> Skill : invokes
+    SkillUserService ..> SkillExecutionLog : reads
+    SkillUserService ..> SkillSubscription : reads
+    SkillUserService ..> SkillOrder : reads
+    SkillCreatorService ..> Skill : manages
+    SkillCreatorService ..> SkillRevenueAccount : reads
+    SkillRevenueService ..> SkillRevenueAccount : manages
+    SkillRevenueService ..> SkillRevenueWithdrawal : manages
+    SkillRevenueService ..> SkillBillingRecord : reads
+    SkillExecutor ..> Skill : executes
+    SkillBillingService ..> SkillBillingRecord : creates
+    SkillBillingService ..> SkillExecutionLog : reads
+    SkillBillingService ..> SkillPricing : reads
+    SkillBillingService ..> UserMembership : reads
+    SkillBillingService ..> SkillSubscription : reads
+    SkillBillingService ..> SkillOrder : creates
+    SkillUserController ..> SkillUserService : uses
+    SkillUserController ..> SkillBillingService : uses
+    SkillCreatorController ..> SkillService : uses
+    SkillCreatorController ..> SkillCreatorService : uses
+    SkillStoreController ..> SkillStoreService : uses
+    SkillMembershipController ..> SkillMembershipService : uses
+    SkillMembershipController ..> SkillBillingService : uses
+    SkillRevenueController ..> SkillRevenueService : uses
+    SkillAdminController ..> SkillService : uses
+    SkillAdminController ..> SkillStoreService : uses
+    SkillAdminController ..> SkillRevenueService : uses
+    SkillAdminController ..> SkillMembershipService : uses
+    SkillInvokeController ..> SkillAuthMiddleware : uses
+    SkillInvokeController ..> SkillExecutor : invokes
+    SkillInvokeController ..> SkillBillingService : charges

@@ -61,6 +61,14 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && (channel.Type == constant.ChannelTypeVeo || channel.Type == constant.ChannelTypeGetToken || channel.Type == constant.ChannelTypeBogeiAI || channel.Type == constant.ChannelTypeZhangyuge) {
 		return string(constant.EndpointTypeOpenAIVideo)
 	}
+	// LingdongAPI 根据模型区分图片/视频测试
+	if channel != nil && channel.Type == constant.ChannelTypeLingdongAPI {
+		lowerModel := strings.ToLower(modelName)
+		if strings.Contains(lowerModel, "image") {
+			return string(constant.EndpointTypeImageGeneration)
+		}
+		return string(constant.EndpointTypeOpenAIVideo)
+	}
 	// VolcEngine 豆包视频/Seedance 视频模型默认走视频生成测试。
 	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(strings.ToLower(modelName), "seedance") {
 		return string(constant.EndpointTypeOpenAIVideo)
@@ -173,8 +181,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/responses/compact"
 		}
 
-		// veo video models (non-WanXiangAI channels like APIMart, DuoYuanTanSuo)
-		if strings.Contains(strings.ToLower(testModel), "veo") {
+		// veo / grok video models (non-WanXiangAI channels like APIMart, DuoYuanTanSuo)
+		if strings.Contains(strings.ToLower(testModel), "veo") || strings.HasPrefix(strings.ToLower(testModel), "grok-imagine-1.5-video") {
 			requestPath = "/v1/videos/generations"
 		}
 	}

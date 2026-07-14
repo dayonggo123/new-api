@@ -91,6 +91,8 @@ func ChannelType2APITypeWithModel(channelType int, modelName string) (int, bool)
 		// APIMart 同时支持 task 图像模型（gpt-image 系列）和 OpenAI 兼容接口（Whisper 等）。
 		// 图像任务在 image_handler 中按 ChannelType 直接拦截，不走到此处。
 		apiType = constant.APITypeOpenAI
+	case constant.ChannelTypeLingdongAPI:
+		apiType = constant.APITypeOpenAI
 	case constant.ChannelTypeWanXiangAI:
 		// WanXiangAI media models (image/video) use APITypeVeo for task-based generation
 		if modelName != "" && (strings.Contains(modelName, "veo") || strings.Contains(modelName, "gemini")) {

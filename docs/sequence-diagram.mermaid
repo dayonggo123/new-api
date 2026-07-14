@@ -1,51 +1,215 @@
+%% Sequence Diagram 1: B2C User Directly Uses Skill (P0 Core Flow)
 sequenceDiagram
-    participant C as Client
-    participant R as Gin Router /v1/videos/generations
-    participant Ctrl as controller.RelayTask
-    participant RTS as relay.RelayTaskSubmit
-    participant VA as VolcengineVideoAdaptor
-    participant Up as VolcEngine API
-    participant DB as model.Task
-    participant TP as service.TaskPollingLoop
-    participant Fetch as controller.RelayTaskFetch
+    autonumber
+    participant User as Consumer
+    participant FE as Web Frontend
+    participant Gateway as Gin Gateway
+    participant Auth as UserAuthMiddleware
+    participant UserCtrl as SkillUserController
+    participant UserSvc as SkillUserService
+    participant Billing as SkillBillingService
+    participant Membership as SkillMembershipService
+    participant Exec as SkillExecutor
+    participant Relay as Relay/LLM
+    participant Log as SkillExecutionLog
 
-    C->>R: POST /v1/videos/generations {model,prompt,image,size,duration,...}
-    R->>Ctrl: TokenAuth + Distribute
-    Ctrl->>Ctrl: relaycommon.GenRelayInfo(RelayFormatTask)
-    Ctrl->>RTS: RelayTaskSubmit(c, info)
-    RTS->>RTS: InitChannelMeta / select channel
-    RTS->>VA: Init(info)
-    RTS->>VA: ValidateRequestAndSetAction(c, info)
-    VA->>VA: parse/validate request, store task_request in context
-    RTS->>RTS: ModelMappedHelper + ModelPriceHelper
-    RTS->>RTS: PreConsumeBilling
-    RTS->>VA: BuildRequestBody(c, info)
-    VA->>VA: TaskSubmitReq -> VolcengineVideoRequest
-    VA->>VA: defaults: duration=5, resolution=720p, generate_audio=true
-    RTS->>VA: DoRequest(c, info, body)
-    VA->>Up: POST /api/v3/contents/generations/tasks
-    Up-->>VA: {id: task-xxx}
-    VA->>VA: build OpenAIVideo {id: task_xxx, status: queued}
-    VA-->>RTS: upstream task id, response body
-    RTS-->>Ctrl: TaskSubmitResult
-    Ctrl->>Ctrl: SettleBilling + LogTaskConsumption
-    Ctrl->>DB: Insert task (platform="45", status=NOT_START)
-    Ctrl-->>C: {id: task_xxx, object: video, status: queued, ...}
+    User->>FE: Browse Skill Store after login
+    FE->>Gateway: GET /api/skill-store/skills/{id}
+    Gateway->>Auth: Validate Session
+    Auth-->>Gateway: Inject userId
+    Gateway->>UserCtrl: GetSkillDetail
+    UserCtrl->>UserSvc: GetSkillDetail(skillId)
+    UserSvc-->>UserCtrl: Skill + Pricing + Rating
+    UserCtrl-->>FE: Skill detail
 
-    loop Every 15 seconds
-        TP->>DB: query unfinished tasks grouped by platform
-        TP->>TP: DispatchPlatformUpdate
-        TP->>VA: FetchTask(baseUrl, key, {task_id})
-        VA->>Up: GET /api/v3/contents/generations/tasks/{id}
-        Up-->>VA: {status, content.video_url, content.last_frame_url, usage}
-        VA->>TP: ParseTaskResult(respBody)
-        TP->>DB: update status/progress/result_url/fail_reason
-        TP->>TP: settleTaskBillingOnComplete / RefundTaskQuota
-    end
+    User->>FE: Click "Use Skill" and fill parameters
+    FE->>Gateway: POST /api/skill-user/skills/{id}/invoke
+    Gateway->>Auth: Validate Session
+    Auth-->>Gateway: Inject userId
+    Gateway->>UserCtrl: InvokeSkill(c)
+    UserCtrl->>UserSvc: InvokeSkill(userId, skillId, input)
 
-    C->>R: GET /v1/videos/{task_id}
-    R->>Fetch: controller.RelayTaskFetch
-    Fetch->>DB: query task by task_id
-    Fetch->>VA: ConvertToOpenAIVideo(originTask)
-    VA-->>Fetch: OpenAIVideoGenerationResponse JSON
-    Fetch-->>C: {created, data:[{url, last_frame_url, revised_prompt}], usage}
+    UserSvc->>Membership: GetUserMembership(userId)
+    Membership-->>UserSvc: UserMembership (or nil)
+    UserSvc->>UserSvc: Query SkillSubscription
+    UserSvc->>Billing: Check if free quota / membership quota / subscribed
+    Billing-->>UserSvc: Allowed
+
+    UserSvc->>Billing: PreDeduct(userId, estimatedCost)
+    Billing-->>UserSvc: OK
+    UserSvc->>Exec: Execute(ctx, skill, input)
+    Exec->>Exec: RenderPrompt(template, input)
+    Exec->>Relay: Call LLM/tools
+    Relay-->>Exec: LLM result
+    Exec-->>UserSvc: ExecuteResult
+
+    UserSvc->>Billing: ChargeSkillUsage(userId, log)
+    Billing->>Billing: Calculate cost based on membership / subscription / per-call
+    Billing->>Billing: Deduct user Quota
+    Billing->>Billing: Split platform fee and developer revenue
+    Billing->>Billing: Create SkillBillingRecord
+    Billing-->>UserSvc: record
+
+    UserSvc->>Log: Write SkillExecutionLog
+    UserSvc-->>UserCtrl: result
+    UserCtrl-->>FE: {code, data, message}
+    FE-->>User: Display execution result
+
+%% Sequence Diagram 2: User Subscribes to Skill / Membership
+---
+sequenceDiagram
+    autonumber
+    participant User as Consumer
+    participant FE as Web Frontend
+    participant Gateway as Gin Gateway
+    participant Auth as UserAuthMiddleware
+    participant MembershipCtrl as SkillMembershipController
+    participant MembershipSvc as SkillMembershipService
+    participant Billing as SkillBillingService
+    participant StoreCtrl as SkillStoreController
+
+    User->>FE: Choose "Subscribe to Platform Membership"
+    FE->>Gateway: GET /api/skill-membership/plans
+    Gateway->>Auth: Validate Session
+    Gateway->>MembershipCtrl: ListPlans
+    MembershipCtrl->>MembershipSvc: ListPlans
+    MembershipSvc-->>MembershipCtrl: []MembershipPlan
+    MembershipCtrl-->>FE: Membership plans
+
+    User->>FE: Confirm monthly/yearly membership
+    FE->>Gateway: POST /api/skill-membership/plans/{id}/subscribe
+    Gateway->>MembershipCtrl: SubscribePlan
+    MembershipCtrl->>MembershipSvc: SubscribePlan(userId, planId)
+    MembershipSvc->>Billing: ChargeMembership(userId, planId)
+    Billing->>Billing: Deduct user Quota
+    Billing->>Billing: Create BillingRecord
+    Billing-->>MembershipSvc: OK
+    MembershipSvc->>MembershipSvc: Create UserMembership
+    MembershipSvc-->>MembershipCtrl: UserMembership
+    MembershipCtrl-->>FE: Subscription success
+
+    User->>FE: Choose "Subscribe to a Skill"
+    FE->>Gateway: POST /api/skill-store/skills/{id}/subscribe
+    Gateway->>StoreCtrl: SubscribeSkill
+    StoreCtrl->>Billing: ChargeSkillSubscription(userId, skillId, pricingId)
+    Billing->>Billing: Deduct user Quota
+    Billing->>Billing: Create BillingRecord
+    Billing-->>StoreCtrl: OK
+    StoreCtrl->>MembershipSvc: CreateSkillSubscription(userId, skillId, pricingId)
+    MembershipSvc-->>StoreCtrl: SkillSubscription
+    StoreCtrl-->>FE: Subscription success
+
+%% Sequence Diagram 3: Creator Publishes Skill
+---
+sequenceDiagram
+    autonumber
+    participant Creator as Skill Creator
+    participant CreatorCtrl as SkillCreatorController
+    participant Svc as SkillService
+    participant Pricing as SkillPricing
+    participant Review as SkillReview
+    participant AdminCtrl as SkillAdminController
+    participant Admin as Platform Operator
+
+    Creator->>CreatorCtrl: POST /api/skill-creator/skills
+    CreatorCtrl->>Svc: RegisterSkill(req, userId)
+    Svc->>Svc: Create Skill(status=draft, publish_status=draft)
+    Svc-->>CreatorCtrl: SkillResponse
+    CreatorCtrl-->>Creator: Created
+
+    Creator->>CreatorCtrl: PUT /api/skill-creator/skills/{id}/pricing
+    CreatorCtrl->>Pricing: Create/Update SkillPricing
+    Pricing-->>CreatorCtrl: OK
+    CreatorCtrl-->>Creator: Pricing set
+
+    Creator->>CreatorCtrl: POST /api/skill-creator/skills/{id}/publish
+    CreatorCtrl->>Svc: PublishSkill(skillId, userId)
+    Svc->>Review: Create SkillReview(status=pending)
+    Svc-->>CreatorCtrl: Submitted
+    CreatorCtrl-->>Creator: Waiting review
+
+    Admin->>AdminCtrl: GET /api/skill-admin/skills/pending
+    AdminCtrl->>Svc: ListPendingSkills()
+    Svc->>Review: Query pending
+    Review-->>Svc: []SkillReview
+    Svc-->>AdminCtrl: []SkillResponse
+    AdminCtrl-->>Admin: Pending list
+
+    Admin->>AdminCtrl: POST /api/skill-admin/skills/{id}/approve
+    AdminCtrl->>Svc: ApproveSkill(skillId, reviewerId)
+    Svc->>Svc: Update publish_status=published
+    Svc->>Review: Update status=approved
+    Svc-->>AdminCtrl: OK
+    AdminCtrl-->>Admin: Approved
+
+    Creator->>CreatorCtrl: GET /api/skill-creator/skills/{id}
+    CreatorCtrl->>Svc: GetSkill(skillId, owner)
+    Svc-->>CreatorCtrl: published
+    CreatorCtrl-->>Creator: Skill is live
+
+%% Sequence Diagram 4: Billing and Revenue Sharing
+---
+sequenceDiagram
+    autonumber
+    participant UserSvc as SkillUserService
+    participant Billing as SkillBillingService
+    participant Pricing as SkillPricing
+    participant Membership as SkillMembershipService
+    participant Revenue as SkillRevenueService
+    participant UserModel as User
+    participant Log as SkillBillingRecord
+
+    UserSvc->>Billing: ChargeSkillUsage(userId, executionLog)
+    Billing->>Pricing: GetPricing(skillId)
+    Pricing-->>Billing: SkillPricing
+
+    Billing->>Membership: GetUserMembership(userId)
+    Membership-->>Billing: UserMembership
+    Billing->>Billing: Query SkillSubscription
+    Billing->>Pricing: CalculateCost(tokens, seconds, count, subscribed, membership)
+    Pricing-->>Billing: totalCost
+
+    Billing->>Billing: Calculate platformFee
+    Billing->>Billing: Calculate developerRevenue
+    Billing->>UserModel: Deduct user Quota
+    Billing->>Revenue: IncreaseDeveloperRevenue(developerId, developerRevenue)
+    Revenue->>Revenue: Update SkillRevenueAccount.Balance
+    Billing->>Log: Create SkillBillingRecord
+    Billing-->>UserSvc: BillingRecord
+
+%% Sequence Diagram 5: Creator Withdrawal Flow
+---
+sequenceDiagram
+    autonumber
+    participant Creator as Skill Creator
+    participant RevCtrl as SkillRevenueController
+    participant RevSvc as SkillRevenueService
+    participant Account as SkillRevenueAccount
+    participant AdminCtrl as SkillAdminController
+    participant Admin as Platform Operator
+
+    Creator->>RevCtrl: GET /api/skill-revenue/account
+    RevCtrl->>RevSvc: GetRevenueAccount(userId)
+    RevSvc->>Account: Query balance
+    Account-->>RevSvc: SkillRevenueAccount
+    RevSvc-->>RevCtrl: Return
+    RevCtrl-->>Creator: Revenue account info
+
+    Creator->>RevCtrl: POST /api/skill-revenue/withdrawals
+    RevCtrl->>RevSvc: ApplyWithdrawal(userId, req)
+    RevSvc->>Account: Freeze corresponding balance
+    RevSvc->>RevSvc: Create SkillRevenueWithdrawal(status=pending)
+    RevSvc-->>RevCtrl: Application record
+    RevCtrl-->>Creator: Application submitted
+
+    Admin->>AdminCtrl: GET /api/skill-admin/withdrawals
+    AdminCtrl->>RevSvc: ListWithdrawals(status=pending)
+    RevSvc-->>AdminCtrl: []Withdrawal
+    AdminCtrl-->>Admin: Withdrawal list
+
+    Admin->>AdminCtrl: POST /api/skill-admin/withdrawals/{id}/approve
+    AdminCtrl->>RevSvc: ApproveWithdrawal(id, reviewerId)
+    RevSvc->>Account: Deduct frozen amount
+    RevSvc->>RevSvc: Update status approved, trigger payout (reserved)
+    RevSvc-->>AdminCtrl: OK
+    AdminCtrl-->>Admin: Approved

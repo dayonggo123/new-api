@@ -541,6 +541,9 @@ func RelayVideo(c *gin.Context) {
 		Model:  imageReq.Model,
 		Size:   imageReq.Size,
 	}
+	if imageReq.Quality != "" {
+		taskReq.Resolution = imageReq.Quality
+	}
 	if imageReq.N != nil && *imageReq.N > 0 {
 		// Veo / Omni Flash currently generate one video at a time.
 	}
@@ -564,6 +567,117 @@ func RelayVideo(c *gin.Context) {
 			}
 		}
 		taskReq.Metadata = metadata
+	}
+	// 透传 APIMart Grok Imagine 1.5 的扩展字段
+	if taskReq.Metadata != nil {
+		// duration
+		if rawDuration, ok := taskReq.Metadata["duration"]; ok {
+			switch d := rawDuration.(type) {
+			case float64:
+				taskReq.Duration = int(d)
+			case int:
+				taskReq.Duration = d
+			case int64:
+				taskReq.Duration = int(d)
+			}
+		}
+		// image_urls / video_urls
+		if rawImageURLs, ok := taskReq.Metadata["image_urls"]; ok {
+			var imageURLs []string
+			switch v := rawImageURLs.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						imageURLs = append(imageURLs, s)
+					}
+				}
+			case []string:
+				imageURLs = v
+			case string:
+				imageURLs = []string{v}
+			}
+			if len(imageURLs) > 0 {
+				taskReq.ImageURLs = imageURLs
+			}
+			delete(taskReq.Metadata, "image_urls")
+		}
+		if rawVideoURLs, ok := taskReq.Metadata["video_urls"]; ok {
+			var videoURLs []string
+			switch v := rawVideoURLs.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						videoURLs = append(videoURLs, s)
+					}
+				}
+			case []string:
+				videoURLs = v
+			case string:
+				videoURLs = []string{v}
+			}
+			if len(videoURLs) > 0 {
+				taskReq.VideoURLs = videoURLs
+			}
+			delete(taskReq.Metadata, "video_urls")
+		}
+		// 透传 LingdongAPI 风格的 images/videos/audios 数组
+		if rawImages, ok := taskReq.Metadata["images"]; ok {
+			var images []string
+			switch v := rawImages.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						images = append(images, s)
+					}
+				}
+			case []string:
+				images = v
+			case string:
+				images = []string{v}
+			}
+			if len(images) > 0 {
+				taskReq.ImageURLs = images
+			}
+			delete(taskReq.Metadata, "images")
+		}
+		if rawVideos, ok := taskReq.Metadata["videos"]; ok {
+			var videos []string
+			switch v := rawVideos.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						videos = append(videos, s)
+					}
+				}
+			case []string:
+				videos = v
+			case string:
+				videos = []string{v}
+			}
+			if len(videos) > 0 {
+				taskReq.VideoURLs = videos
+			}
+			delete(taskReq.Metadata, "videos")
+		}
+		if rawAudios, ok := taskReq.Metadata["audios"]; ok {
+			var audios []string
+			switch v := rawAudios.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						audios = append(audios, s)
+					}
+				}
+			case []string:
+				audios = v
+			case string:
+				audios = []string{v}
+			}
+			if len(audios) > 0 {
+				taskReq.ReferenceAudio = audios
+			}
+			delete(taskReq.Metadata, "audios")
+		}
 	}
 	c.Set("task_request", taskReq)
 

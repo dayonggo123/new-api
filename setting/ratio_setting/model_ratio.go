@@ -303,6 +303,21 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
 	"omni-flash":                      0.15,
+	"grok-imagine-1.5-video-apimart": 0.3,
+	"grok-imagine-1.5-video-ext":     0.3,
+	// LingdongAPI (灵动API) video/image models, prices in USD (RMB / 7.3)
+	"cvk-image-2":     0.01,
+	"cvk-video-2":     0.18,
+	"cvk-2-1":         0.68,
+	"cvk-2-2":         0.96,
+	"cvk-2-4":         0.71,
+	"cvk-2-7":         0.99,
+	"cvk-2-11":        0.68,
+	"cvk":             0.55,
+	"cvk-2-17":        0.68,
+	"cvk-2-fast-720":  0.45,
+	"cvk-3":           0.48,
+	"cvk-4":           0.41,
 }
 
 var defaultAudioRatio = map[string]float64{

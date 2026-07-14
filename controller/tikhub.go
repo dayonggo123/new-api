@@ -65,3 +65,46 @@ func TikHubSettingStatus(c *gin.Context) {
 		},
 	})
 }
+
+// TikHubProductDetail 代理 TikHub 获取 TikTok 商品详情数据 V2
+// GET /api/public/tikhub/tiktok/product?product_id=1729385239712731370
+func TikHubProductDetail(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	productID := c.Query("product_id")
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "product_id 不能为空",
+		})
+		return
+	}
+
+	body, err := service.FetchTikHubProductDetail(c.Request.Context(), productID)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}

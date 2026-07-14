@@ -607,6 +607,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		// TikHub proxy routes (token auth)
 		apiRouter.GET("/public/tikhub/tiktok/video", middleware.TokenAuthReadOnly(), controller.TikHubSingleVideo)
+		apiRouter.GET("/public/tikhub/tiktok/product", middleware.TokenAuthReadOnly(), controller.TikHubProductDetail)
 		apiRouter.GET("/admin/tikhub/status", middleware.AdminAuth(), controller.TikHubSettingStatus)
 
 		// Prompt Video URL Repair (admin only)

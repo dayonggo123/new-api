@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -286,6 +287,66 @@ func UploadImagesJSON(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"urls": urls})
+}
+
+
+// Upload handles POST /api/v1/upload
+// Unified file upload endpoint: supports image/video/audio/file/material
+// Query params: type, permanent, prefix, retain_name
+// Form fields: file (single) or files (multiple)
+// Returns: {success: true, data: [UploadResult]}
+func Upload(c *gin.Context) {
+	uploadType := c.Query("type")
+	permanent := c.Query("permanent") == "true"
+	prefix := c.Query("prefix")
+	retainName := c.Query("retain_name") == "true"
+
+	cfg := service.UploadConfig{
+		Type:       uploadType,
+		Permanent:  permanent,
+		Prefix:     prefix,
+		RetainName: retainName,
+	}
+
+	var results []*service.UploadResult
+	var err error
+
+	// Prefer multiple files field
+	if form, err := c.MultipartForm(); err == nil {
+		if files := form.File["files"]; len(files) > 0 {
+			results, err = service.UploadFiles(c.Request.Context(), c, files, cfg)
+		} else if file := form.File["file"]; len(file) > 0 {
+			results, err = service.UploadFiles(c.Request.Context(), c, file, cfg)
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "missing file or files field",
+				"code":    "MISSING_FILE",
+			})
+			return
+		}
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("failed to parse multipart form: %v", err),
+			"code":    "INVALID_MULTIPART",
+		})
+		return
+	}
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+			"code":    "UPLOAD_FAILED",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    results,
+	})
 }
 
 // parseDataURL extracts raw bytes and extension from a data URL.

@@ -111,3 +111,52 @@ func FetchTikHubTweetDetail(ctx context.Context, tweetID string) ([]byte, error)
 
 	return body, nil
 }
+
+// FetchTikHubProductDetail 请求 TikHub 获取 TikTok 商品详情数据 V2。
+// endpoint: /api/v1/tiktok/app/v3/fetch_product_detail_v2?product_id=xxx
+func FetchTikHubProductDetail(ctx context.Context, productID string) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://api.tikhub.io"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/app/v3/fetch_product_detail_v2")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	q := reqURL.Query()
+	q.Set("product_id", productID)
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("TikHub Product API error: status=%d, body=%s", resp.StatusCode, string(body)))
+		return nil, fmt.Errorf("tikhub api returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub product detail fetched: product_id=%s", productID))
+	common.SysLog(fmt.Sprintf("[TikHub] fetched product_id=%s", productID))
+
+	return body, nil
+}
