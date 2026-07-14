@@ -296,6 +296,14 @@ type queryError struct {
 	Type    string `json:"type,omitempty"`
 }
 
+// hongniaoErrorResponse matches Hongniao's error payload.
+// Example: {"code":400,"message":"...","error":"Bad Request"}
+type hongniaoErrorResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
 	if resp == nil || resp.Body == nil {
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("response or response body is nil"), "nil_response", http.StatusInternalServerError)
@@ -308,13 +316,27 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	_ = resp.Body.Close()
 
+	common.SysLog(fmt.Sprintf("[HONGNIAO] submit response body: %s", string(responseBody)))
+
+	// Hongniao returns error payloads as {"code":400,"message":"...","error":"..."}
+	var errResp hongniaoErrorResponse
+	if err := common.Unmarshal(responseBody, &errResp); err == nil && errResp.Code != 0 && errResp.Code != 200 {
+		msg := errResp.Message
+		if msg == "" {
+			msg = errResp.Error
+		}
+		if msg == "" {
+			msg = fmt.Sprintf("hongniao returned code %d", errResp.Code)
+		}
+		taskErr = service.TaskErrorWrapper(fmt.Errorf("%s", msg), "hongniao_error", errResp.Code)
+		return
+	}
+
 	var sResp submitResponse
 	if err := common.Unmarshal(responseBody, &sResp); err != nil {
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_failed", http.StatusInternalServerError)
 		return
 	}
-
-	common.SysLog(fmt.Sprintf("[HONGNIAO] submit response body: %s", string(responseBody)))
 
 	if sResp.ID == "" {
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)

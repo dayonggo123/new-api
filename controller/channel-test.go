@@ -453,6 +453,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				Model:  imageReq.Model,
 				Size:   imageReq.Size,
 			}
+			// Hongniao video models require a non-empty images field; supply a
+			// default reference image for channel testing.
+			if channel.Type == constant.ChannelTypeHongniao && len(taskReq.Images) == 0 && taskReq.Image == "" {
+				taskReq.Images = []string{"https://picsum.photos/512/512"}
+			}
 			c.Set("task_request", taskReq)
 
 			// Initialize body storage so GetBodyStorage doesn't panic in channel test
