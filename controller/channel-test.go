@@ -456,7 +456,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			// Hongniao video models require a non-empty images field; supply a
 			// default reference image for channel testing.
 			if channel.Type == constant.ChannelTypeHongniao && len(taskReq.Images) == 0 && taskReq.Image == "" {
-				taskReq.Images = []string{"https://picsum.photos/512/512"}
+				taskReq.Images = []string{"https://heharse.cloud/uploads/66eab8f2-2fef-412a-8992-0ac883c88f02.jpg"}
+				taskReq.VideoURLs = []string{"https://heharse.cloud/uploads/videos/7a959662-afab-4adc-8c5b-e99a68bbe906.mp4"}
 			}
 			c.Set("task_request", taskReq)
 
