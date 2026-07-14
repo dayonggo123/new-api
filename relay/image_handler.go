@@ -25,7 +25,7 @@ import (
 func isTaskImageChannel(channelType int) bool {
 	switch channelType {
 	case constant.ChannelTypeAPIMart, constant.ChannelTypeDuoYuanTanSuo, constant.ChannelTypeZhangyuge,
-		constant.ChannelTypeVeo, constant.ChannelTypeLingdongAPI: // GeminiGen: nano-banana / imagen 等图像模型也走异步 task 路径
+		constant.ChannelTypeVeo, constant.ChannelTypeLingdongAPI, constant.ChannelTypeHongniao: // GeminiGen: nano-banana / imagen 等图像模型也走异步 task 路径
 		return true
 	}
 	return false
@@ -106,11 +106,16 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	// 对于 APIMart/DuoYuanTanSuo/GeminiGen/LingdongAPI 的 task 模型，走 task 异步流程
 	// gpt-image (APIMart)、nano-banana (GeminiGen/Veo)、cvk-image-2 (LingdongAPI) 都走 task 路径
-	if isTaskImageChannel(info.ChannelType) &&
-		(strings.HasPrefix(info.OriginModelName, "gpt-image") ||
+	// HongniaoAI 由用户在后台自行配置模型名，所有图片请求均走 task 路径
+	if isTaskImageChannel(info.ChannelType) {
+		if info.ChannelType == constant.ChannelTypeHongniao {
+			return handleTaskImageRelay(c, info)
+		}
+		if strings.HasPrefix(info.OriginModelName, "gpt-image") ||
 			strings.HasPrefix(info.OriginModelName, "nano-banana-") ||
-			info.OriginModelName == "cvk-image-2") {
-		return handleTaskImageRelay(c, info)
+			info.OriginModelName == "cvk-image-2" {
+			return handleTaskImageRelay(c, info)
+		}
 	}
 
 	// 火山方舟 / OpenAI / Google Gemini 的图片生成也包装成异步任务，

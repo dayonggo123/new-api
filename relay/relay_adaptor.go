@@ -48,8 +48,10 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/apimart"
 	"github.com/QuantumNous/new-api/relay/channel/task/bogei"
 	"github.com/QuantumNous/new-api/relay/channel/task/gettoken"
+	"github.com/QuantumNous/new-api/relay/channel/task/hongniao"
 	"github.com/QuantumNous/new-api/relay/channel/task/lingdong"
 	"github.com/QuantumNous/new-api/relay/channel/task/zhangyuge"
+	"github.com/QuantumNous/new-api/relay/channel/task/zapi"
 	channelveo "github.com/QuantumNous/new-api/relay/channel/veo"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
@@ -192,6 +194,10 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &bogei.TaskAdaptor{}
 		case constant.ChannelTypeZhangyuge:
 			return &zhangyuge.TaskAdaptor{}
+		case constant.ChannelTypeZAPI:
+			return &zapi.TaskAdaptor{}
+		case constant.ChannelTypeHongniao:
+			return &hongniao.TaskAdaptor{}
 		}
 	}
 	return nil

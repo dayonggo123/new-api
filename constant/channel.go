@@ -64,6 +64,8 @@ const (
 	ChannelTypeZhangyuge      = 64
 	ChannelTypeEasyRouter     = 65
 	ChannelTypeLingdongAPI    = 66
+	ChannelTypeZAPI           = 67
+	ChannelTypeHongniao       = 68
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -136,6 +138,8 @@ var ChannelBaseURLs = []string{
 	"",                                          //64 Zhangyuge (task-based)
 	"https://easyrouter.io",                     //65 EasyRouter
 	"https://www.lingdongapi.com",               //66 LingdongAPI
+	"https://api.tmlab.store",                   //67 ZAPI
+	"https://open.hongniaoai.com",               //68 Hongniao
 }
 
 var ChannelTypeNames = map[int]string{
@@ -202,6 +206,8 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeZhangyuge:      "ZhangyugeAI",
 	ChannelTypeEasyRouter:     "EasyRouter",
 	ChannelTypeLingdongAPI:    "LingdongAPI",
+	ChannelTypeZAPI:           "ZAPI",
+	ChannelTypeHongniao:       "Hongniao",
 }
 
 func GetChannelTypeName(channelType int) string {

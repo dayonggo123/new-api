@@ -305,6 +305,7 @@ var defaultModelPrice = map[string]float64{
 	"omni-flash":                      0.15,
 	"grok-imagine-1.5-video-apimart": 0.3,
 	"grok-imagine-1.5-video-ext":     0.3,
+	"seedance-2.0-fast(431)":         3.0 / 7.3, // Fixed price RMB 3.00 ≈ USD 0.411
 	// LingdongAPI (灵动API) video/image models, prices in USD (RMB / 7.3)
 	"cvk-image-2":     0.01,
 	"cvk-video-2":     0.18,
@@ -318,6 +319,9 @@ var defaultModelPrice = map[string]float64{
 	"cvk-2-fast-720":  0.45,
 	"cvk-3":           0.48,
 	"cvk-4":           0.41,
+	// HongniaoAI (红鸟AI) video models
+	"keling-3":        0.3,
+	"sdquan-2":        0.3,
 }
 
 var defaultAudioRatio = map[string]float64{

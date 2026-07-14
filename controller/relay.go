@@ -570,18 +570,84 @@ func RelayVideo(c *gin.Context) {
 	}
 	// 透传 APIMart Grok Imagine 1.5 的扩展字段
 	if taskReq.Metadata != nil {
-		// duration
-		if rawDuration, ok := taskReq.Metadata["duration"]; ok {
-			switch d := rawDuration.(type) {
-			case float64:
-				taskReq.Duration = int(d)
-			case int:
-				taskReq.Duration = d
-			case int64:
-				taskReq.Duration = int(d)
+	// duration
+	if rawDuration, ok := taskReq.Metadata["duration"]; ok {
+		switch d := rawDuration.(type) {
+		case float64:
+			taskReq.Duration = int(d)
+		case int:
+			taskReq.Duration = d
+		case int64:
+			taskReq.Duration = int(d)
+		}
+	}
+	// ratio / aspect_ratio
+	if rawRatio, ok := taskReq.Metadata["ratio"]; ok {
+		switch r := rawRatio.(type) {
+		case string:
+			taskReq.Ratio = r
+		}
+	}
+	if rawAspectRatio, ok := taskReq.Metadata["aspect_ratio"]; ok {
+		switch r := rawAspectRatio.(type) {
+		case string:
+			if taskReq.Ratio == "" {
+				taskReq.Ratio = r
 			}
 		}
-		// image_urls / video_urls
+	}
+	// HongniaoAI uses camelCase "aspectRatio"
+	if rawAspectRatio, ok := taskReq.Metadata["aspectRatio"]; ok {
+		switch r := rawAspectRatio.(type) {
+		case string:
+			if taskReq.Ratio == "" {
+				taskReq.Ratio = r
+			}
+		}
+	}
+	// seconds (HongniaoAI uses string seconds, prefer if duration not set)
+	if rawSeconds, ok := taskReq.Metadata["seconds"]; ok {
+		switch s := rawSeconds.(type) {
+		case string:
+			if taskReq.Seconds == "" {
+				taskReq.Seconds = s
+			}
+		case int:
+			if taskReq.Seconds == "" {
+				taskReq.Seconds = strconv.Itoa(s)
+			}
+		case float64:
+			if taskReq.Seconds == "" {
+				taskReq.Seconds = strconv.Itoa(int(s))
+			}
+		}
+	}
+	// resolution
+	if rawResolution, ok := taskReq.Metadata["resolution"]; ok {
+		switch r := rawResolution.(type) {
+		case string:
+			taskReq.Resolution = r
+		}
+	}
+	// first_image / last_image
+	if rawFirstImage, ok := taskReq.Metadata["first_image"]; ok {
+		switch r := rawFirstImage.(type) {
+		case string:
+			if r != "" {
+				// Keep as metadata so the Z-api adaptor can pick it up.
+				taskReq.Metadata["first_image"] = r
+			}
+		}
+	}
+	if rawLastImage, ok := taskReq.Metadata["last_image"]; ok {
+		switch r := rawLastImage.(type) {
+		case string:
+			if r != "" {
+				taskReq.Metadata["last_image"] = r
+			}
+		}
+	}
+	// image_urls / video_urls
 		if rawImageURLs, ok := taskReq.Metadata["image_urls"]; ok {
 			var imageURLs []string
 			switch v := rawImageURLs.(type) {
