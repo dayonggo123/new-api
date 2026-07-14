@@ -478,7 +478,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				}
 			}
 
-			_, _, taskErr := taskAdaptor.DoResponse(c, resp, info)
+			taskID, _, taskErr := taskAdaptor.DoResponse(c, resp, info)
 			if taskErr != nil {
 				return testResult{
 					context:     c,
@@ -489,6 +489,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 			return testResult{
 				context:     c,
+				taskID:      taskID,
 				localErr:    nil,
 				newAPIError: nil,
 			}
