@@ -468,7 +468,14 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 // GetModelList returns an empty list because model names and prices are
 // configured by the user in the backend channel settings.
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{}
+	return []string{
+		// Video models
+		"keling-3",
+		"sdquan-2",
+		"video-2.0-fast-720P",
+		// Image models (examples; add real upstream image model IDs as needed)
+		"gpt-image2",
+	}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {

@@ -319,9 +319,10 @@ var defaultModelPrice = map[string]float64{
 	"cvk-2-fast-720":  0.45,
 	"cvk-3":           0.48,
 	"cvk-4":           0.41,
-	// HongniaoAI (红鸟AI) video models
-	"keling-3":        0.3,
-	"sdquan-2":        0.3,
+	// HongniaoAI (红鸟AI) video/image models
+	"keling-3":             0.3,
+	"sdquan-2":             0.3,
+	"video-2.0-fast-720P":  0.3,
 }
 
 var defaultAudioRatio = map[string]float64{
