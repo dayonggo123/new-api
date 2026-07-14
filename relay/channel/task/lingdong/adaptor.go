@@ -301,7 +301,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	if cResp.Code != 200 {
+	if cResp.Code != 0 && cResp.Code != 200 {
 		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("lingdong returned code %d", cResp.Code), "upstream_error", cResp.Code)
 		return
 	}
