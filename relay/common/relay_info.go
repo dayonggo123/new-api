@@ -721,6 +721,8 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		ImageURLs       json.RawMessage `json:"image_urls,omitempty"`
 		ReferenceImages json.RawMessage `json:"reference_images,omitempty"`
 		Images          json.RawMessage `json:"images,omitempty"`
+		Videos          json.RawMessage `json:"videos,omitempty"`
+		Audios          json.RawMessage `json:"audios,omitempty"`
 		VideoURLs       json.RawMessage `json:"video_urls,omitempty"`
 		ReferenceVideo  json.RawMessage `json:"reference_video,omitempty"`
 		ReferenceAudio  json.RawMessage `json:"reference_audio,omitempty"`
@@ -778,6 +780,18 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 			}
 		}
 	}
+	// 兼容 videos → VideoURLs（LingdongAPI / Hongniao 风格）
+	if len(aux.Videos) > 0 {
+		var arr []string
+		if err := common.Unmarshal(aux.Videos, &arr); err == nil {
+			t.VideoURLs = arr
+		} else {
+			var str string
+			if err := common.Unmarshal(aux.Videos, &str); err == nil && str != "" {
+				t.VideoURLs = []string{str}
+			}
+		}
+	}
 
 	if len(aux.ReferenceVideo) > 0 {
 		var arr []string
@@ -798,6 +812,18 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		} else {
 			var str string
 			if err := common.Unmarshal(aux.ReferenceAudio, &str); err == nil && str != "" {
+				t.ReferenceAudio = []string{str}
+			}
+		}
+	}
+	// 兼容 audios → ReferenceAudio（LingdongAPI / Hongniao 风格）
+	if len(aux.Audios) > 0 {
+		var arr []string
+		if err := common.Unmarshal(aux.Audios, &arr); err == nil {
+			t.ReferenceAudio = arr
+		} else {
+			var str string
+			if err := common.Unmarshal(aux.Audios, &str); err == nil && str != "" {
 				t.ReferenceAudio = []string{str}
 			}
 		}
