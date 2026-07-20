@@ -74,6 +74,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 
+	common.SysLog(fmt.Sprintf("[HONGNIAO] TaskSubmitReq: images=%d, imageURLs=%d, videoURLs=%d, refVideos=%d, refAudio=%d, image=%q",
+		len(req.Images), len(req.ImageURLs), len(req.VideoURLs), len(req.ReferenceVideo), len(req.ReferenceAudio), req.Image))
+
 	isImage := a.isImageRequest(info)
 
 	payload := map[string]interface{}{
