@@ -142,6 +142,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			videos = req.ReferenceVideo
 		}
 		if len(videos) > 0 {
+			// Hongniao upstream expects camelCase videoUrls / audioUrls.
+			payload["videoUrls"] = videos
 			payload["videos"] = videos
 		}
 
@@ -150,6 +152,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			audios = req.ReferenceAudio
 		}
 		if len(audios) > 0 {
+			payload["audioUrls"] = audios
 			payload["audios"] = audios
 		}
 
