@@ -321,18 +321,27 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 
 	// 从 Metadata 恢复被覆盖的字段（因为 ImageRequest.Extra 里的字段不在 TaskSubmitReq 直接字段中）
 	if req.Metadata != nil {
+		// DEBUG: log Metadata aspect_ratio value and type
+		fmt.Printf("[DEBUG] Metadata=%v\n", req.Metadata)
+		if raw, ok := req.Metadata["aspect_ratio"]; ok {
+			fmt.Printf("[DEBUG] aspect_ratio raw: value=%v, type=%T\n", raw, raw)
+		}
 		// 恢复 AspectRatio（Hongniao 适配器先读这个字段）
 		if req.AspectRatio == "" {
 			if raw, ok := req.Metadata["aspectRatio"]; ok {
+				fmt.Printf("[DEBUG] found aspectRatio in Metadata: %v (type: %T)\n", raw, raw)
 				if r, ok := raw.(string); ok && r != "" {
 					req.AspectRatio = r
+					fmt.Printf("[DEBUG] restored AspectRatio from aspectRatio: %s\n", r)
 				}
 			}
 		}
 		if req.AspectRatio == "" {
 			if raw, ok := req.Metadata["aspect_ratio"]; ok {
+				fmt.Printf("[DEBUG] found aspect_ratio in Metadata: %v (type: %T)\n", raw, raw)
 				if r, ok := raw.(string); ok && r != "" {
 					req.AspectRatio = r
+					fmt.Printf("[DEBUG] restored AspectRatio from aspect_ratio: %s\n", r)
 				}
 			}
 		}
