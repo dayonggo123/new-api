@@ -188,7 +188,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if aspectRatio == "" {
 			aspectRatio = "16:9"
 		}
-		payload["aspectRatio"] = aspectRatio
+		payload["aspect_ratio"] = aspectRatio
 
 		// seconds: prefer TaskSubmitReq.Seconds, then Duration, then metadata
 		seconds := req.Seconds
