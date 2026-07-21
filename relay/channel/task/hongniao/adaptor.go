@@ -160,6 +160,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 
 		// aspectRatio: prefer TaskSubmitReq.AspectRatio, then Ratio, then Size, then metadata
+		// DEBUG: log the values
+		fmt.Printf("[Hongniao] req.AspectRatio=%q req.Ratio=%q req.Size=%q\n", req.AspectRatio, req.Ratio, req.Size)
 		aspectRatio := req.AspectRatio
 		if aspectRatio == "" && req.Ratio != "" {
 			aspectRatio = req.Ratio
