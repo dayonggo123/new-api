@@ -318,5 +318,49 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	}
 
 	storeTaskRequest(c, info, action, req)
+
+	// 从 Metadata 恢复被覆盖的字段（因为 ImageRequest.Extra 里的字段不在 TaskSubmitReq 直接字段中）
+	if req.Metadata != nil {
+		// 恢复 Ratio（可能来自 aspect_ratio）
+		if req.Ratio == "" {
+			if raw, ok := req.Metadata["ratio"]; ok {
+				if r, ok := raw.(string); ok && r != "" {
+					req.Ratio = r
+				}
+			}
+		}
+		if req.Ratio == "" {
+			if raw, ok := req.Metadata["aspect_ratio"]; ok {
+				if r, ok := raw.(string); ok && r != "" {
+					req.Ratio = r
+				}
+			}
+		}
+		// 恢复 Duration
+		if req.Duration == 0 {
+			if raw, ok := req.Metadata["duration"]; ok {
+				switch d := raw.(type) {
+				case float64:
+					req.Duration = int(d)
+				case int:
+					req.Duration = d
+				case int64:
+					req.Duration = int(d)
+				}
+			}
+		}
+		// 恢复 Seconds
+		if req.Seconds == "" {
+			if raw, ok := req.Metadata["seconds"]; ok {
+				if s, ok := raw.(string); ok && s != "" {
+					req.Seconds = s
+				} else if f, ok := raw.(float64); ok {
+					req.Seconds = strconv.Itoa(int(f))
+				}
+			}
+		}
+		storeTaskRequest(c, info, action, req)
+	}
+
 	return nil
 }
