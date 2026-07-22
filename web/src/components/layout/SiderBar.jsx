@@ -65,7 +65,7 @@ const routerMap = {
   tier: '/console/tier',
   tag: '/console/tag',
   tk_material: '/console/tk-material',
-  'tikhub-prices': '/setting?tab=tikhub-prices',
+  'tikhub-prices': '/console/setting?tab=tikhub-prices',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
