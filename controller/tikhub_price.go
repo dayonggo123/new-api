@@ -48,21 +48,6 @@ func GetTikHubPrices(c *gin.Context) {
 		"data":    configs,
 	})
 }
-	configs, err := model.GetAllTikHubPriceConfigs()
-	if err != nil {
-		logger.LogError(c.Request.Context(), err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "获取配置失败",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    configs,
-	})
-}
 
 // UpdateTikHubPriceConfig 更新 TikHub 收费配置
 // PUT /api/admin/tikhub/prices/:id
