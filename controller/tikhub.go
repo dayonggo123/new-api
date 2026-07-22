@@ -5,11 +5,36 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
+
+// chargeTikHubIfEnabled 如果启用收费则扣费，返回是否成功进行了扣费
+func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
+	userID := c.GetInt("user_id")
+	if userID == 0 {
+		return false
+	}
+
+	config, err := model.GetTikHubPriceConfigByEndpoint(endpoint)
+	if err != nil || config == nil || config.Price <= 0 {
+		return false
+	}
+
+	// 扣费
+	price := int(config.Price)
+	err = model.DecreaseUserQuota(userID, price, false)
+	if err != nil {
+		logger.LogError(c.Request.Context(), "TikHub扣费失败: "+err.Error())
+		return false
+	}
+
+	logger.LogInfo(c.Request.Context(), "TikHub接口扣费成功")
+	return true
+}
 
 // TikHubSingleVideo 代理 TikHub 获取单个 TikTok 作品数据 V2
 // GET /api/public/tikhub/tiktok/video?aweme_id=7350810998023949599
@@ -49,6 +74,9 @@ func TikHubSingleVideo(c *gin.Context) {
 		})
 		return
 	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "video")
 
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
@@ -106,6 +134,9 @@ func TikHubCommentKeywords(c *gin.Context) {
 		return
 	}
 
+	// 扣费
+	chargeTikHubIfEnabled(c, "comment-keywords")
+
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
@@ -148,6 +179,9 @@ func TikHubSingleVideoByShareURL(c *gin.Context) {
 		})
 		return
 	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "video-by-share-url")
 
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
@@ -207,6 +241,9 @@ func TikHubMusicChartList(c *gin.Context) {
 		return
 	}
 
+	// 扣费
+	chargeTikHubIfEnabled(c, "music-chart-list")
+
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
@@ -240,6 +277,9 @@ func TikHubTrendingSearchWords(c *gin.Context) {
 		})
 		return
 	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "trending-search-words")
 
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
@@ -296,6 +336,9 @@ func TikHubAccountHealthStatus(c *gin.Context) {
 		})
 		return
 	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "account-health-status")
 
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
@@ -359,6 +402,9 @@ func TikHubAccountInsightsOverview(c *gin.Context) {
 		return
 	}
 
+	// 扣费
+	chargeTikHubIfEnabled(c, "account-insights-overview")
+
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
@@ -414,6 +460,9 @@ func TikHubVideoAnalyticsSummary(c *gin.Context) {
 		})
 		return
 	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "video-analytics-summary")
 
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
@@ -495,6 +544,9 @@ func TikHubProductRelatedVideos(c *gin.Context) {
 		return
 	}
 
+	// 扣费
+	chargeTikHubIfEnabled(c, "product-related-videos")
+
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
@@ -537,6 +589,9 @@ func TikHubProductDetail(c *gin.Context) {
 		})
 		return
 	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "product")
 
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
@@ -607,6 +662,9 @@ func TikHubTrendsHashtagList(c *gin.Context) {
 		return
 	}
 
+	// 扣费
+	chargeTikHubIfEnabled(c, "trends-hashtag-list")
+
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
@@ -651,6 +709,9 @@ func TikHubHotSellingProductsList(c *gin.Context) {
 		})
 		return
 	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "hot-selling-products-list")
 
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
