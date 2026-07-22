@@ -20,6 +20,30 @@ curl -X POST "https://heharse.cloud/api/public/tikhub/tiktok/video-audience-stat
 
 ---
 
+## 接口价格表
+
+| 接口标识 (endpoint) | 接口名称 | 价格 (USD) | 积分 |
+|------|------|------|------|
+| video | 获取单个视频数据 | $0.01 | 1 |
+| video-by-share-url | 通过分享链接获取视频 | $0.01 | 1 |
+| video-comments | 获取视频评论 | $0.02 | 2 |
+| post-comment | 获取作品评论列表 | $0.02 | 2 |
+| comment-keywords | 评论关键词分析 | $0.02 | 2 |
+| music-chart-list | 音乐排行榜 | $0.01 | 1 |
+| trending-search-words | 每日趋势搜索词 | $0.01 | 1 |
+| product | 商品详情 | $0.02 | 2 |
+| account-health-status | 账号健康状态 | $0.03 | 3 |
+| account-insights-overview | 账号概览 | $0.03 | 3 |
+| video-analytics-summary | 视频概览 | $0.03 | 3 |
+| video-audience-stats | 视频受众分析 | $0.03 | 3 |
+| product-related-videos | 同款商品关联视频 | $0.02 | 2 |
+| trends-hashtag-list | 热门标签榜单 | $0.01 | 1 |
+| hot-selling-products-list | 热卖商品列表 | $0.01 | 1 |
+
+> **注意**: 积分 = 价格(USD) × 100
+
+---
+
 ## 完整接口列表
 
 | 接口 | 地址 | 方法 | 说明 |
