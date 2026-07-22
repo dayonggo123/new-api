@@ -4,6 +4,8 @@
 
 new-api 代理 TikHub `/api/v1/tiktok/app/v3/fetch_one_video_v2` 接口，下游通过 new-api 的 Token 鉴权调用，new-api 再使用后台配置的 TikHub API Key 向上游转发。
 
+> **注意**: TikHub API Base URL 已更新为 `https://heharse.cloud/api`
+
 ## 接口地址
 
 ```http

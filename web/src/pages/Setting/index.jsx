@@ -49,6 +49,7 @@ import DrawingSetting from '../../components/settings/DrawingSetting';
 import PaymentSetting from '../../components/settings/PaymentSetting';
 import ModelDeploymentSetting from '../../components/settings/ModelDeploymentSetting';
 import PerformanceSetting from '../../components/settings/PerformanceSetting';
+import SettingsTikHubPrices from './Operation/SettingsTikHubPrices';
 
 const Setting = () => {
   const { t } = useTranslation();
@@ -157,6 +158,16 @@ const Setting = () => {
       ),
       content: <PerformanceSetting />,
       itemKey: 'performance',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <CreditCard size={18} />
+          {t('TikHub 价格')}
+        </span>
+      ),
+      content: <SettingsTikHubPrices />,
+      itemKey: 'tikhub-prices',
     });
     panes.push({
       tab: (

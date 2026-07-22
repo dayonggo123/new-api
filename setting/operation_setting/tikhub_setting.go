@@ -10,7 +10,7 @@ type TikHubSetting struct {
 
 var tikHubSetting = TikHubSetting{
 	TikHubEnabled: false,
-	TikHubBaseURL: "https://api.tikhub.io",
+	TikHubBaseURL: "https://heharse.cloud/api",
 	TikHubAPIKey:  "",
 }
 

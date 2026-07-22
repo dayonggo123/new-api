@@ -1,0 +1,272 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  Button,
+  Table,
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  Switch,
+  Tag,
+  Space,
+  Popconfirm,
+  Typography,
+} from '@douyinfe/semi-ui';
+import { API, showError, showSuccess } from '../../../helpers';
+import { useTranslation } from 'react-i18next';
+
+const { Text } = Typography;
+
+export default function SettingsTikHubPrices(props) {
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [formValues, setFormValues] = useState({});
+
+  const columns = [
+    {
+      title: t('接口标识'),
+      dataIndex: 'endpoint',
+      key: 'endpoint',
+      width: 150,
+    },
+    {
+      title: t('接口名称'),
+      dataIndex: 'name',
+      key: 'name',
+      width: 180,
+    },
+    {
+      title: t('描述'),
+      dataIndex: 'description',
+      key: 'description',
+      ellipsis: true,
+    },
+    {
+      title: t('价格 (USD)'),
+      dataIndex: 'price',
+      key: 'price',
+      width: 120,
+      render: (price) => `$${price?.toFixed(2) || '0.00'}`,
+    },
+    {
+      title: t('积分'),
+      dataIndex: 'price',
+      key: 'quota',
+      width: 100,
+      render: (price) => price ? Math.round(price * 100) : 0,
+    },
+    {
+      title: t('启用'),
+      dataIndex: 'enabled',
+      key: 'enabled',
+      width: 80,
+      render: (enabled) => (
+        <Tag color={enabled ? 'green' : 'grey'}>
+          {enabled ? t('是') : t('否')}
+        </Tag>
+      ),
+    },
+    {
+      title: t('操作'),
+      key: 'action',
+      width: 150,
+      render: (text, record) => (
+        <Space>
+          <Button type="primary" size="small" onClick={() => handleEdit(record)}>
+            {t('编辑')}
+          </Button>
+          <Popconfirm
+            title={t('确定删除此配置？')}
+            onConfirm={() => handleDelete(record.id)}
+            okText={t('确定')}
+            cancelText={t('取消')}
+          >
+            <Button type="danger" size="small">
+              {t('删除')}
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await API.get('/api/admin/tikhub/prices');
+      if (res.data.success) {
+        setData(res.data.data || []);
+      } else {
+        showError(res.data.message || t('获取数据失败'));
+      }
+    } catch (error) {
+      showError(t('获取数据失败'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleEdit = (record) => {
+    setEditingItem(record);
+    setFormValues({
+      name: record.name,
+      description: record.description,
+      price: record.price,
+      enabled: record.enabled,
+    });
+    setModalVisible(true);
+  };
+
+  const handleAdd = () => {
+    setEditingItem(null);
+    setFormValues({
+      endpoint: '',
+      name: '',
+      description: '',
+      price: 0.01,
+      enabled: true,
+    });
+    setModalVisible(true);
+  };
+
+  const handleSubmit = async () => {
+    try {
+      let res;
+      if (editingItem) {
+        res = await API.put(`/api/admin/tikhub/prices/${editingItem.id}`, formValues);
+      } else {
+        res = await API.post('/api/admin/tikhub/prices', formValues);
+      }
+      if (res.data.success) {
+        showSuccess(t('保存成功'));
+        setModalVisible(false);
+        fetchData();
+      } else {
+        showError(res.data.message || t('保存失败'));
+      }
+    } catch (error) {
+      showError(t('保存失败'));
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      const res = await API.delete(`/api/admin/tikhub/prices/${id}`);
+      if (res.data.success) {
+        showSuccess(t('删除成功'));
+        fetchData();
+      } else {
+        showError(res.data.message || t('删除失败'));
+      }
+    } catch (error) {
+      showError(t('删除失败'));
+    }
+  };
+
+  const handleInit = async () => {
+    try {
+      const res = await API.post('/api/admin/tikhub/prices/init');
+      if (res.data.success) {
+        showSuccess(t('初始化成功'));
+        fetchData();
+      } else {
+        showError(res.data.message || t('初始化失败'));
+      }
+    } catch (error) {
+      showError(t('初始化失败'));
+    }
+  };
+
+  return (
+    <>
+      <div style={{ marginBottom: 16 }}>
+        <Space>
+          <Button type="primary" onClick={handleAdd}>
+            {t('新增配置')}
+          </Button>
+          <Button onClick={handleInit}>
+            {t('初始化默认配置')}
+          </Button>
+        </Space>
+      </div>
+      <Table
+        columns={columns}
+        dataSource={data}
+        loading={loading}
+        rowKey="id"
+        pagination={false}
+      />
+      <Modal
+        title={editingItem ? t('编辑配置') : t('新增配置')}
+        visible={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        onOk={handleSubmit}
+        okText={t('保存')}
+        cancelText={t('取消')}
+        width={500}
+      >
+        <Form values={formValues} onChange={(values) => setFormValues(values)}>
+          {!editingItem && (
+            <Form.Input
+              field="endpoint"
+              label={t('接口标识')}
+              placeholder={t('例如: video')}
+              rules={[{ required: true, message: t('请输入接口标识') }]}
+            />
+          )}
+          <Form.Input
+            field="name"
+            label={t('接口名称')}
+            placeholder={t('例如: 获取单个视频数据')}
+            rules={[{ required: true, message: t('请输入接口名称') }]}
+          />
+          <Form.Input
+            field="description"
+            label={t('描述')}
+            placeholder={t('接口描述')}
+          />
+          <Form.InputNumber
+            field="price"
+            label={t('价格 (USD)')}
+            min={0}
+            step={0.01}
+            precision={2}
+            placeholder={t('例如: 0.01')}
+          />
+          <Form.Switch
+            field="enabled"
+            label={t('启用收费')}
+            checkedText={t('是')}
+            uncheckedText={t('否')}
+          />
+        </Form>
+      </Modal>
+    </>
+  );
+}

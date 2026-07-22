@@ -35,7 +35,7 @@ export default function SettingsTikHub(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     'tikhub_setting.tikhub_enabled': false,
-    'tikhub_setting.tikhub_base_url': 'https://api.tikhub.io',
+    'tikhub_setting.tikhub_base_url': 'https://heharse.cloud/api',
     'tikhub_setting.tikhub_api_key': '',
   });
   const [apiKeySet, setApiKeySet] = useState(false);
@@ -93,7 +93,7 @@ export default function SettingsTikHub(props) {
   useEffect(() => {
     const defaults = {
       'tikhub_setting.tikhub_enabled': false,
-      'tikhub_setting.tikhub_base_url': 'https://api.tikhub.io',
+      'tikhub_setting.tikhub_base_url': 'https://heharse.cloud/api',
       'tikhub_setting.tikhub_api_key': '',
     };
     const currentInputs = {};
@@ -150,8 +150,8 @@ export default function SettingsTikHub(props) {
                 <Form.Input
                   field={'tikhub_setting.tikhub_base_url'}
                   label={t('TikHub API 基础地址')}
-                  initValue={'https://api.tikhub.io'}
-                  placeholder={t('例如 https://api.tikhub.io')}
+                  initValue={'https://heharse.cloud/api'}
+                  placeholder={t('例如 https://heharse.cloud/api')}
                   onChange={handleFieldChange('tikhub_setting.tikhub_base_url')}
                   showClear
                 />

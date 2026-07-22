@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -35,7 +36,11 @@ func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
 		return false
 	}
 
-	logger.LogInfo(c.Request.Context(), "TikHub接口扣费成功")
+	// 记录使用日志到数据库
+	logContent := fmt.Sprintf("TikHub接口 %s (%.2f USD)", config.Name, config.Price)
+	model.RecordLog(userID, model.LogTypeConsume, logContent)
+
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("[TikHub] 用户 %d 调用接口 %s，消费 %.2f USD (%d 积分)", userID, endpoint, config.Price, quota))
 	return true
 }
 

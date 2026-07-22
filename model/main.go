@@ -315,6 +315,7 @@ func migrateDB() error {
 		&TKMaterial{},
 		&CuratedTemplate{},
 		&CuratedCategory{},
+		&TikHubPriceConfig{},
 	)
 	if err != nil {
 		return err
