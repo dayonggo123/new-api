@@ -275,6 +275,13 @@ func isKnownTaskField(field string) bool {
 
 func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *dto.TaskError {
 	var err error
+	// 如果上下文中已有 task_request（例如由 RelayVideo 预先设置），优先使用已有值，
+	// 避免 UnmarshalBodyReusable 重新解析请求体导致 Extra 字段丢失。
+	if existingReq, err := GetTaskRequest(c); err == nil && existingReq.Prompt != "" {
+		info.Action = action
+		return nil
+	}
+
 	contentType := c.GetHeader("Content-Type")
 	var req TaskSubmitReq
 	if strings.HasPrefix(contentType, "multipart/form-data") {
@@ -318,73 +325,6 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	}
 
 	storeTaskRequest(c, info, action, req)
-
-	// 从 Metadata 恢复被覆盖的字段（因为 ImageRequest.Extra 里的字段不在 TaskSubmitReq 直接字段中）
-	if req.Metadata != nil {
-		// DEBUG: log Metadata aspect_ratio value and type
-		fmt.Printf("[DEBUG] Metadata=%v\n", req.Metadata)
-		if raw, ok := req.Metadata["aspect_ratio"]; ok {
-			fmt.Printf("[DEBUG] aspect_ratio raw: value=%v, type=%T\n", raw, raw)
-		}
-		// 恢复 AspectRatio（Hongniao 适配器先读这个字段）
-		if req.AspectRatio == "" {
-			if raw, ok := req.Metadata["aspectRatio"]; ok {
-				fmt.Printf("[DEBUG] found aspectRatio in Metadata: %v (type: %T)\n", raw, raw)
-				if r, ok := raw.(string); ok && r != "" {
-					req.AspectRatio = r
-					fmt.Printf("[DEBUG] restored AspectRatio from aspectRatio: %s\n", r)
-				}
-			}
-		}
-		if req.AspectRatio == "" {
-			if raw, ok := req.Metadata["aspect_ratio"]; ok {
-				fmt.Printf("[DEBUG] found aspect_ratio in Metadata: %v (type: %T)\n", raw, raw)
-				if r, ok := raw.(string); ok && r != "" {
-					req.AspectRatio = r
-					fmt.Printf("[DEBUG] restored AspectRatio from aspect_ratio: %s\n", r)
-				}
-			}
-		}
-		// 恢复 Ratio（作为备用）
-		if req.Ratio == "" {
-			if raw, ok := req.Metadata["ratio"]; ok {
-				if r, ok := raw.(string); ok && r != "" {
-					req.Ratio = r
-				}
-			}
-		}
-		if req.Ratio == "" {
-			if raw, ok := req.Metadata["aspect_ratio"]; ok {
-				if r, ok := raw.(string); ok && r != "" {
-					req.Ratio = r
-				}
-			}
-		}
-		// 恢复 Duration
-		if req.Duration == 0 {
-			if raw, ok := req.Metadata["duration"]; ok {
-				switch d := raw.(type) {
-				case float64:
-					req.Duration = int(d)
-				case int:
-					req.Duration = d
-				case int64:
-					req.Duration = int(d)
-				}
-			}
-		}
-		// 恢复 Seconds
-		if req.Seconds == "" {
-			if raw, ok := req.Metadata["seconds"]; ok {
-				if s, ok := raw.(string); ok && s != "" {
-					req.Seconds = s
-				} else if f, ok := raw.(float64); ok {
-					req.Seconds = strconv.Itoa(int(f))
-				}
-			}
-		}
-		storeTaskRequest(c, info, action, req)
-	}
 
 	return nil
 }

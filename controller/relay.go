@@ -586,6 +586,9 @@ func RelayVideo(c *gin.Context) {
 		switch r := rawRatio.(type) {
 		case string:
 			taskReq.Ratio = r
+			if taskReq.AspectRatio == "" {
+				taskReq.AspectRatio = r
+			}
 		}
 	}
 	if rawAspectRatio, ok := taskReq.Metadata["aspect_ratio"]; ok {
@@ -593,6 +596,9 @@ func RelayVideo(c *gin.Context) {
 		case string:
 			if taskReq.Ratio == "" {
 				taskReq.Ratio = r
+			}
+			if taskReq.AspectRatio == "" {
+				taskReq.AspectRatio = r
 			}
 		}
 	}
@@ -602,6 +608,9 @@ func RelayVideo(c *gin.Context) {
 		case string:
 			if taskReq.Ratio == "" {
 				taskReq.Ratio = r
+			}
+			if taskReq.AspectRatio == "" {
+				taskReq.AspectRatio = r
 			}
 		}
 	}
