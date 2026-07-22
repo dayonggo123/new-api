@@ -607,7 +607,17 @@ func SetApiRouter(router *gin.Engine) {
 
 		// TikHub proxy routes (token auth)
 		apiRouter.GET("/public/tikhub/tiktok/video", middleware.TokenAuthReadOnly(), controller.TikHubSingleVideo)
+		apiRouter.GET("/public/tikhub/tiktok/video-by-share-url", middleware.TokenAuthReadOnly(), controller.TikHubSingleVideoByShareURL)
+		apiRouter.GET("/public/tikhub/tiktok/comment-keywords", middleware.TokenAuthReadOnly(), controller.TikHubCommentKeywords)
+		apiRouter.GET("/public/tikhub/tiktok/music-chart-list", middleware.TokenAuthReadOnly(), controller.TikHubMusicChartList)
+		apiRouter.GET("/public/tikhub/tiktok/trending-search-words", middleware.TokenAuthReadOnly(), controller.TikHubTrendingSearchWords)
 		apiRouter.GET("/public/tikhub/tiktok/product", middleware.TokenAuthReadOnly(), controller.TikHubProductDetail)
+		apiRouter.POST("/public/tikhub/tiktok/account-health-status", middleware.TokenAuthReadOnly(), controller.TikHubAccountHealthStatus)
+		apiRouter.POST("/public/tikhub/tiktok/account-insights-overview", middleware.TokenAuthReadOnly(), controller.TikHubAccountInsightsOverview)
+		apiRouter.POST("/public/tikhub/tiktok/video-analytics-summary", middleware.TokenAuthReadOnly(), controller.TikHubVideoAnalyticsSummary)
+		apiRouter.POST("/public/tikhub/tiktok/product-related-videos", middleware.TokenAuthReadOnly(), controller.TikHubProductRelatedVideos)
+		apiRouter.GET("/public/tikhub/tiktok/trends-hashtag-list", middleware.TokenAuthReadOnly(), controller.TikHubTrendsHashtagList)
+		apiRouter.GET("/public/tikhub/tiktok/hot-selling-products-list", middleware.TokenAuthReadOnly(), controller.TikHubHotSellingProductsList)
 		apiRouter.GET("/admin/tikhub/status", middleware.AdminAuth(), controller.TikHubSettingStatus)
 
 		// Prompt Video URL Repair (admin only)
