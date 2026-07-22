@@ -83,6 +83,7 @@ func InitDefaultTikHubPriceConfigs() error {
 		{Endpoint: "account-health-status", Name: "账号健康状态", Description: "获取创作者账号健康状态(违规积分)", Price: 0.03, Enabled: true},
 		{Endpoint: "account-insights-overview", Name: "账号概览", Description: "获取创作者账号表现概览", Price: 0.03, Enabled: true},
 		{Endpoint: "video-analytics-summary", Name: "视频概览", Description: "获取创作者视频表现概览", Price: 0.03, Enabled: true},
+		{Endpoint: "video-audience-stats", Name: "视频受众分析", Description: "获取视频受众分析数据(性别/年龄/地区分布)", Price: 0.03, Enabled: true},
 		{Endpoint: "product-related-videos", Name: "同款商品关联视频", Description: "获取同款商品关联视频列表", Price: 0.02, Enabled: true},
 		{Endpoint: "trends-hashtag-list", Name: "热门标签榜单", Description: "获取热门标签排行榜", Price: 0.01, Enabled: true},
 		{Endpoint: "hot-selling-products-list", Name: "热卖商品列表", Description: "获取 TikTok Shop 热卖商品列表", Price: 0.01, Enabled: true},

@@ -764,3 +764,63 @@ func FetchTikHubVideoComments(ctx context.Context, awemeID string, cursor int, c
 
 	return body, nil
 }
+
+// FetchTikHubVideoAudienceStats 请求 TikHub 获取视频受众分析数据。
+// endpoint: /api/v1/tiktok/creator/get_video_audience_stats
+func FetchTikHubVideoAudienceStats(ctx context.Context, cookie, startDate, itemID, proxy string) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://api.tikhub.io"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/creator/get_video_audience_stats")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	bodyMap := map[string]interface{}{
+		"cookie":     cookie,
+		"start_date": startDate,
+		"item_id":    itemID,
+	}
+	if proxy != "" {
+		bodyMap["proxy"] = proxy
+	}
+
+	bodyBytes, err := json.Marshal(bodyMap)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request body failed: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL.String(), bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("TikHub video audience stats API error: status=%d, body=%s", resp.StatusCode, string(respBody)))
+		return nil, fmt.Errorf("tikhub api returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub video audience stats fetched: item_id=%s", itemID))
+	common.SysLog(fmt.Sprintf("[TikHub] fetched video audience stats: item_id=%s", itemID))
+
+	return respBody, nil
+}

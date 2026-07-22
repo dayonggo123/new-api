@@ -781,3 +781,72 @@ func TikHubVideoComments(c *gin.Context) {
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
+
+// TikHubVideoAudienceStats 代理 TikHub 获取视频受众分析数据
+// POST /api/public/tikhub/tiktok/video-audience-stats
+func TikHubVideoAudienceStats(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	var reqBody struct {
+		Cookie    string `json:"cookie"`
+		StartDate string `json:"start_date"`
+		ItemID    string `json:"item_id"`
+		Proxy     string `json:"proxy"`
+	}
+
+	if err := c.ShouldBindJSON(&reqBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "请求参数解析失败",
+		})
+		return
+	}
+
+	if reqBody.ItemID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "item_id 不能为空",
+		})
+		return
+	}
+
+	if reqBody.Cookie == "" {
+		reqBody.Cookie = c.GetHeader("Cookie")
+	}
+
+	// 默认日期
+	if reqBody.StartDate == "" {
+		reqBody.StartDate = "04-01-2025"
+	}
+
+	body, err := service.FetchTikHubVideoAudienceStats(c.Request.Context(), reqBody.Cookie, reqBody.StartDate, reqBody.ItemID, reqBody.Proxy)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "video-audience-stats")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}
