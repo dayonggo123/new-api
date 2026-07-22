@@ -13,6 +13,9 @@ import (
 )
 
 // chargeTikHubIfEnabled 如果启用收费则扣费，返回是否成功进行了扣费
+// 美元转积分比例: 1 USD = 100 积分
+const tikhubUSDToQuota = 100
+
 func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
 	userID := c.GetInt("user_id")
 	if userID == 0 {
@@ -24,9 +27,9 @@ func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
 		return false
 	}
 
-	// 扣费
-	price := int(config.Price)
-	err = model.DecreaseUserQuota(userID, price, false)
+	// 美元转换为积分
+	quota := int(config.Price * tikhubUSDToQuota)
+	err = model.DecreaseUserQuota(userID, quota, false)
 	if err != nil {
 		logger.LogError(c.Request.Context(), "TikHub扣费失败: "+err.Error())
 		return false
