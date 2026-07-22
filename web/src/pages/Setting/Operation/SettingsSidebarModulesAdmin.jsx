@@ -71,7 +71,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       user: true,
       subscription: true,
       setting: true,
-      tikhub-prices: true,
+      'tikhub-prices': true,
     },
   });
 
