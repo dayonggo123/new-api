@@ -624,9 +624,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/admin/tikhub/status", middleware.AdminAuth(), controller.TikHubSettingStatus)
 		apiRouter.GET("/admin/tikhub/prices", middleware.AdminAuth(), controller.GetTikHubPriceConfigs)
 		apiRouter.POST("/admin/tikhub/prices", middleware.AdminAuth(), controller.CreateTikHubPriceConfig)
+		apiRouter.POST("/admin/tikhub/prices/init", middleware.AdminAuth(), controller.InitTikHubPriceConfigs)
 		apiRouter.PUT("/admin/tikhub/prices/:id", middleware.AdminAuth(), controller.UpdateTikHubPriceConfig)
 		apiRouter.DELETE("/admin/tikhub/prices/:id", middleware.AdminAuth(), controller.DeleteTikHubPriceConfig)
-		apiRouter.POST("/admin/tikhub/prices/init", middleware.AdminAuth(), controller.InitTikHubPriceConfigs)
 
 		// Prompt Video URL Repair (admin only)
 		apiRouter.GET("/admin/prompt/broken-video-urls", middleware.AdminAuth(), controller.GetBrokenPromptVideoUrls)
