@@ -41,14 +41,14 @@ New-Api-User: {UserId}
 ```javascript
 // 同时请求套餐列表 + 我的订阅状态
 const [plansRes, selfRes] = await Promise.all([
-  fetch("https://heharse.cloud/api/subscription/plans", {
+  fetch("https://heharse.cloud/subscription/plans", {
     headers: {
       "Authorization": `Bearer ${accessToken}`,
       "New-Api-User": userId
     }
   }).then(r => r.json()),
   
-  fetch("https://heharse.cloud/api/subscription/self", {
+  fetch("https://heharse.cloud/subscription/self", {
     headers: {
       "Authorization": `Bearer ${accessToken}`,
       "New-Api-User": userId
@@ -387,7 +387,7 @@ A: **0 表示不限额度**。这是纯会员费模式，用户购买后只获�
 
 ### Q: 支付成功后用户没变成会员？
 
-A: 检查 Epay 回调地址是否可外网访问：`https://heharse.cloud/api/subscription/epay/notify`
+A: 检查 Epay 回调地址是否可外网访问：`https://heharse.cloud/subscription/epay/notify`
 
 ### Q: 用户分组怎么用？
 

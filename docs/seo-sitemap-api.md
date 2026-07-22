@@ -144,17 +144,17 @@ https://heharse.cloud/prompts/{id}
 **示例：拉取全部提示词（假设 800+ 条）：**
 
 ```bash
-curl "https://heharse.cloud/api/public/prompts/sitemap?page=1&page_size=5000"
+curl "https://heharse.cloud/public/prompts/sitemap?page=1&page_size=5000"
 ```
 
 **示例：分页拉取（适合数万条场景）：**
 
 ```bash
 # 第 1 页
-curl "https://heharse.cloud/api/public/prompts/sitemap?page=1&page_size=5000"
+curl "https://heharse.cloud/public/prompts/sitemap?page=1&page_size=5000"
 
 # 第 2 页
-curl "https://heharse.cloud/api/public/prompts/sitemap?page=2&page_size=5000"
+curl "https://heharse.cloud/public/prompts/sitemap?page=2&page_size=5000"
 ```
 
 ---

@@ -322,7 +322,7 @@ New-Api-User: {UserId}
 ```python
 import requests
 
-BASE_URL = "https://heharse.cloud/api"
+BASE_URL = "https://heharse.cloud"
 ACCESS_TOKEN = "你的AccessToken"  # 从后台个人设置复制
 USER_ID = "你的用户ID"            # 从后台个人设置查看
 
@@ -363,7 +363,7 @@ print("我的订阅:", my_sub)
 ## 五、JavaScript 对接示例
 
 ```javascript
-const BASE_URL = "https://heharse.cloud/api";
+const BASE_URL = "https://heharse.cloud";
 const ACCESS_TOKEN = "你的AccessToken";
 const USER_ID = "你的用户ID";
 
@@ -437,4 +437,4 @@ A: 购买 VIP 后用户 `group` 字段变成 `vip`，购买 SVIP 后变成 `svip
 | Epay 支付已配置 | 后台 → 系统设置 → 支付设置 → Epay |
 | Stripe 已配置（如需要） | 后台 → 订阅管理 → 编辑套餐 → Stripe Price ID |
 | Creem 已配置（如需要） | 后台 → 订阅管理 → 编辑套餐 → Creem Product ID |
-| 回调地址可访问 | 确保 `https://heharse.cloud/api/subscription/epay/notify` 能被外网访问 |
+| 回调地址可访问 | 确保 `https://heharse.cloud/subscription/epay/notify` 能被外网访问 |

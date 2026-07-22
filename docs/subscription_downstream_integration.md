@@ -7,7 +7,7 @@
 ## 一、接口基地址
 
 ```
-https://heharse.cloud/api
+https://heharse.cloud
 ```
 
 所有请求需在 Header 中携带：
@@ -97,8 +97,8 @@ Content-Type: application/json
     "pid": "1001",
     "type": "alipay",
     "out_trade_no": "SUBUSR5NOabc1231717142400",
-    "notify_url": "https://heharse.cloud/api/subscription/epay/notify",
-    "return_url": "https://heharse.cloud/api/subscription/epay/return",
+    "notify_url": "https://heharse.cloud/subscription/epay/notify",
+    "return_url": "https://heharse.cloud/subscription/epay/return",
     "name": "SUB:月度会员",
     "money": "19.90",
     "sign": "xxx",
@@ -274,7 +274,7 @@ Authorization: Bearer {管理员API Key}
 ```python
 import requests
 
-BASE_URL = "https://heharse.cloud/api"
+BASE_URL = "https://heharse.cloud"
 HEADERS = {"Authorization": "Bearer sk-xxxx"}
 
 def get_plans():

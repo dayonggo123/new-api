@@ -13,7 +13,7 @@ GET https://api.github.com/repos/{owner}/{repo}/releases/latest
 
 ### 新接口（New-API 自托管）
 ```
-GET https://heharse.cloud/api/public/releases/latest
+GET https://heharse.cloud/public/releases/latest
 ```
 
 **无需鉴权**，应用端直接请求即可。
@@ -35,14 +35,14 @@ GET https://heharse.cloud/api/public/releases/latest
       "id": 1,
       "name": "harsetv_1.2.3_windows_x86_64.exe",
       "size": 104857600,
-      "browser_download_url": "https://heharse.cloud/api/public/releases/download/windows/x86_64"
+      "browser_download_url": "https://heharse.cloud/public/releases/download/windows/x86_64"
     }
   ]
 }
 ```
 
 **应用端改动点：**
-1. 把请求 URL 从 GitHub API 改成 `https://heharse.cloud/api/public/releases/latest`
+1. 把请求 URL 从 GitHub API 改成 `https://heharse.cloud/public/releases/latest`
 2. 其余解析逻辑不变，`tag_name`、`body`、`assets`、`browser_download_url` 字段名完全一样
 
 ---
@@ -55,7 +55,7 @@ GET https://heharse.cloud/api/public/releases/latest
 use reqwest;
 use serde::Deserialize;
 
-const UPDATE_API_URL: &str = "https://heharse.cloud/api/public/releases/latest";
+const UPDATE_API_URL: &str = "https://heharse.cloud/public/releases/latest";
 
 #[derive(Debug, Deserialize)]
 pub struct ReleaseAsset {
@@ -206,7 +206,7 @@ jobs:
           mv target/release/harsetv.exe harsetv_${{ github.ref_name }}_windows_x86_64.exe
       - name: Upload to New-API
         run: |
-          curl -X POST "https://heharse.cloud/api/admin/releases" \
+          curl -X POST "https://heharse.cloud/admin/releases" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_TOKEN }}" \
             -F "version=${{ github.ref_name }}" \
             -F "tag=${{ github.ref_name }}" \
@@ -226,7 +226,7 @@ jobs:
           mv target/aarch64-apple-darwin/release/harsetv harsetv_${{ github.ref_name }}_darwin_aarch64.dmg
       - name: Upload to New-API
         run: |
-          curl -X POST "https://heharse.cloud/api/admin/releases" \
+          curl -X POST "https://heharse.cloud/admin/releases" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_TOKEN }}" \
             -F "version=${{ github.ref_name }}" \
             -F "tag=${{ github.ref_name }}" \
@@ -241,7 +241,7 @@ jobs:
 
 给应用端开发者的 checklist：
 
-- [ ] 把升级检测 URL 改为 `https://heharse.cloud/api/public/releases/latest`
+- [ ] 把升级检测 URL 改为 `https://heharse.cloud/public/releases/latest`
 - [ ] 保持 `tag_name`、`body`、`assets` 解析逻辑不变
 - [ ] 根据当前系统平台（`target_os`）和架构（`target_arch`）选择对应 asset
 - [ ] 下载地址使用 `browser_download_url`（会自动重定向到正确的安装包）
@@ -259,4 +259,4 @@ A: 会。`assets` 数组会包含所有标记为 `is_latest = 1` 的安装包（
 A: `GET /api/public/releases/download/:platform/:arch` 使用 Gin 的 `c.File()` 返回文件，支持 HTTP Range 请求（取决于浏览器/客户端实现）。
 
 **Q: 如何测试？**
-A: 在后台「安装包管理」页面上传一个测试版本，然后访问 `https://heharse.cloud/api/public/releases/latest` 查看返回结果。
+A: 在后台「安装包管理」页面上传一个测试版本，然后访问 `https://heharse.cloud/public/releases/latest` 查看返回结果。

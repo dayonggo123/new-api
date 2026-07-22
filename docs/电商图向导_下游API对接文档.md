@@ -241,7 +241,7 @@ GET /api/ecommerce/case-detail?category={categoryId}&platform={platformId}
 ### 模特呈现方式
 
 ```javascript
-const res = await fetch('https://heharse.cloud/api/ecommerce/model-poses', {
+const res = await fetch('https://heharse.cloud/ecommerce/model-poses', {
   headers: { 'Authorization': 'Bearer sk-xxx' }
 });
 const { success, data } = await res.json();
@@ -254,7 +254,7 @@ if (success) {
 ### 案例库品类
 
 ```javascript
-const res = await fetch('https://heharse.cloud/api/ecommerce/case-categories', {
+const res = await fetch('https://heharse.cloud/ecommerce/case-categories', {
   headers: { 'Authorization': 'Bearer sk-xxx' }
 });
 const { success, data } = await res.json();
@@ -268,7 +268,7 @@ if (success) {
 
 ```javascript
 const res = await fetch(
-  'https://heharse.cloud/api/ecommerce/case-detail?category=clothing&platform=taobao',
+  'https://heharse.cloud/ecommerce/case-detail?category=clothing&platform=taobao',
   { headers: { 'Authorization': 'Bearer sk-xxx' } }
 );
 const { success, data } = await res.json();
