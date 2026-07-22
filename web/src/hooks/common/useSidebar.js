@@ -59,7 +59,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     subscription: true,
     setting: true,
     ecommerce_wizard: true,
-    tikhub_prices: true,
+    tikhub-prices: true,
   },
 };
 
