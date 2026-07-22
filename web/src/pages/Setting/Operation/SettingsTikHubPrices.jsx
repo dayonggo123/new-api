@@ -256,7 +256,7 @@ export default function SettingsTikHubPrices(props) {
             label={t('价格 (USD)')}
             min={0}
             step={0.01}
-            precision={2}
+            precision={4}
             placeholder={t('例如: 0.01')}
           />
           <Form.Switch
