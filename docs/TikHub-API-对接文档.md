@@ -2,17 +2,17 @@
 
 ## 基础信息
 
-- **API Base URL**: `https://heharse.cloud/api`
+- **API Base URL**: `https://heharse.cloud`
 - **鉴权方式**: Bearer Token
 - **调用示例**:
 
 ```bash
 # 获取视频评论
-curl -X GET "https://heharse.cloud/api/public/tikhub/tiktok/video-comments?aweme_id=xxx" \
+curl -X GET "https://heharse.cloud/public/tikhub/tiktok/video-comments?aweme_id=xxx" \
   -H "Authorization: Bearer YOUR_TOKEN"
 
 # 获取视频受众分析
-curl -X POST "https://heharse.cloud/api/public/tikhub/tiktok/video-audience-stats" \
+curl -X POST "https://heharse.cloud/public/tikhub/tiktok/video-audience-stats" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"cookie": "xxx", "item_id": "xxx"}'
@@ -27,7 +27,7 @@ curl -X POST "https://heharse.cloud/api/public/tikhub/tiktok/video-audience-stat
 获取所有接口的当前价格配置（返回已启用的配置）：
 
 ```bash
-curl -X GET "https://heharse.cloud/api/public/tikhub/prices"
+curl -X GET "https://heharse.cloud/public/tikhub/prices"
 ```
 
 **响应示例**：
