@@ -144,10 +144,10 @@ func GetUserTikHubTier(userID int) string {
 	}
 
 	// Root 和 Admin 用户免费
-	if user.Role == RoleRootUser {
+	if user.Role == common.RoleRootUser {
 		return "root"
 	}
-	if user.Role == RoleAdminUser {
+	if user.Role == common.RoleAdminUser {
 		return "admin"
 	}
 
