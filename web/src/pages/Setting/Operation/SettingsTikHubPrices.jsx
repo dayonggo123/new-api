@@ -68,7 +68,7 @@ export default function SettingsTikHubPrices(props) {
       dataIndex: 'price',
       key: 'price',
       width: 120,
-      render: (price) => `$${price?.toFixed(2) || '0.00'}`,
+      render: (price) => `$${price?.toFixed(4) || '0.0000'}`,
     },
     {
       title: t('积分'),
