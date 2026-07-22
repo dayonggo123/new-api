@@ -850,3 +850,68 @@ func TikHubVideoAudienceStats(c *gin.Context) {
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
+
+// TikHubPostComment 代理 TikHub 获取作品评论列表
+// GET /api/public/tikhub/tiktok/post-comment?aweme_id=xxx&cursor=0&count=20
+func TikHubPostComment(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	awemeID := c.Query("aweme_id")
+	if awemeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "aweme_id 不能为空",
+		})
+		return
+	}
+
+	// cursor: 分页游标
+	cursor := 0
+	if c := c.Query("cursor"); c != "" {
+		if parsed, err := strconv.Atoi(c); err == nil {
+			cursor = parsed
+		}
+	}
+
+	// count: 数量
+	count := 20
+	if c := c.Query("count"); c != "" {
+		if parsed, err := strconv.Atoi(c); err == nil && parsed > 0 {
+			count = parsed
+		}
+	}
+
+	// current_region: 当前地区
+	currentRegion := c.Query("current_region")
+
+	body, err := service.FetchTikHubPostComment(c.Request.Context(), awemeID, cursor, count, currentRegion)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "post-comment")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}

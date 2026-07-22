@@ -76,6 +76,7 @@ func InitDefaultTikHubPriceConfigs() error {
 		{Endpoint: "video", Name: "获取单个视频数据", Description: "通过 aweme_id 获取视频数据", Price: 0.01, Enabled: true},
 		{Endpoint: "video-by-share-url", Name: "通过分享链接获取视频", Description: "通过分享链接获取视频数据", Price: 0.01, Enabled: true},
 		{Endpoint: "video-comments", Name: "获取视频评论", Description: "获取单个视频评论数据", Price: 0.02, Enabled: true},
+		{Endpoint: "post-comment", Name: "获取作品评论列表", Description: "获取作品评论列表(Web)", Price: 0.02, Enabled: true},
 		{Endpoint: "comment-keywords", Name: "评论关键词分析", Description: "分析视频评论中的热门关键词", Price: 0.02, Enabled: true},
 		{Endpoint: "music-chart-list", Name: "音乐排行榜", Description: "获取热门音乐排行榜", Price: 0.01, Enabled: true},
 		{Endpoint: "trending-search-words", Name: "每日趋势搜索词", Description: "获取每日趋势搜索关键词", Price: 0.01, Enabled: true},
