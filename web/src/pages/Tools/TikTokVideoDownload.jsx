@@ -29,8 +29,6 @@ import {
   Space,
   Tag,
   Table,
-  Alert,
-  Input,
 } from '@douyinfe/semi-ui';
 import { Download, Link, RefreshCw, Copy, CheckCircle } from 'lucide-react';
 
@@ -257,28 +255,24 @@ export default function TikTokVideoDownload() {
                 </Text>
               </div>
 
-              <Alert
-                type='info'
-                style={{ maxWidth: 800 }}
-                description={
-                  <div>
-                    <Text type='secondary'>
-                      {t('支持以下格式：')}
-                    </Text>
-                    <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
-                      <li>
-                        <Text type='secondary'>https://www.tiktok.com/@xxx/video/xxx</Text>
-                      </li>
-                      <li>
-                        <Text type='secondary'>https://vm.tiktok.com/xxx</Text>
-                      </li>
-                      <li>
-                        <Text type='secondary'>https://m.tiktok.com/v/xxx</Text>
-                      </li>
-                    </ul>
-                  </div>
-                }
-              />
+              <Card
+                style={{ maxWidth: 800, background: '#f0f9ff' }}
+              >
+                <Text type='secondary'>
+                  {t('支持以下格式：')}
+                </Text>
+                <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                  <li>
+                    <Text type='secondary'>https://www.tiktok.com/@xxx/video/xxx</Text>
+                  </li>
+                  <li>
+                    <Text type='secondary'>https://vm.tiktok.com/xxx</Text>
+                  </li>
+                  <li>
+                    <Text type='secondary'>https://m.tiktok.com/v/xxx</Text>
+                  </li>
+                </ul>
+              </Card>
 
               <TextArea
                 value={videoURLs}
