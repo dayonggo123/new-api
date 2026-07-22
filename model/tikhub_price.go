@@ -43,6 +43,38 @@ func GetEnabledTikHubPriceConfigs() (map[string]*TikHubPriceConfig, error) {
 	return result, nil
 }
 
+// TikHubPriceConfigPublic 公开接口返回的价格配置
+type TikHubPriceConfigPublic struct {
+	Endpoint    string  `json:"endpoint"`
+	Name        string  `json:"name"`
+	Price       float64 `json:"price"`
+	Enabled     bool    `json:"enabled"`
+	Quota       int     `json:"quota"` // 积分 = price * 100
+	Description string  `json:"description"`
+}
+
+// GetTikHubPriceConfigsForPublic 公开接口：获取已启用的收费配置（返回简洁格式）
+func GetTikHubPriceConfigsForPublic() ([]TikHubPriceConfigPublic, error) {
+	var configs []TikHubPriceConfig
+	err := DB.Where("enabled = ?", true).Find(&configs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]TikHubPriceConfigPublic, len(configs))
+	for i, c := range configs {
+		result[i] = TikHubPriceConfigPublic{
+			Endpoint:    c.Endpoint,
+			Name:        c.Name,
+			Price:       c.Price,
+			Enabled:     c.Enabled,
+			Quota:       int(c.Price * 100),
+			Description: c.Description,
+		}
+	}
+	return result, nil
+}
+
 // GetTikHubPriceConfigByEndpoint 根据接口标识获取配置
 func GetTikHubPriceConfigByEndpoint(endpoint string) (*TikHubPriceConfig, error) {
 	var config TikHubPriceConfig

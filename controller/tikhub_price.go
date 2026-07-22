@@ -11,9 +11,43 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetTikHubPriceConfigs 获取 TikHub 收费配置列表
+// GetTikHubPriceConfigs 获取 TikHub 收费配置列表（管理员）
 // GET /api/admin/tikhub/prices
 func GetTikHubPriceConfigs(c *gin.Context) {
+	configs, err := model.GetAllTikHubPriceConfigs()
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取配置失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    configs,
+	})
+}
+
+// GetTikHubPrices 公开接口：获取 TikHub 收费配置列表（仅返回启用的配置）
+// GET /api/public/tikhub/prices
+func GetTikHubPrices(c *gin.Context) {
+	configs, err := model.GetTikHubPriceConfigsForPublic()
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取配置失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    configs,
+	})
+}
 	configs, err := model.GetAllTikHubPriceConfigs()
 	if err != nil {
 		logger.LogError(c.Request.Context(), err.Error())

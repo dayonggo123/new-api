@@ -20,27 +20,52 @@ curl -X POST "https://heharse.cloud/api/public/tikhub/tiktok/video-audience-stat
 
 ---
 
-## 接口价格表
+## 价格查询接口
 
-| 接口标识 (endpoint) | 接口名称 | 价格 (USD) | 积分 |
-|------|------|------|------|
-| video | 获取单个视频数据 | $0.01 | 1 |
-| video-by-share-url | 通过分享链接获取视频 | $0.01 | 1 |
-| video-comments | 获取视频评论 | $0.02 | 2 |
-| post-comment | 获取作品评论列表 | $0.02 | 2 |
-| comment-keywords | 评论关键词分析 | $0.02 | 2 |
-| music-chart-list | 音乐排行榜 | $0.01 | 1 |
-| trending-search-words | 每日趋势搜索词 | $0.01 | 1 |
-| product | 商品详情 | $0.02 | 2 |
-| account-health-status | 账号健康状态 | $0.03 | 3 |
-| account-insights-overview | 账号概览 | $0.03 | 3 |
-| video-analytics-summary | 视频概览 | $0.03 | 3 |
-| video-audience-stats | 视频受众分析 | $0.03 | 3 |
-| product-related-videos | 同款商品关联视频 | $0.02 | 2 |
-| trends-hashtag-list | 热门标签榜单 | $0.01 | 1 |
-| hot-selling-products-list | 热卖商品列表 | $0.01 | 1 |
+### 获取接口价格列表
 
-> **注意**: 积分 = 价格(USD) × 100
+获取所有接口的当前价格配置（返回已启用的配置）：
+
+```bash
+curl -X GET "https://heharse.cloud/api/public/tikhub/prices"
+```
+
+**响应示例**：
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "endpoint": "video",
+      "name": "获取单个视频数据",
+      "price": 0.01,
+      "enabled": true,
+      "quota": 1,
+      "description": "通过 aweme_id 获取视频数据"
+    },
+    {
+      "endpoint": "video-comments",
+      "name": "获取视频评论",
+      "price": 0.02,
+      "enabled": true,
+      "quota": 2,
+      "description": "获取单个视频评论数据"
+    }
+  ]
+}
+```
+
+**字段说明**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| endpoint | string | 接口标识 |
+| name | string | 接口名称 |
+| price | float | 价格（USD） |
+| enabled | bool | 是否启用 |
+| quota | int | 消耗积分（= price × 100） |
+| description | string | 接口描述 |
 
 ---
 
