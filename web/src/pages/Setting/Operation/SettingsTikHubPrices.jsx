@@ -42,7 +42,7 @@ export default function SettingsTikHubPrices(props) {
   const [data, setData] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [formValues, setFormValues] = useState({});
+  const formRef = useRef();
 
   const columns = [
     {
@@ -134,34 +134,39 @@ export default function SettingsTikHubPrices(props) {
 
   const handleEdit = (record) => {
     setEditingItem(record);
-    setFormValues({
-      name: record.name,
-      description: record.description,
-      price: record.price,
-      enabled: record.enabled,
-    });
+    setTimeout(() => {
+      formRef.current.setValues({
+        name: record.name,
+        description: record.description,
+        price: record.price,
+        enabled: record.enabled,
+      });
+    }, 0);
     setModalVisible(true);
   };
 
   const handleAdd = () => {
     setEditingItem(null);
-    setFormValues({
-      endpoint: '',
-      name: '',
-      description: '',
-      price: 0.01,
-      enabled: true,
-    });
+    setTimeout(() => {
+      formRef.current.setValues({
+        endpoint: '',
+        name: '',
+        description: '',
+        price: 0.01,
+        enabled: true,
+      });
+    }, 0);
     setModalVisible(true);
   };
 
   const handleSubmit = async () => {
     try {
+      const values = formRef.current.getValues();
       let res;
       if (editingItem) {
-        res = await API.put(`/api/admin/tikhub/prices/${editingItem.id}`, formValues);
+        res = await API.put(`/api/admin/tikhub/prices/${editingItem.id}`, values);
       } else {
-        res = await API.post('/api/admin/tikhub/prices', formValues);
+        res = await API.post('/api/admin/tikhub/prices', values);
       }
       if (res.data.success) {
         showSuccess(t('保存成功'));
@@ -231,7 +236,7 @@ export default function SettingsTikHubPrices(props) {
         cancelText={t('取消')}
         width={500}
       >
-        <Form values={formValues} onChange={(values) => setFormValues(values)}>
+        <Form getFormApi={(formAPI) => (formRef.current = formAPI)}>
           {!editingItem && (
             <Form.Input
               field="endpoint"
