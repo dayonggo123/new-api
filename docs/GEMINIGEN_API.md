@@ -8,20 +8,20 @@
 
 ```bash
 # 视频生成
-curl -X POST https://heharse.cloud/uapi/v1/video-gen/veo \
+curl -X POST https://heharse.cloud/api/uapi/v1/video-gen/veo \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A cat playing piano" \
   -F "model=veo-3.1"
 
 # 图片生成（带 HTTP URL 参考图）
-curl -X POST https://heharse.cloud/uapi/v1/generate_image \
+curl -X POST https://heharse.cloud/api/uapi/v1/generate_image \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=衣服变红" \
   -F "model=nano-banana-2" \
   -F "ref_images=https://example.com/ref.jpg"
 
 # 轮询（用 task_id）
-curl "https://heharse.cloud/uapi/v1/video-gen/veo?task_id={task_id}" \
+curl "https://heharse.cloud/api/uapi/v1/video-gen/veo?task_id={task_id}" \
   -H "Authorization: Bearer {API_KEY}"
 ```
 
@@ -36,7 +36,7 @@ curl "https://heharse.cloud/uapi/v1/video-gen/veo?task_id={task_id}" \
 | 项目 | 值 |
 |------|-----|
 | 渠道类型 | `ChannelTypeVeo = 58` |
-| Base URL | `https://heharse.cloud` |
+| Base URL | `https://heharse.cloud/api` |
 | 认证方式 | `Authorization: Bearer {API_KEY}` |
 | 内容类型 | `multipart/form-data`（推荐）或 `application/json` |
 
@@ -106,7 +106,7 @@ Content-Type: multipart/form-data
 
 ```bash
 # Veo 视频
-curl -X POST https://heharse.cloud/uapi/v1/video-gen/veo \
+curl -X POST https://heharse.cloud/api/uapi/v1/video-gen/veo \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A serene sunset over mountains with clouds" \
   -F "model=veo-3.1" \
@@ -114,7 +114,7 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/veo \
   -F "aspect_ratio=16:9"
 
 # Grok 视频
-curl -X POST https://heharse.cloud/uapi/v1/video-gen/grok \
+curl -X POST https://heharse.cloud/api/uapi/v1/video-gen/grok \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A cat playing piano" \
   -F "model=grok-3" \
@@ -122,7 +122,7 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/grok \
   -F "resolution=1080p"
 
 # 带参考图（frame 模式）
-curl -X POST https://heharse.cloud/uapi/v1/video-gen/veo \
+curl -X POST https://heharse.cloud/api/uapi/v1/video-gen/veo \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A drone shot flying through mountains" \
   -F "model=veo-3.1" \
@@ -130,7 +130,7 @@ curl -X POST https://heharse.cloud/uapi/v1/video-gen/veo \
   -F "mode_image=frame"
 
 # Kling 视频（5秒）
-curl -X POST https://heharse.cloud/uapi/v1/video-gen/kling \
+curl -X POST https://heharse.cloud/api/uapi/v1/video-gen/kling \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=Time-lapse of a flower blooming" \
   -F "model=kling" \
@@ -291,7 +291,7 @@ Content-Type: multipart/form-data
 
 ```bash
 # 基础图片生成
-curl -X POST https://heharse.cloud/uapi/v1/generate_image \
+curl -X POST https://heharse.cloud/api/uapi/v1/generate_image \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A beautiful landscape with mountains and a lake" \
   -F "model=nano-banana-2" \
@@ -299,27 +299,27 @@ curl -X POST https://heharse.cloud/uapi/v1/generate_image \
   -F "aspect_ratio=16:9"
 
 # 带参考图
-curl -X POST https://heharse.cloud/uapi/v1/generate_image \
+curl -X POST https://heharse.cloud/api/uapi/v1/generate_image \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=衣服变蓝" \
   -F "model=nano-banana-2" \
   -F "ref_images=@ref.jpg"
 
 # Imagen 4
-curl -X POST https://heharse.cloud/uapi/v1/generate_image \
+curl -X POST https://heharse.cloud/api/uapi/v1/generate_image \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=An astronaut riding a horse" \
   -F "model=imagen-4" \
   -F "resolution=2K"
 
 # Grok 图片
-curl -X POST https://heharse.cloud/uapi/v1/imagen/grok \
+curl -X POST https://heharse.cloud/api/uapi/v1/imagen/grok \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=An astronaut riding a horse" \
   -F "model=grok-image"
 
 # Meta AI 图片
-curl -X POST https://heharse.cloud/uapi/v1/meta_ai/generate \
+curl -X POST https://heharse.cloud/api/uapi/v1/meta_ai/generate \
   -H "Authorization: Bearer {API_KEY}" \
   -F "prompt=A futuristic city at night" \
   -F "model=meta-ai-image"
@@ -593,7 +593,7 @@ class GeminiGenAPI:
 
 
 # 使用示例
-api = GeminiGenAPI('https://heharse.cloud', 'YOUR_API_KEY')
+api = GeminiGenAPI('https://heharse.cloud/api', 'YOUR_API_KEY')
 
 # 视频生成
 result = api.submit_video('A cat playing piano', model='veo-3.1', resolution='720p')
@@ -717,7 +717,7 @@ class GeminiGenClient {
 }
 
 // 使用示例
-const client = new GeminiGenClient('https://heharse.cloud', 'YOUR_API_KEY');
+const client = new GeminiGenClient('https://heharse.cloud/api', 'YOUR_API_KEY');
 
 // 视频生成
 const videoTask = await client.submitVideo('A cat playing piano', 'veo-3.1', {

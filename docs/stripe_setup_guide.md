@@ -76,7 +76,7 @@ price_1TUkqxCmACxwPcWozxmrBgB0e0aXxv
 2. 点击 **"添加端点"**
 3. 端点 URL 填：
    ```
-   https://heharse.cloud/subscription/stripe/webhook
+   https://heharse.cloud/api/subscription/stripe/webhook
    ```
 4. 选择监听事件：
    - `checkout.session.completed`

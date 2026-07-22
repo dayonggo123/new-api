@@ -1,7 +1,7 @@
 # SEO 内容接口文档
 
 > 提供给下游系统使用的 SEO 相关接口规范  
-> Base URL: `https://heharse.cloud`
+> Base URL: `https://heharse.cloud/api`
 
 ---
 
@@ -402,4 +402,4 @@ GET /api/prompt/seo/low-score?threshold=60
 
 ### 7.3 集成 Sitemap
 
-下游系统可定期抓取 `https://heharse.cloud/sitemap.xml` 获取全部可索引 URL。
+下游系统可定期抓取 `https://heharse.cloud/api/sitemap.xml` 获取全部可索引 URL。

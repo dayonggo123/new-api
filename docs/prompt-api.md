@@ -306,19 +306,19 @@ GET /api/public/preset-prompts/updates
 ### 获取提示词列表
 
 ```bash
-curl "https://heharse.cloud/public/prompts?page=1&num=12&category_id=3"
+curl "https://heharse.cloud/api/public/prompts?page=1&num=12&category_id=3"
 ```
 
 ### 获取提示词详情
 
 ```bash
-curl "https://heharse.cloud/public/prompts/1"
+curl "https://heharse.cloud/api/public/prompts/1"
 ```
 
 ### 获取预设提示词（英文）
 
 ```bash
-curl "https://heharse.cloud/public/preset-prompts?lang=en" \
+curl "https://heharse.cloud/api/public/preset-prompts?lang=en" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -326,10 +326,10 @@ curl "https://heharse.cloud/public/preset-prompts?lang=en" \
 
 ```bash
 # 首次同步
-curl "https://heharse.cloud/public/preset-prompts/updates"
+curl "https://heharse.cloud/api/public/preset-prompts/updates"
 
 # 后续增量同步（假设上次 server_time = 1759390000）
-curl "https://heharse.cloud/public/preset-prompts/updates?since=1759390000"
+curl "https://heharse.cloud/api/public/preset-prompts/updates?since=1759390000"
 ```
 
 ---

@@ -61,7 +61,7 @@ lazy_static::lazy_static! {
 }
 
 const CACHE_TTL: Duration = Duration::from_secs(300); // 5分钟
-const API_URL: &str = "https://heharse.cloud/public/preset-prompts";
+const API_URL: &str = "https://heharse.cloud/api/public/preset-prompts";
 
 // ============ 内部方法 ============
 

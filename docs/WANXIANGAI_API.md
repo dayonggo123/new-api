@@ -1,7 +1,7 @@
 # 万象Ai (WanXiangAI) 渠道对接文档
 
 > **渠道类型**: `万象Ai` (ID: 59)  
-> **Base URL**: `https://heharse.cloud`（new-api 对外地址）  
+> **Base URL**: `https://heharse.cloud/api`（new-api 对外地址）  
 > **认证方式**: `Authorization: Bearer <new-api 的 Token>`
 
 ---
@@ -43,7 +43,7 @@
 #### 请求示例
 
 ```bash
-curl -X POST https://heharse.cloud/v1/chat/completions \
+curl -X POST https://heharse.cloud/api/v1/chat/completions \
   -H "Authorization: Bearer <YOUR_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -147,7 +147,7 @@ data: [DONE]
 #### 请求示例 — 文生图
 
 ```bash
-curl -X POST https://heharse.cloud/v1/images/generations \
+curl -X POST https://heharse.cloud/api/v1/images/generations \
   -H "Authorization: Bearer <YOUR_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -161,7 +161,7 @@ curl -X POST https://heharse.cloud/v1/images/generations \
 #### 请求示例 — 视频生成
 
 ```bash
-curl -X POST https://heharse.cloud/v1/video/generations \
+curl -X POST https://heharse.cloud/api/v1/video/generations \
   -H "Authorization: Bearer <YOUR_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -175,7 +175,7 @@ curl -X POST https://heharse.cloud/v1/video/generations \
 #### 请求示例 — TTS 语音合成
 
 ```bash
-curl -X POST https://heharse.cloud/v1/audio/generations \
+curl -X POST https://heharse.cloud/api/v1/audio/generations \
   -H "Authorization: Bearer <YOUR_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -192,7 +192,7 @@ curl -X POST https://heharse.cloud/v1/audio/generations \
 #### 请求示例 — 音乐生成
 
 ```bash
-curl -X POST https://heharse.cloud/v1/audio/generations \
+curl -X POST https://heharse.cloud/api/v1/audio/generations \
   -H "Authorization: Bearer <YOUR_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{

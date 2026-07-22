@@ -72,7 +72,7 @@ Query 参数：
   "success": true,
   "data": [
     {
-      "url": "https://heharse.cloud/uploads/permanent/image/20260707/abc123.png",
+      "url": "https://heharse.cloud/api/uploads/permanent/image/20260707/abc123.png",
       "filename": "abc123.png",
       "original_name": "cat.jpg",
       "size": 123456,
@@ -286,7 +286,7 @@ func BuildUploadURL(c *gin.Context, relativePath string) string
 2. 拿到 URL
    {
      "success": true,
-     "data": [{"url": "https://heharse.cloud/uploads/permanent/image/20260707/abc123.png"}]
+     "data": [{"url": "https://heharse.cloud/api/uploads/permanent/image/20260707/abc123.png"}]
    }
 
 3. 调用图片/视频生成
@@ -294,7 +294,7 @@ func BuildUploadURL(c *gin.Context, relativePath string) string
    {
      "model": "nano-banana-2",
      "prompt": "把这只猫变成宇航员",
-     "image_urls": ["https://heharse.cloud/uploads/permanent/image/20260707/abc123.png"],
+     "image_urls": ["https://heharse.cloud/api/uploads/permanent/image/20260707/abc123.png"],
      "size": "1K"
    }
 

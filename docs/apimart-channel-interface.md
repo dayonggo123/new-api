@@ -53,7 +53,7 @@ Content-Type: application/json
   "created": 1760759307,
   "data": [
     {
-      "url": "https://heharse.cloud/image-proxy/xxx.png",
+      "url": "https://heharse.cloud/api/image-proxy/xxx.png",
       "revised_prompt": "..."
     }
   ]
@@ -342,7 +342,7 @@ UPLOADS_PUBLIC_URL=https://your-domain.com/uploads/
 ### 图片生成
 
 ```bash
-curl -X POST "https://heharse.cloud/v1/images/generations" \
+curl -X POST "https://heharse.cloud/api/v1/images/generations" \
   -H "Authorization: Bearer sk-xxx" \
   -H "Content-Type: application/json" \
   -d '{
@@ -356,7 +356,7 @@ curl -X POST "https://heharse.cloud/v1/images/generations" \
 ### 视频生成
 
 ```bash
-curl -X POST "https://heharse.cloud/v1/videos/generations" \
+curl -X POST "https://heharse.cloud/api/v1/videos/generations" \
   -H "Authorization: Bearer sk-xxx" \
   -H "Content-Type: application/json" \
   -d '{
@@ -371,6 +371,6 @@ curl -X POST "https://heharse.cloud/v1/videos/generations" \
 ### 任务轮询
 
 ```bash
-curl "https://heharse.cloud/v1/videos/task_xxx" \
+curl "https://heharse.cloud/api/v1/videos/task_xxx" \
   -H "Authorization: Bearer sk-xxx"
 ```

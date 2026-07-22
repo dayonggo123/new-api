@@ -4,7 +4,7 @@
 
 | 项目 | 值 |
 |------|-----|
-| 网关地址 | `https://heharse.cloud` |
+| 网关地址 | `https://heharse.cloud/api` |
 | 认证方式 | `Authorization: Bearer sk-xxx` |
 
 ## 支持模型
@@ -176,7 +176,7 @@ Content-Type: application/json
 
 ### ChatGPT-Next-Web / LobeChat / ChatBox
 
-1. 接口地址：`https://heharse.cloud`
+1. 接口地址：`https://heharse.cloud/api`
 2. API Key：你的令牌
 3. 自定义模型：添加 `nano-banana-pro,nano-banana-2,veo-3.1-fast,veo-3.1-lite,veo-3.1-4k,gemini-3-pro`
 4. 选择模型后正常聊天即可
@@ -187,7 +187,7 @@ Content-Type: application/json
 import requests
 import time
 
-BASE_URL = "https://heharse.cloud"
+BASE_URL = "https://heharse.cloud/api"
 API_KEY = "sk-xxx"
 
 # 1. 提交任务

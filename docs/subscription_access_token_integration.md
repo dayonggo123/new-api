@@ -36,7 +36,7 @@ New-Api-User: {用户ID}
 ### 3.1 获取套餐列表
 
 ```http
-GET https://heharse.cloud/subscription/plans
+GET https://heharse.cloud/api/subscription/plans
 Authorization: Bearer {你的AccessToken}
 New-Api-User: {你的用户ID}
 ```
@@ -86,7 +86,7 @@ New-Api-User: {你的用户ID}
 ### 3.2 查询我的订阅
 
 ```http
-GET https://heharse.cloud/subscription/self
+GET https://heharse.cloud/api/subscription/self
 Authorization: Bearer {你的AccessToken}
 New-Api-User: {你的用户ID}
 ```
@@ -96,7 +96,7 @@ New-Api-User: {你的用户ID}
 ### 3.3 支付下单（Epay）
 
 ```http
-POST https://heharse.cloud/subscription/epay/pay
+POST https://heharse.cloud/api/subscription/epay/pay
 Authorization: Bearer {你的AccessToken}
 New-Api-User: {你的用户ID}
 Content-Type: application/json
@@ -128,7 +128,7 @@ Content-Type: application/json
 ### 3.4 支付下单（Stripe）
 
 ```http
-POST https://heharse.cloud/subscription/stripe/pay
+POST https://heharse.cloud/api/subscription/stripe/pay
 Authorization: Bearer {你的AccessToken}
 New-Api-User: {你的用户ID}
 Content-Type: application/json
@@ -143,7 +143,7 @@ Content-Type: application/json
 ### 3.5 支付下单（Creem）
 
 ```http
-POST https://heharse.cloud/subscription/creem/pay
+POST https://heharse.cloud/api/subscription/creem/pay
 Authorization: Bearer {你的AccessToken}
 New-Api-User: {你的用户ID}
 Content-Type: application/json
@@ -163,7 +163,7 @@ Content-Type: application/json
 import requests
 import time
 
-BASE_URL = "https://heharse.cloud"
+BASE_URL = "https://heharse.cloud/api"
 ACCESS_TOKEN = "你的AccessToken"
 USER_ID = "你的用户ID"
 
@@ -205,7 +205,7 @@ def is_vip():
 ### JavaScript
 
 ```javascript
-const BASE_URL = "https://heharse.cloud";
+const BASE_URL = "https://heharse.cloud/api";
 const ACCESS_TOKEN = "你的AccessToken";
 const USER_ID = "你的用户ID";
 
@@ -232,12 +232,12 @@ async function getMySubscription() {
 # 获取套餐列表
 curl -H "Authorization: Bearer 你的AccessToken" \
      -H "New-Api-User: 你的用户ID" \
-     https://heharse.cloud/subscription/plans
+     https://heharse.cloud/api/subscription/plans
 
 # 查询我的订阅
 curl -H "Authorization: Bearer 你的AccessToken" \
      -H "New-Api-User: 你的用户ID" \
-     https://heharse.cloud/subscription/self
+     https://heharse.cloud/api/subscription/self
 
 # Epay 下单
 curl -X POST \
@@ -245,7 +245,7 @@ curl -X POST \
      -H "New-Api-User: 你的用户ID" \
      -H "Content-Type: application/json" \
      -d '{"plan_id":1,"payment_method":"alipay"}' \
-     https://heharse.cloud/subscription/epay/pay
+     https://heharse.cloud/api/subscription/epay/pay
 ```
 
 ---
