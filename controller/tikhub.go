@@ -716,3 +716,65 @@ func TikHubHotSellingProductsList(c *gin.Context) {
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
+
+// TikHubVideoComments 代理 TikHub 获取单个视频评论数据
+// GET /api/public/tikhub/tiktok/video-comments?aweme_id=xxx&cursor=0&count=20
+func TikHubVideoComments(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	awemeID := c.Query("aweme_id")
+	if awemeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "aweme_id 不能为空",
+		})
+		return
+	}
+
+	// cursor: 分页游标
+	cursor := 0
+	if c := c.Query("cursor"); c != "" {
+		if parsed, err := strconv.Atoi(c); err == nil {
+			cursor = parsed
+		}
+	}
+
+	// count: 数量
+	count := 20
+	if c := c.Query("count"); c != "" {
+		if parsed, err := strconv.Atoi(c); err == nil && parsed > 0 {
+			count = parsed
+		}
+	}
+
+	body, err := service.FetchTikHubVideoComments(c.Request.Context(), awemeID, cursor, count)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "video-comments")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}

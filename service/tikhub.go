@@ -713,3 +713,54 @@ func FetchTikHubHotSellingProductsList(ctx context.Context, region string, count
 
 	return body, nil
 }
+
+// FetchTikHubVideoComments 请求 TikHub 获取单个视频评论数据。
+// endpoint: /api/v1/tiktok/app/v3/fetch_video_comments
+func FetchTikHubVideoComments(ctx context.Context, awemeID string, cursor int, count int) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://api.tikhub.io"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/app/v3/fetch_video_comments")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	q := reqURL.Query()
+	q.Set("aweme_id", awemeID)
+	q.Set("cursor", fmt.Sprintf("%d", cursor))
+	q.Set("count", fmt.Sprintf("%d", count))
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("TikHub video comments API error: status=%d, body=%s", resp.StatusCode, string(body)))
+		return nil, fmt.Errorf("tikhub api returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub video comments fetched: aweme_id=%s, cursor=%d", awemeID, cursor))
+	common.SysLog(fmt.Sprintf("[TikHub] fetched video comments: aweme_id=%s", awemeID))
+
+	return body, nil
+}

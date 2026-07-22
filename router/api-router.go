@@ -618,6 +618,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/public/tikhub/tiktok/product-related-videos", middleware.TokenAuthReadOnly(), controller.TikHubProductRelatedVideos)
 		apiRouter.GET("/public/tikhub/tiktok/trends-hashtag-list", middleware.TokenAuthReadOnly(), controller.TikHubTrendsHashtagList)
 		apiRouter.GET("/public/tikhub/tiktok/hot-selling-products-list", middleware.TokenAuthReadOnly(), controller.TikHubHotSellingProductsList)
+		apiRouter.GET("/public/tikhub/tiktok/video-comments", middleware.TokenAuthReadOnly(), controller.TikHubVideoComments)
 		apiRouter.GET("/admin/tikhub/status", middleware.AdminAuth(), controller.TikHubSettingStatus)
 		apiRouter.GET("/admin/tikhub/prices", middleware.AdminAuth(), controller.GetTikHubPriceConfigs)
 		apiRouter.POST("/admin/tikhub/prices", middleware.AdminAuth(), controller.CreateTikHubPriceConfig)
