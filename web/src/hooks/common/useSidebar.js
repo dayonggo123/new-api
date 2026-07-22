@@ -60,6 +60,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     setting: true,
     ecommerce_wizard: true,
     'tikhub-prices': true,
+    'tiktok-video-download': true,
   },
 };
 

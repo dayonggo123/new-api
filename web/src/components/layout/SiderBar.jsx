@@ -66,6 +66,7 @@ const routerMap = {
   tag: '/console/tag',
   tk_material: '/console/tk-material',
   'tikhub-prices': '/console/setting?tab=tikhub-prices',
+  'tiktok-video-download': '/console/tools/tiktok-video-download',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -178,6 +179,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       { text: t('Banner 管理'), itemKey: 'banner', to: '/banner', tooltip: { content: t('管理 App 顶部全局横幅运营 Banner') } },
       { text: t('安装包管理'), itemKey: 'app_release', to: '/app-release', tooltip: { content: t('管理桌面应用安装包版本，支持多平台上传和下载') } },
       { text: t('TK 素材库'), itemKey: 'tk_material', to: '/tk-material', tooltip: { content: t('管理 TikTok/电商场景图片素材，支持上传和 Notion 导入') } },
+      { text: t('TikTok 视频下载'), itemKey: 'tiktok-video-download', to: '/console/tools/tiktok-video-download', tooltip: { content: t('TikTok 视频无水印下载工具，支持批量下载') } },
       { text: t('TikHub 价格'), itemKey: 'tikhub-prices', to: '/console/setting?tab=tikhub-prices', tooltip: { content: t('管理 TikHub 接口的收费价格配置') } },
       { text: t('用户管理'), itemKey: 'user', to: '/user', tooltip: { content: t('查看和管理注册用户，包括额度、权限、分组') } },
     ].filter((item) => {

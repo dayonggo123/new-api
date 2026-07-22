@@ -30,6 +30,8 @@ import {
   Space,
   Popconfirm,
   Typography,
+  Col,
+  Row,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
@@ -58,24 +60,37 @@ export default function SettingsTikHubPrices(props) {
       width: 180,
     },
     {
-      title: t('描述'),
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
-    },
-    {
-      title: t('价格 (USD)'),
-      dataIndex: 'price',
+      title: t('普通价格'),
       key: 'price',
-      width: 120,
-      render: (price) => `$${price?.toFixed(4) || '0.0000'}`,
+      width: 100,
+      render: (_, record) => (
+        <Space vertical spacing={4} style={{ fontSize: 12 }}>
+          <Text>${record.price?.toFixed(4) || '0.0000'}</Text>
+          <Text type="secondary">免费: {record.free_quota || 0}</Text>
+        </Space>
+      ),
     },
     {
-      title: t('积分'),
-      dataIndex: 'price',
-      key: 'quota',
+      title: t('VIP价格'),
+      key: 'vip_price',
       width: 100,
-      render: (price) => price ? Math.round(price * 100) : 0,
+      render: (_, record) => (
+        <Space vertical spacing={4} style={{ fontSize: 12 }}>
+          <Text>${record.vip_price?.toFixed(4) || '0.0000'}</Text>
+          <Text type="secondary">免费: {record.vip_free_quota || 0}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: t('SVIP价格'),
+      key: 'svip_price',
+      width: 100,
+      render: (_, record) => (
+        <Space vertical spacing={4} style={{ fontSize: 12 }}>
+          <Text>${record.svip_price?.toFixed(4) || '0.0000'}</Text>
+          <Text type="secondary">免费: {record.svip_free_quota || 0}</Text>
+        </Space>
+      ),
     },
     {
       title: t('启用'),
@@ -138,7 +153,12 @@ export default function SettingsTikHubPrices(props) {
       formRef.current.setValues({
         name: record.name,
         description: record.description,
-        price: record.price,
+        price: record.price || 0,
+        vip_price: record.vip_price || 0,
+        svip_price: record.svip_price || 0,
+        free_quota: record.free_quota || 0,
+        vip_free_quota: record.vip_free_quota || 0,
+        svip_free_quota: record.svip_free_quota || 0,
         enabled: record.enabled,
       });
     }, 0);
@@ -153,6 +173,11 @@ export default function SettingsTikHubPrices(props) {
         name: '',
         description: '',
         price: 0.01,
+        vip_price: 0,
+        svip_price: 0,
+        free_quota: 0,
+        vip_free_quota: 0,
+        svip_free_quota: 0,
         enabled: true,
       });
     }, 0);
@@ -234,7 +259,7 @@ export default function SettingsTikHubPrices(props) {
         onOk={handleSubmit}
         okText={t('保存')}
         cancelText={t('取消')}
-        width={500}
+        width={600}
       >
         <Form getFormApi={(formAPI) => (formRef.current = formAPI)}>
           {!editingItem && (
@@ -256,14 +281,82 @@ export default function SettingsTikHubPrices(props) {
             label={t('描述')}
             placeholder={t('接口描述')}
           />
-          <Form.InputNumber
-            field="price"
-            label={t('价格 (USD)')}
-            min={0}
-            step={0.01}
-            precision={4}
-            placeholder={t('例如: 0.01')}
-          />
+
+          <div style={{ margin: '16px 0', borderTop: '1px solid var(--semi-color-border)' }}>
+            <Text strong style={{ display: 'block', margin: '12px 0' }}>{t('普通用户')}</Text>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.InputNumber
+                  field="price"
+                  label={t('价格 (USD)')}
+                  min={0}
+                  step={0.01}
+                  precision={4}
+                  placeholder={t('例如: 0.01')}
+                />
+              </Col>
+              <Col span={12}>
+                <Form.InputNumber
+                  field="free_quota"
+                  label={t('免费条数')}
+                  min={0}
+                  step={1}
+                  placeholder={t('免费调用次数')}
+                />
+              </Col>
+            </Row>
+          </div>
+
+          <div style={{ margin: '16px 0', borderTop: '1px solid var(--semi-color-border)' }}>
+            <Text strong style={{ display: 'block', margin: '12px 0' }}>{t('VIP 用户')}</Text>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.InputNumber
+                  field="vip_price"
+                  label={t('价格 (USD)')}
+                  min={0}
+                  step={0.01}
+                  precision={4}
+                  placeholder={t('VIP 价格')}
+                />
+              </Col>
+              <Col span={12}>
+                <Form.InputNumber
+                  field="vip_free_quota"
+                  label={t('免费条数')}
+                  min={0}
+                  step={1}
+                  placeholder={t('免费调用次数')}
+                />
+              </Col>
+            </Row>
+          </div>
+
+          <div style={{ margin: '16px 0', borderTop: '1px solid var(--semi-color-border)' }}>
+            <Text strong style={{ display: 'block', margin: '12px 0' }}>{t('SVIP 用户')}</Text>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.InputNumber
+                  field="svip_price"
+                  label={t('价格 (USD)')}
+                  min={0}
+                  step={0.01}
+                  precision={4}
+                  placeholder={t('SVIP 价格')}
+                />
+              </Col>
+              <Col span={12}>
+                <Form.InputNumber
+                  field="svip_free_quota"
+                  label={t('免费条数')}
+                  min={0}
+                  step={1}
+                  placeholder={t('免费调用次数')}
+                />
+              </Col>
+            </Row>
+          </div>
+
           <Form.Switch
             field="enabled"
             label={t('启用收费')}

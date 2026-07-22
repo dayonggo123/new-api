@@ -63,10 +63,15 @@ func UpdateTikHubPriceConfig(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string  `json:"name"`
-		Description string  `json:"description"`
-		Price       float64 `json:"price"`
-		Enabled     bool    `json:"enabled"`
+		Name          string  `json:"name"`
+		Description   string  `json:"description"`
+		Price         float64 `json:"price"`
+		VipPrice      float64 `json:"vip_price"`
+		SvipPrice     float64 `json:"svip_price"`
+		FreeQuota     int     `json:"free_quota"`
+		VipFreeQuota  int     `json:"vip_free_quota"`
+		SvipFreeQuota int     `json:"svip_free_quota"`
+		Enabled       bool    `json:"enabled"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -93,6 +98,11 @@ func UpdateTikHubPriceConfig(c *gin.Context) {
 		config.Description = req.Description
 	}
 	config.Price = req.Price
+	config.VipPrice = req.VipPrice
+	config.SvipPrice = req.SvipPrice
+	config.FreeQuota = req.FreeQuota
+	config.VipFreeQuota = req.VipFreeQuota
+	config.SvipFreeQuota = req.SvipFreeQuota
 	config.Enabled = req.Enabled
 
 	if err := config.Update(); err != nil {
@@ -115,11 +125,16 @@ func UpdateTikHubPriceConfig(c *gin.Context) {
 // POST /api/admin/tikhub/prices
 func CreateTikHubPriceConfig(c *gin.Context) {
 	var req struct {
-		Endpoint    string  `json:"endpoint" binding:"required"`
-		Name        string  `json:"name" binding:"required"`
-		Description string  `json:"description"`
-		Price       float64 `json:"price"`
-		Enabled     bool    `json:"enabled"`
+		Endpoint      string  `json:"endpoint" binding:"required"`
+		Name          string  `json:"name" binding:"required"`
+		Description   string  `json:"description"`
+		Price         float64 `json:"price"`
+		VipPrice      float64 `json:"vip_price"`
+		SvipPrice     float64 `json:"svip_price"`
+		FreeQuota     int     `json:"free_quota"`
+		VipFreeQuota  int     `json:"vip_free_quota"`
+		SvipFreeQuota int     `json:"svip_free_quota"`
+		Enabled       bool    `json:"enabled"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -131,11 +146,16 @@ func CreateTikHubPriceConfig(c *gin.Context) {
 	}
 
 	config := model.TikHubPriceConfig{
-		Endpoint:    req.Endpoint,
-		Name:        req.Name,
-		Description: req.Description,
-		Price:       req.Price,
-		Enabled:     req.Enabled,
+		Endpoint:      req.Endpoint,
+		Name:          req.Name,
+		Description:   req.Description,
+		Price:         req.Price,
+		VipPrice:      req.VipPrice,
+		SvipPrice:     req.SvipPrice,
+		FreeQuota:     req.FreeQuota,
+		VipFreeQuota:  req.VipFreeQuota,
+		SvipFreeQuota: req.SvipFreeQuota,
+		Enabled:       req.Enabled,
 	}
 
 	if err := config.Insert(); err != nil {

@@ -14,22 +14,39 @@ import (
 )
 
 // chargeTikHubIfEnabled 如果启用收费则扣费，返回是否成功进行了扣费
-// 美元转积分比例: 1 USD = 100 积分
-const tikhubUSDToQuota = 100
-
+// 根据用户等级（普通/VIP/SVIP/管理员）计算价格
 func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
-	userID := c.GetInt("user_id")
+	userID := c.GetInt("id")
 	if userID == 0 {
 		return false
 	}
 
 	config, err := model.GetTikHubPriceConfigByEndpoint(endpoint)
-	if err != nil || config == nil || config.Price <= 0 {
+	if err != nil || config == nil {
 		return false
 	}
 
-	// 美元转换为积分
-	quota := int(config.Price * tikhubUSDToQuota)
+	// 获取用户等级
+	tier := model.GetUserTikHubTier(userID)
+
+	// 根据用户等级获取价格
+	price, quota, freeQuota, shouldCharge := config.GetTikHubPriceWithTier(tier)
+
+	// 不需要扣费的情况
+	if !shouldCharge {
+		tierName := map[string]string{
+			"root":   "管理员",
+			"admin":  "管理员",
+			"svip":   "SVIP",
+			"vip":    "VIP",
+			"common": "普通用户",
+		}[tier]
+
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("[TikHub] 用户 %d (%s) 调用接口 %s，免费条数: %d", userID, tierName, endpoint, freeQuota))
+		return false
+	}
+
+	// 扣除积分
 	err = model.DecreaseUserQuota(userID, quota, false)
 	if err != nil {
 		logger.LogError(c.Request.Context(), "TikHub扣费失败: "+err.Error())
@@ -37,10 +54,15 @@ func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
 	}
 
 	// 记录使用日志到数据库
-	logContent := fmt.Sprintf("TikHub接口 %s (%.2f USD)", config.Name, config.Price)
+	tierName := map[string]string{
+		"svip":   "SVIP",
+		"vip":    "VIP",
+		"common": "普通用户",
+	}[tier]
+	logContent := fmt.Sprintf("TikHub接口 %s (%s %.2f USD)", config.Name, tierName, price)
 	model.RecordLog(userID, model.LogTypeConsume, logContent)
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("[TikHub] 用户 %d 调用接口 %s，消费 %.2f USD (%d 积分)", userID, endpoint, config.Price, quota))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("[TikHub] 用户 %d (%s) 调用接口 %s，消费 %.2f USD (%d 积分)", userID, tierName, endpoint, price, quota))
 	return true
 }
 

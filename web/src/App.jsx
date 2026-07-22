@@ -56,6 +56,7 @@ import TagManagement from './pages/TagManagement';
 import PopupManagement from './pages/PopupManagement';
 import BannerManagement from './pages/BannerManagement';
 import TKMaterialManagement from './pages/TKMaterialManagement';
+import TikTokVideoDownload from './pages/Tools/TikTokVideoDownload';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
@@ -318,6 +319,14 @@ function App() {
           element={
             <AdminRoute>
               <TKMaterialManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/tools/tiktok-video-download'
+          element={
+            <AdminRoute>
+              <TikTokVideoDownload />
             </AdminRoute>
           }
         />
