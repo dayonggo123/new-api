@@ -21,7 +21,7 @@ func FetchTikHubSingleVideo(ctx context.Context, awemeID string) ([]byte, error)
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/app/v3/fetch_one_video_v2")
@@ -71,7 +71,7 @@ func FetchTikHubTweetDetail(ctx context.Context, tweetID string) ([]byte, error)
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/twitter/web/fetch_tweet_detail")
@@ -120,7 +120,7 @@ func FetchTikHubCommentKeywords(ctx context.Context, itemID string) ([]byte, err
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/analytics/fetch_comment_keywords")
@@ -169,7 +169,7 @@ func FetchTikHubSingleVideoByShareURL(ctx context.Context, shareURL string) ([]b
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/app/v3/fetch_one_video_by_share_url")
@@ -218,7 +218,7 @@ func FetchTikHubMusicChartList(ctx context.Context, scene int, cursor int, count
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/app/v3/fetch_music_chart_list")
@@ -269,7 +269,7 @@ func FetchTikHubTrendingSearchWords(ctx context.Context) ([]byte, error) {
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/web/fetch_trending_searchwords")
@@ -314,7 +314,7 @@ func FetchTikHubAccountHealthStatus(ctx context.Context, cookie string, proxy st
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/creator/get_account_health_status")
@@ -373,7 +373,7 @@ func FetchTikHubAccountInsightsOverview(ctx context.Context, cookie, startDate, 
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/creator/get_account_insights_overview")
@@ -433,7 +433,7 @@ func FetchTikHubVideoAnalyticsSummary(ctx context.Context, cookie, proxy string)
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/creator/get_video_analytics_summary")
@@ -492,7 +492,7 @@ func FetchTikHubProductRelatedVideos(ctx context.Context, cookie, startDate, ite
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/creator/get_product_related_videos")
@@ -554,7 +554,7 @@ func FetchTikHubProductDetail(ctx context.Context, productID string) ([]byte, er
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/app/v3/fetch_product_detail_v2")
@@ -603,7 +603,7 @@ func FetchTikHubTrendsHashtagList(ctx context.Context, timeRange int, countryCod
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/ads/get_trends_hashtag_list")
@@ -666,7 +666,7 @@ func FetchTikHubHotSellingProductsList(ctx context.Context, region string, count
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/shop/web/fetch_hot_selling_products_list")
@@ -720,7 +720,7 @@ func FetchTikHubVideoComments(ctx context.Context, awemeID string, cursor int, c
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/app/v3/fetch_video_comments")
@@ -771,7 +771,7 @@ func FetchTikHubVideoAudienceStats(ctx context.Context, cookie, startDate, itemI
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/creator/get_video_audience_stats")
@@ -831,7 +831,7 @@ func FetchTikHubPostComment(ctx context.Context, awemeID string, cursor int, cou
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
 	if baseURL == "" {
-		baseURL = "https://heharse.cloud/api"
+		baseURL = "https://heharse.cloud"
 	}
 
 	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/web/fetch_post_comment")
