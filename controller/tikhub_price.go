@@ -13,8 +13,19 @@ import (
 
 // GetTikHubPriceConfigs 获取 TikHub 收费配置列表（管理员）
 // GET /api/admin/tikhub/prices
+// 支持 category 参数筛选
 func GetTikHubPriceConfigs(c *gin.Context) {
-	configs, err := model.GetAllTikHubPriceConfigs()
+	category := c.Query("category")
+
+	var configs []*model.TikHubPriceConfig
+	var err error
+
+	if category != "" && category != "all" {
+		err = model.DB.Where("category = ?", category).Order("id ASC").Find(&configs).Error
+	} else {
+		configs, err = model.GetAllTikHubPriceConfigs()
+	}
+
 	if err != nil {
 		logger.LogError(c.Request.Context(), err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -63,8 +74,10 @@ func UpdateTikHubPriceConfig(c *gin.Context) {
 	}
 
 	var req struct {
-		Name          string  `json:"name"`
-		Description   string  `json:"description"`
+		Name           string  `json:"name"`
+		Description    string  `json:"description"`
+		Category      string  `json:"category"`
+		RequiresCookie bool   `json:"requires_cookie"`
 		Price         float64 `json:"price"`
 		VipPrice      float64 `json:"vip_price"`
 		SvipPrice     float64 `json:"svip_price"`
@@ -97,6 +110,10 @@ func UpdateTikHubPriceConfig(c *gin.Context) {
 	if req.Description != "" {
 		config.Description = req.Description
 	}
+	if req.Category != "" {
+		config.Category = req.Category
+	}
+	config.RequiresCookie = req.RequiresCookie
 	config.Price = req.Price
 	config.VipPrice = req.VipPrice
 	config.SvipPrice = req.SvipPrice
@@ -125,16 +142,18 @@ func UpdateTikHubPriceConfig(c *gin.Context) {
 // POST /api/admin/tikhub/prices
 func CreateTikHubPriceConfig(c *gin.Context) {
 	var req struct {
-		Endpoint      string  `json:"endpoint" binding:"required"`
-		Name          string  `json:"name" binding:"required"`
-		Description   string  `json:"description"`
-		Price         float64 `json:"price"`
-		VipPrice      float64 `json:"vip_price"`
-		SvipPrice     float64 `json:"svip_price"`
-		FreeQuota     int     `json:"free_quota"`
-		VipFreeQuota  int     `json:"vip_free_quota"`
-		SvipFreeQuota int     `json:"svip_free_quota"`
-		Enabled       bool    `json:"enabled"`
+		Endpoint        string  `json:"endpoint" binding:"required"`
+		Name            string  `json:"name" binding:"required"`
+		Description     string  `json:"description"`
+		Category        string  `json:"category"`
+		RequiresCookie  bool    `json:"requires_cookie"`
+		Price           float64 `json:"price"`
+		VipPrice        float64 `json:"vip_price"`
+		SvipPrice       float64 `json:"svip_price"`
+		FreeQuota       int     `json:"free_quota"`
+		VipFreeQuota    int     `json:"vip_free_quota"`
+		SvipFreeQuota   int     `json:"svip_free_quota"`
+		Enabled         bool    `json:"enabled"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -146,16 +165,18 @@ func CreateTikHubPriceConfig(c *gin.Context) {
 	}
 
 	config := model.TikHubPriceConfig{
-		Endpoint:      req.Endpoint,
-		Name:          req.Name,
-		Description:   req.Description,
-		Price:         req.Price,
-		VipPrice:      req.VipPrice,
-		SvipPrice:     req.SvipPrice,
-		FreeQuota:     req.FreeQuota,
-		VipFreeQuota:  req.VipFreeQuota,
-		SvipFreeQuota: req.SvipFreeQuota,
-		Enabled:       req.Enabled,
+		Endpoint:        req.Endpoint,
+		Name:            req.Name,
+		Description:     req.Description,
+		Category:        req.Category,
+		RequiresCookie:  req.RequiresCookie,
+		Price:           req.Price,
+		VipPrice:        req.VipPrice,
+		SvipPrice:       req.SvipPrice,
+		FreeQuota:       req.FreeQuota,
+		VipFreeQuota:    req.VipFreeQuota,
+		SvipFreeQuota:   req.SvipFreeQuota,
+		Enabled:         req.Enabled,
 	}
 
 	if err := config.Insert(); err != nil {

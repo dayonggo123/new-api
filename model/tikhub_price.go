@@ -14,6 +14,13 @@ type TikHubPriceConfig struct {
 	Name        string    `json:"name" gorm:"size:100;not null"`                // 接口名称
 	Description string    `json:"description" gorm:"type:text"`                   // 接口描述
 
+	// 分类: video(视频), search(搜索), music(音乐), hashtag(话题), product(商品),
+	//       creator(创作者), ads(广告), trends(趋势), other(其他)
+	Category string `json:"category" gorm:"size:20;default:'other'"`
+
+	// 是否需要 Cookie: true=需要用户自己提供cookie, false=不需要
+	RequiresCookie bool `json:"requires_cookie" gorm:"default:false"`
+
 	// 普通用户价格
 	Price float64 `json:"price" gorm:"default:0"` // 单次调用价格(美元)
 
@@ -205,25 +212,69 @@ func (config *TikHubPriceConfig) GetTikHubPriceWithTier(tier string) (price floa
 func InitDefaultTikHubPriceConfigs() error {
 	// 价格单位：美元 (USD)
 	// 实际扣费 = 价格 * 100 积分
+	// Category: video(视频), search(搜索), music(音乐), hashtag(话题), product(商品), creator(创作者), ads(广告), trends(趋势), other(其他)
 	defaultConfigs := []TikHubPriceConfig{
-		{Endpoint: "video", Name: "获取单个视频数据", Description: "通过 aweme_id 获取视频数据", Price: 0.01, Enabled: true},
-		{Endpoint: "video-by-share-url", Name: "通过分享链接获取视频", Description: "通过分享链接获取视频数据", Price: 0.01, Enabled: true},
-		{Endpoint: "video-comments", Name: "获取视频评论", Description: "获取单个视频评论数据", Price: 0.02, Enabled: true},
-		{Endpoint: "post-comment", Name: "获取作品评论列表", Description: "获取作品评论列表(Web)", Price: 0.02, Enabled: true},
-		{Endpoint: "comment-keywords", Name: "评论关键词分析", Description: "分析视频评论中的热门关键词", Price: 0.02, Enabled: true},
-		{Endpoint: "music-chart-list", Name: "音乐排行榜", Description: "获取热门音乐排行榜", Price: 0.01, Enabled: true},
-		{Endpoint: "trending-search-words", Name: "每日趋势搜索词", Description: "获取每日趋势搜索关键词", Price: 0.01, Enabled: true},
-		{Endpoint: "product", Name: "商品详情", Description: "获取 TikTok 商品详情", Price: 0.02, Enabled: true},
-		{Endpoint: "account-health-status", Name: "账号健康状态", Description: "获取创作者账号健康状态(违规积分)", Price: 0.03, Enabled: true},
-		{Endpoint: "account-insights-overview", Name: "账号概览", Description: "获取创作者账号表现概览", Price: 0.03, Enabled: true},
-		{Endpoint: "video-analytics-summary", Name: "视频概览", Description: "获取创作者视频表现概览", Price: 0.03, Enabled: true},
-		{Endpoint: "video-audience-stats", Name: "视频受众分析", Description: "获取视频受众分析数据(性别/年龄/地区分布)", Price: 0.03, Enabled: true},
-		{Endpoint: "product-related-videos", Name: "同款商品关联视频", Description: "获取同款商品关联视频列表", Price: 0.02, Enabled: true},
-		{Endpoint: "trends-hashtag-list", Name: "热门标签榜单", Description: "获取热门标签排行榜", Price: 0.01, Enabled: true},
-		{Endpoint: "hot-selling-products-list", Name: "热卖商品列表", Description: "获取 TikTok Shop 热卖商品列表", Price: 0.01, Enabled: true},
-		{Endpoint: "video-metrics", Name: "视频统计数据", Description: "获取视频观看量、点赞、评论、收藏等统计数据", Price: 0.03, Enabled: true},
-		{Endpoint: "detect-fake-views", Name: "虚假流量检测", Description: "检测视频虚假流量分析，评估流量质量", Price: 0.05, Enabled: true},
-		{Endpoint: "creator-info-milestones", Name: "创作者信息与里程碑", Description: "获取创作者基本信息和成长里程碑", Price: 0.03, Enabled: true},
+		// 视频相关
+		{Endpoint: "video", Name: "获取单个视频数据", Description: "通过 aweme_id 获取视频数据", Category: "video", Price: 0.01, Enabled: true},
+		{Endpoint: "video-by-share-url", Name: "通过分享链接获取视频", Description: "通过分享链接获取视频数据", Category: "video", Price: 0.01, Enabled: true},
+		{Endpoint: "video-comments", Name: "获取视频评论", Description: "获取单个视频评论数据", Category: "video", Price: 0.02, Enabled: true},
+		{Endpoint: "post-comment", Name: "获取作品评论列表", Description: "获取作品评论列表(Web)", Category: "video", Price: 0.02, Enabled: true},
+		{Endpoint: "video-metrics", Name: "视频统计数据", Description: "获取视频观看量、点赞、评论、收藏等统计数据", Category: "video", Price: 0.03, Enabled: true},
+		{Endpoint: "detect-fake-views", Name: "虚假流量检测", Description: "检测视频虚假流量分析，评估流量质量", Category: "video", Price: 0.05, Enabled: true},
+		{Endpoint: "video-audience-stats", Name: "视频受众分析", Description: "获取视频受众分析数据(性别/年龄/地区分布)", Category: "video", RequiresCookie: true, Price: 0.03, Enabled: true},
+
+		// 搜索相关
+		{Endpoint: "general-search-result", Name: "综合搜索", Description: "获取指定关键词的综合搜索结果", Category: "search", Price: 0.02, Enabled: true},
+		{Endpoint: "video-search-result", Name: "视频搜索", Description: "获取指定关键词的视频搜索结果", Category: "search", Price: 0.02, Enabled: true},
+		{Endpoint: "user-search-result", Name: "用户搜索", Description: "获取指定关键词的用户搜索结果", Category: "search", Price: 0.02, Enabled: true},
+		{Endpoint: "music-search-result", Name: "音乐搜索", Description: "获取指定关键词的音乐搜索结果", Category: "search", Price: 0.02, Enabled: true},
+		{Endpoint: "hashtag-search-result", Name: "话题搜索", Description: "获取指定关键词的话题搜索结果", Category: "search", Price: 0.02, Enabled: true},
+		{Endpoint: "trending-search-words", Name: "每日趋势搜索词", Description: "获取每日趋势搜索关键词", Category: "search", Price: 0.01, Enabled: true},
+		{Endpoint: "user-country-by-username", Name: "用户国家地区", Description: "通过用户名获取用户账号国家地区", Category: "search", Price: 0.01, Enabled: true},
+
+		// 音乐相关
+		{Endpoint: "music-detail", Name: "音乐详情", Description: "获取指定音乐的详情数据", Category: "music", Price: 0.02, Enabled: true},
+		{Endpoint: "music-video-list", Name: "音乐视频列表", Description: "获取指定音乐的视频列表数据", Category: "music", Price: 0.02, Enabled: true},
+		{Endpoint: "music-chart-list", Name: "音乐排行榜", Description: "获取热门音乐排行榜", Category: "music", Price: 0.01, Enabled: true},
+
+		// 话题相关
+		{Endpoint: "hashtag-detail", Name: "话题详情", Description: "获取指定话题的详情数据", Category: "hashtag", Price: 0.02, Enabled: true},
+		{Endpoint: "hashtag-video-list", Name: "话题视频列表", Description: "获取指定话题的作品数据", Category: "hashtag", Price: 0.02, Enabled: true},
+
+		// 商品相关
+		{Endpoint: "product", Name: "商品详情", Description: "获取 TikTok 商品详情", Category: "product", Price: 0.02, Enabled: true},
+		{Endpoint: "shop-product-detail", Name: "商品详情V1", Description: "获取TikTok Shop商品详情V1(桌面端-数据完整)", Category: "product", Price: 0.03, Enabled: true},
+		{Endpoint: "product-reviews-v1", Name: "商品评论V1", Description: "获取TikTok Shop商品评论V1", Category: "product", Price: 0.02, Enabled: true},
+		{Endpoint: "product-reviews-v2", Name: "商品评论V2", Description: "获取TikTok Shop商品评论V2(更完整数据)", Category: "product", Price: 0.02, Enabled: true},
+		{Endpoint: "seller-products-list", Name: "商家商品列表", Description: "获取指定商家的商品列表", Category: "product", Price: 0.02, Enabled: true},
+		{Endpoint: "search-products-list", Name: "搜索商品列表", Description: "根据关键词搜索商品列表", Category: "product", Price: 0.02, Enabled: true},
+		{Endpoint: "hot-selling-products-list-v1", Name: "热卖商品列表V1", Description: "获取TikTok Shop热卖商品列表", Category: "product", Price: 0.02, Enabled: true},
+		{Endpoint: "hot-selling-products-list", Name: "热卖商品列表", Description: "获取 TikTok Shop 热卖商品列表", Category: "product", Price: 0.01, Enabled: true},
+		{Endpoint: "product-related-videos", Name: "同款商品关联视频", Description: "获取同款商品关联视频列表", Category: "product", Price: 0.02, Enabled: true},
+		{Endpoint: "product-analytics-list", Name: "商品列表分析", Description: "获取创作者推广商品列表及销售数据", Category: "product", RequiresCookie: true, Price: 0.04, Enabled: true},
+
+		// 创作者相关
+		{Endpoint: "creator-search-insights", Name: "创作者搜索洞察", Description: "获取创作者搜索洞察数据", Category: "creator", Price: 0.03, Enabled: true},
+		{Endpoint: "creator-search-insights-detail", Name: "创作者搜索洞察详情", Description: "获取创作者搜索洞察详情数据", Category: "creator", Price: 0.03, Enabled: true},
+		{Endpoint: "creator-search-insights-videos", Name: "创作者搜索洞察视频", Description: "获取创作者搜索洞察相关视频", Category: "creator", Price: 0.03, Enabled: true},
+		{Endpoint: "creator-info-milestones", Name: "创作者信息与里程碑", Description: "获取创作者基本信息和成长里程碑", Category: "creator", Price: 0.03, Enabled: true},
+		{Endpoint: "account-health-status", Name: "账号健康状态", Description: "获取创作者账号健康状态(违规积分)", Category: "creator", RequiresCookie: true, Price: 0.03, Enabled: true},
+		{Endpoint: "account-insights-overview", Name: "账号概览", Description: "获取创作者账号表现概览", Category: "creator", RequiresCookie: true, Price: 0.03, Enabled: true},
+		{Endpoint: "account-violation-list", Name: "账号违规记录列表", Description: "获取创作者账号违规记录列表", Category: "creator", RequiresCookie: true, Price: 0.03, Enabled: true},
+		{Endpoint: "video-analytics-summary", Name: "视频概览", Description: "获取创作者视频表现概览", Category: "creator", RequiresCookie: true, Price: 0.03, Enabled: true},
+		{Endpoint: "video-list-analytics", Name: "视频列表分析", Description: "获取创作者视频列表及详细数据", Category: "creator", RequiresCookie: true, Price: 0.04, Enabled: true},
+		{Endpoint: "comment-keywords", Name: "评论关键词分析", Description: "分析视频评论中的热门关键词", Category: "creator", Price: 0.02, Enabled: true},
+
+		// 趋势相关
+		{Endpoint: "trends-hashtag-list", Name: "热门标签榜单", Description: "获取热门标签排行榜", Category: "trends", Price: 0.01, Enabled: true},
+
+		// 广告相关
+		{Endpoint: "ads-search-ads", Name: "搜索广告", Description: "搜索TikTok广告创意库中的广告", Category: "ads", Price: 0.02, Enabled: true},
+		{Endpoint: "ads-top-ads-spotlight", Name: "热门广告聚光灯", Description: "获取特定行业的热门广告聚光灯", Category: "ads", Price: 0.02, Enabled: true},
+		{Endpoint: "ads-ad-keyframe-analysis", Name: "广告关键帧分析", Description: "获取广告视频的关键帧分析", Category: "ads", Price: 0.03, Enabled: true},
+		{Endpoint: "ads-ad-percentile", Name: "广告百分位数据", Description: "获取广告在同行业中的百分位排名数据", Category: "ads", Price: 0.03, Enabled: true},
+		{Endpoint: "ads-ad-interactive-analysis", Name: "广告互动分析", Description: "获取广告的互动时间分析", Category: "ads", Price: 0.03, Enabled: true},
+		{Endpoint: "ads-trends-hashtag-detail", Name: "热门标签详情", Description: "获取热门标签的详细数据", Category: "ads", Price: 0.02, Enabled: true},
 	}
 
 	for _, c := range defaultConfigs {

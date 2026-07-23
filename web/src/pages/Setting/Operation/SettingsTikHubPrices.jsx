@@ -32,11 +32,38 @@ import {
   Typography,
   Col,
   Row,
+  Select,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
+
+// 分类选项
+const CATEGORY_OPTIONS = [
+  { value: 'video', label: '视频' },
+  { value: 'search', label: '搜索' },
+  { value: 'music', label: '音乐' },
+  { value: 'hashtag', label: '话题' },
+  { value: 'product', label: '商品' },
+  { value: 'creator', label: '创作者' },
+  { value: 'ads', label: '广告' },
+  { value: 'trends', label: '趋势' },
+  { value: 'other', label: '其他' },
+];
+
+// 分类标签颜色
+const CATEGORY_COLORS = {
+  video: 'blue',
+  search: 'cyan',
+  music: 'purple',
+  hashtag: 'orange',
+  product: 'green',
+  creator: 'pink',
+  ads: 'red',
+  trends: 'yellow',
+  other: 'grey',
+};
 
 export default function SettingsTikHubPrices(props) {
   const { t } = useTranslation();
@@ -44,6 +71,7 @@ export default function SettingsTikHubPrices(props) {
   const [data, setData] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [category, setCategory] = useState('all');
   const formRef = useRef();
 
   const columns = [
@@ -57,7 +85,32 @@ export default function SettingsTikHubPrices(props) {
       title: t('接口名称'),
       dataIndex: 'name',
       key: 'name',
-      width: 180,
+      width: 160,
+    },
+    {
+      title: t('分类'),
+      dataIndex: 'category',
+      key: 'category',
+      width: 100,
+      render: (category) => {
+        const option = CATEGORY_OPTIONS.find(opt => opt.value === category);
+        return (
+          <Tag color={CATEGORY_COLORS[category] || 'grey'}>
+            {option?.label || category || t('其他')}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: t('需要Cookie'),
+      dataIndex: 'requires_cookie',
+      key: 'requires_cookie',
+      width: 90,
+      render: (requiresCookie) => (
+        <Tag color={requiresCookie ? 'red' : 'green'}>
+          {requiresCookie ? t('是') : t('否')}
+        </Tag>
+      ),
     },
     {
       title: t('普通价格'),
@@ -130,7 +183,8 @@ export default function SettingsTikHubPrices(props) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/admin/tikhub/prices');
+      const params = category !== 'all' ? `?category=${category}` : '';
+      const res = await API.get(`/api/admin/tikhub/prices${params}`);
       if (res.data.success) {
         setData(res.data.data || []);
       } else {
@@ -145,7 +199,7 @@ export default function SettingsTikHubPrices(props) {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [category]);
 
   const handleEdit = (record) => {
     setEditingItem(record);
@@ -153,6 +207,8 @@ export default function SettingsTikHubPrices(props) {
       formRef.current.setValues({
         name: record.name,
         description: record.description,
+        category: record.category || 'other',
+        requires_cookie: record.requires_cookie || false,
         price: record.price || 0,
         vip_price: record.vip_price || 0,
         svip_price: record.svip_price || 0,
@@ -172,6 +228,8 @@ export default function SettingsTikHubPrices(props) {
         endpoint: '',
         name: '',
         description: '',
+        category: 'other',
+        requires_cookie: false,
         price: 0.01,
         vip_price: 0,
         svip_price: 0,
@@ -237,6 +295,19 @@ export default function SettingsTikHubPrices(props) {
     <>
       <div style={{ marginBottom: 16 }}>
         <Space>
+          <Select
+            value={category}
+            onChange={setCategory}
+            style={{ width: 150 }}
+            placeholder={t('选择分类')}
+          >
+            <Select.Option value="all">{t('全部分类')}</Select.Option>
+            {CATEGORY_OPTIONS.map(opt => (
+              <Select.Option key={opt.value} value={opt.value}>
+                {opt.label}
+              </Select.Option>
+            ))}
+          </Select>
           <Button type="primary" onClick={handleAdd}>
             {t('新增配置')}
           </Button>
@@ -280,6 +351,27 @@ export default function SettingsTikHubPrices(props) {
             field="description"
             label={t('描述')}
             placeholder={t('接口描述')}
+          />
+
+          <Form.Select
+            field="category"
+            label={t('分类')}
+            placeholder={t('选择分类')}
+            style={{ width: '100%' }}
+          >
+            {CATEGORY_OPTIONS.map(opt => (
+              <Select.Option key={opt.value} value={opt.value}>
+                {opt.label}
+              </Select.Option>
+            ))}
+          </Form.Select>
+
+          <Form.Switch
+            field="requires_cookie"
+            label={t('需要Cookie')}
+            checkedText={t('是')}
+            uncheckedText={t('否')}
+            extra={t('开启后需要用户自行提供Cookie才能调用此接口')}
           />
 
           <div style={{ margin: '16px 0', borderTop: '1px solid var(--semi-color-border)' }}>
