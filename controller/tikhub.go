@@ -1036,3 +1036,49 @@ func TikHubDetectFakeViews(c *gin.Context) {
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
+
+// TikHubCreatorInfoAndMilestones 代理 TikHub 获取创作者信息和里程碑数据
+// GET /api/public/tikhub/tiktok/creator-info-milestones?user_id=xxx
+func TikHubCreatorInfoAndMilestones(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	userID := c.Query("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "user_id 不能为空",
+		})
+		return
+	}
+
+	body, err := service.FetchTikHubCreatorInfoAndMilestones(c.Request.Context(), userID)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "creator-info-milestones")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}

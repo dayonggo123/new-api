@@ -621,6 +621,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/tikhub/tiktok/video-comments", middleware.TokenAuthReadOnly(), controller.TikHubVideoComments)
 		apiRouter.GET("/public/tikhub/tiktok/video-metrics", middleware.TokenAuthReadOnly(), controller.TikHubVideoMetrics)
 		apiRouter.GET("/public/tikhub/tiktok/detect-fake-views", middleware.TokenAuthReadOnly(), controller.TikHubDetectFakeViews)
+		apiRouter.GET("/public/tikhub/tiktok/creator-info-milestones", middleware.TokenAuthReadOnly(), controller.TikHubCreatorInfoAndMilestones)
 		apiRouter.POST("/public/tikhub/tiktok/video-audience-stats", middleware.TokenAuthReadOnly(), controller.TikHubVideoAudienceStats)
 		apiRouter.GET("/public/tikhub/tiktok/post-comment", middleware.TokenAuthReadOnly(), controller.TikHubPostComment)
 

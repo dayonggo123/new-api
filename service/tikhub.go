@@ -979,3 +979,52 @@ func FetchTikHubDetectFakeViews(ctx context.Context, itemID string, contentCateg
 
 	return body, nil
 }
+
+// FetchTikHubCreatorInfoAndMilestones 请求 TikHub 获取创作者信息和里程碑数据。
+// endpoint: /api/v1/tiktok/analytics/fetch_creator_info_and_milestones
+func FetchTikHubCreatorInfoAndMilestones(ctx context.Context, userID string) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://heharse.cloud"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/analytics/fetch_creator_info_and_milestones")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	q := reqURL.Query()
+	q.Set("user_id", userID)
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("TikHub creator info and milestones API error: status=%d, body=%s", resp.StatusCode, string(body)))
+		return nil, fmt.Errorf("tikhub api returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub creator info and milestones fetched: user_id=%s", userID))
+	common.SysLog(fmt.Sprintf("[TikHub] fetched creator info and milestones: user_id=%s", userID))
+
+	return body, nil
+}
