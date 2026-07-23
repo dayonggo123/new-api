@@ -221,6 +221,7 @@ func InitDefaultTikHubPriceConfigs() error {
 		{Endpoint: "product-related-videos", Name: "同款商品关联视频", Description: "获取同款商品关联视频列表", Price: 0.02, Enabled: true},
 		{Endpoint: "trends-hashtag-list", Name: "热门标签榜单", Description: "获取热门标签排行榜", Price: 0.01, Enabled: true},
 		{Endpoint: "hot-selling-products-list", Name: "热卖商品列表", Description: "获取 TikTok Shop 热卖商品列表", Price: 0.01, Enabled: true},
+		{Endpoint: "video-metrics", Name: "视频统计数据", Description: "获取视频观看量、点赞、评论、收藏等统计数据", Price: 0.03, Enabled: true},
 	}
 
 	for _, c := range defaultConfigs {

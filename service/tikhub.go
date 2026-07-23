@@ -878,3 +878,52 @@ func FetchTikHubPostComment(ctx context.Context, awemeID string, cursor int, cou
 
 	return body, nil
 }
+
+// FetchTikHubVideoMetrics 请求 TikHub 获取视频统计数据。
+// endpoint: /api/v1/tiktok/analytics/fetch_video_metrics
+func FetchTikHubVideoMetrics(ctx context.Context, itemID string) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://heharse.cloud"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/analytics/fetch_video_metrics")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	q := reqURL.Query()
+	q.Set("item_id", itemID)
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("TikHub video metrics API error: status=%d, body=%s", resp.StatusCode, string(body)))
+		return nil, fmt.Errorf("tikhub api returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub video metrics fetched: item_id=%s", itemID))
+	common.SysLog(fmt.Sprintf("[TikHub] fetched video metrics: item_id=%s", itemID))
+
+	return body, nil
+}

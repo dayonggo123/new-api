@@ -942,3 +942,49 @@ func TikHubPostComment(c *gin.Context) {
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
+
+// TikHubVideoMetrics 代理 TikHub 获取视频统计数据
+// GET /api/public/tikhub/tiktok/video-metrics?item_id=xxx
+func TikHubVideoMetrics(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	itemID := c.Query("item_id")
+	if itemID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "item_id 不能为空",
+		})
+		return
+	}
+
+	body, err := service.FetchTikHubVideoMetrics(c.Request.Context(), itemID)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "video-metrics")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}
