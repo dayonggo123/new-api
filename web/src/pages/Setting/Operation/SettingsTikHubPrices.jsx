@@ -74,6 +74,7 @@ export default function SettingsTikHubPrices(props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [category, setCategory] = useState('all');
+  const [testingId, setTestingId] = useState(null);
   const formRef = useRef();
 
   const columns = [
@@ -161,9 +162,17 @@ export default function SettingsTikHubPrices(props) {
     {
       title: t('操作'),
       key: 'action',
-      width: 150,
+      width: 220,
       render: (text, record) => (
         <Space>
+          <Button
+            type="primary"
+            size="small"
+            onClick={() => handleTest(record)}
+            loading={testingId === record.id}
+          >
+            {t('测试')}
+          </Button>
           <Button type="primary" size="small" onClick={() => handleEdit(record)}>
             {t('编辑')}
           </Button>
@@ -276,6 +285,25 @@ export default function SettingsTikHubPrices(props) {
       }
     } catch (error) {
       showError(t('删除失败'));
+    }
+  };
+
+  const handleTest = async (record) => {
+    setTestingId(record.id);
+    try {
+      const res = await API.post('/api/admin/tikhub/prices/test', {
+        endpoint: record.endpoint,
+        params: {},
+      });
+      if (res.data.success) {
+        showSuccess(t('测试成功'));
+      } else {
+        showError(res.data.message || t('测试失败'));
+      }
+    } catch (error) {
+      showError(t('测试失败'));
+    } finally {
+      setTestingId(null);
     }
   };
 

@@ -1,0 +1,453 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-07-23",
+  "base_url": "https://your-domain.com/api",
+  "auth": {
+    "type": "bearer_token",
+    "header": "Authorization",
+    "format": "Bearer {token}"
+  },
+  "price_unit": "USD",
+  "categories": [
+    {
+      "name": "视频",
+      "code": "video",
+      "color": "blue"
+    },
+    {
+      "name": "搜索",
+      "code": "search",
+      "color": "cyan"
+    },
+    {
+      "name": "音乐",
+      "code": "music",
+      "color": "purple"
+    },
+    {
+      "name": "话题",
+      "code": "hashtag",
+      "color": "orange"
+    },
+    {
+      "name": "商品",
+      "code": "product",
+      "color": "green"
+    },
+    {
+      "name": "创作者",
+      "code": "creator",
+      "color": "pink"
+    },
+    {
+      "name": "趋势",
+      "code": "trends",
+      "color": "yellow"
+    },
+    {
+      "name": "广告",
+      "code": "ads",
+      "color": "red"
+    },
+    {
+      "name": "整合报告",
+      "code": "report",
+      "color": "teal"
+    },
+    {
+      "name": "其他",
+      "code": "other",
+      "color": "grey"
+    }
+  ],
+  "endpoints": [
+    {
+      "endpoint": "video",
+      "name": "获取单个视频数据",
+      "route": "/api/public/tikhub/tiktok/video",
+      "method": "GET",
+      "category": "video",
+      "price": 0.01,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "aweme_id", "required": true, "type": "string", "description": "视频ID"}
+      ]
+    },
+    {
+      "endpoint": "video-by-share-url",
+      "name": "通过分享链接获取视频",
+      "route": "/api/public/tikhub/tiktok/video-by-share-url",
+      "method": "GET",
+      "category": "video",
+      "price": 0.01,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "share_url", "required": true, "type": "string", "description": "视频分享链接"}
+      ]
+    },
+    {
+      "endpoint": "video-comments",
+      "name": "获取视频评论",
+      "route": "/api/public/tikhub/tiktok/video-comments",
+      "method": "GET",
+      "category": "video",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "aweme_id", "required": true, "type": "string", "description": "视频ID"},
+        {"name": "cursor", "required": false, "type": "int", "description": "分页游标"},
+        {"name": "count", "required": false, "type": "int", "description": "每页数量"}
+      ]
+    },
+    {
+      "endpoint": "video-metrics",
+      "name": "视频统计数据",
+      "route": "/api/public/tikhub/tiktok/video-metrics",
+      "method": "GET",
+      "category": "video",
+      "price": 0.03,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "aweme_id", "required": true, "type": "string", "description": "视频ID"}
+      ]
+    },
+    {
+      "endpoint": "detect-fake-views",
+      "name": "虚假流量检测",
+      "route": "/api/public/tikhub/tiktok/detect-fake-views",
+      "method": "GET",
+      "category": "video",
+      "price": 0.05,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "aweme_id", "required": true, "type": "string", "description": "视频ID"}
+      ]
+    },
+    {
+      "endpoint": "video-audience-stats",
+      "name": "视频受众分析",
+      "route": "/api/public/tikhub/tiktok/video-audience-stats",
+      "method": "POST",
+      "category": "video",
+      "price": 0.03,
+      "requires_cookie": true,
+      "enabled": true,
+      "params": [
+        {"name": "cookie", "required": true, "type": "string", "description": "TikTok Cookie"},
+        {"name": "item_id", "required": false, "type": "string", "description": "视频ID"}
+      ]
+    },
+    {
+      "endpoint": "general-search-result",
+      "name": "综合搜索",
+      "route": "/api/public/tikhub/tiktok/general-search-result",
+      "method": "GET",
+      "category": "search",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "keyword", "required": true, "type": "string", "description": "搜索关键词"}
+      ]
+    },
+    {
+      "endpoint": "video-search-result",
+      "name": "视频搜索",
+      "route": "/api/public/tikhub/tiktok/video-search-result",
+      "method": "GET",
+      "category": "search",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "keyword", "required": true, "type": "string", "description": "搜索关键词"}
+      ]
+    },
+    {
+      "endpoint": "trending-search-words",
+      "name": "每日趋势搜索词",
+      "route": "/api/public/tikhub/tiktok/trending-search-words",
+      "method": "GET",
+      "category": "search",
+      "price": 0.01,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": []
+    },
+    {
+      "endpoint": "music-chart-list",
+      "name": "音乐排行榜",
+      "route": "/api/public/tikhub/tiktok/music-chart-list",
+      "method": "GET",
+      "category": "music",
+      "price": 0.01,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": []
+    },
+    {
+      "endpoint": "hashtag-detail",
+      "name": "话题详情",
+      "route": "/api/public/tikhub/tiktok/hashtag-detail",
+      "method": "GET",
+      "category": "hashtag",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "hashtag_id", "required": true, "type": "string", "description": "话题ID"}
+      ]
+    },
+    {
+      "endpoint": "product",
+      "name": "商品详情",
+      "route": "/api/public/tikhub/tiktok/product",
+      "method": "GET",
+      "category": "product",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "product_id", "required": true, "type": "string", "description": "商品ID"}
+      ]
+    },
+    {
+      "endpoint": "hot-selling-products-list",
+      "name": "热卖商品列表",
+      "route": "/api/public/tikhub/tiktok/hot-selling-products-list",
+      "method": "GET",
+      "category": "product",
+      "price": 0.01,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "region", "required": false, "type": "string", "default": "US", "description": "地区代码"}
+      ]
+    },
+    {
+      "endpoint": "search-products-list",
+      "name": "搜索商品列表",
+      "route": "/api/public/tikhub/tiktok/search-products-list",
+      "method": "GET",
+      "category": "product",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "keyword", "required": true, "type": "string", "description": "搜索关键词"}
+      ]
+    },
+    {
+      "endpoint": "seller-products-list",
+      "name": "商家商品列表",
+      "route": "/api/public/tikhub/tiktok/seller-products-list",
+      "method": "GET",
+      "category": "product",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "seller_id", "required": true, "type": "string", "description": "商家ID"}
+      ]
+    },
+    {
+      "endpoint": "account-insights-overview",
+      "name": "账号概览",
+      "route": "/api/public/tikhub/tiktok/account-insights-overview",
+      "method": "POST",
+      "category": "creator",
+      "price": 0.03,
+      "requires_cookie": true,
+      "enabled": true,
+      "params": [
+        {"name": "cookie", "required": true, "type": "string", "description": "TikTok Cookie"}
+      ]
+    },
+    {
+      "endpoint": "account-health-status",
+      "name": "账号健康状态",
+      "route": "/api/public/tikhub/tiktok/account-health-status",
+      "method": "POST",
+      "category": "creator",
+      "price": 0.03,
+      "requires_cookie": true,
+      "enabled": true,
+      "params": [
+        {"name": "cookie", "required": true, "type": "string", "description": "TikTok Cookie"}
+      ]
+    },
+    {
+      "endpoint": "trends-hashtag-list",
+      "name": "热门标签榜单",
+      "route": "/api/public/tikhub/tiktok/trends-hashtag-list",
+      "method": "GET",
+      "category": "trends",
+      "price": 0.01,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "country_code", "required": false, "type": "string", "default": "US", "description": "国家代码"},
+        {"name": "time_range", "required": false, "type": "int", "default": 7, "description": "时间范围(天)"}
+      ]
+    },
+    {
+      "endpoint": "ads-search-ads",
+      "name": "搜索广告",
+      "route": "/api/public/tikhub/tiktok/ads/search-ads",
+      "method": "GET",
+      "category": "ads",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "keyword", "required": false, "type": "string", "description": "搜索关键词"},
+        {"name": "industry", "required": false, "type": "string", "description": "行业ID"},
+        {"name": "country_code", "required": false, "type": "string", "default": "US", "description": "国家代码"},
+        {"name": "period", "required": false, "type": "int", "default": 180, "description": "时间范围(天)"}
+      ]
+    },
+    {
+      "endpoint": "ads-top-ads-spotlight",
+      "name": "热门广告聚光灯",
+      "route": "/api/public/tikhub/tiktok/ads/top-ads-spotlight",
+      "method": "GET",
+      "category": "ads",
+      "price": 0.02,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "industry", "required": false, "type": "string", "description": "行业ID"}
+      ]
+    },
+    {
+      "endpoint": "ads-ad-keyframe-analysis",
+      "name": "广告关键帧分析",
+      "route": "/api/public/tikhub/tiktok/ads/ad-keyframe-analysis",
+      "method": "GET",
+      "category": "ads",
+      "price": 0.03,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "material_id", "required": true, "type": "string", "description": "广告素材ID"},
+        {"name": "metric", "required": false, "type": "string", "default": "retain_ctr", "description": "分析指标"}
+      ]
+    },
+    {
+      "endpoint": "ads-ad-percentile",
+      "name": "广告百分位数据",
+      "route": "/api/public/tikhub/tiktok/ads/ad-percentile",
+      "method": "GET",
+      "category": "ads",
+      "price": 0.03,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "material_id", "required": true, "type": "string", "description": "广告素材ID"}
+      ]
+    },
+    {
+      "endpoint": "ads-ad-interactive-analysis",
+      "name": "广告互动分析",
+      "route": "/api/public/tikhub/tiktok/ads/ad-interactive-analysis",
+      "method": "GET",
+      "category": "ads",
+      "price": 0.03,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "material_id", "required": true, "type": "string", "description": "广告素材ID"}
+      ]
+    },
+    {
+      "endpoint": "report-product-analysis",
+      "name": "商品分析报告",
+      "route": "/api/public/tikhub/report/product-analysis",
+      "method": "GET",
+      "category": "report",
+      "price": 0.10,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "product_id", "required": true, "type": "string", "description": "商品ID"},
+        {"name": "region", "required": false, "type": "string", "default": "US", "description": "地区代码"}
+      ]
+    },
+    {
+      "endpoint": "report-creator-diagnosis",
+      "name": "创作者诊断报告",
+      "route": "/api/public/tikhub/report/creator-diagnosis",
+      "method": "POST",
+      "category": "report",
+      "price": 0.15,
+      "requires_cookie": true,
+      "enabled": true,
+      "params": [
+        {"name": "cookie", "required": true, "type": "string", "description": "TikTok Cookie"},
+        {"name": "proxy", "required": false, "type": "string", "description": "代理地址"}
+      ]
+    },
+    {
+      "endpoint": "report-ad-creative-analysis",
+      "name": "广告创意分析报告",
+      "route": "/api/public/tikhub/report/ad-creative-analysis",
+      "method": "GET",
+      "category": "report",
+      "price": 0.12,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "material_id", "required": true, "type": "string", "description": "广告素材ID"},
+        {"name": "industry", "required": false, "type": "string", "description": "行业ID"}
+      ]
+    },
+    {
+      "endpoint": "report-content-trends",
+      "name": "内容趋势报告",
+      "route": "/api/public/tikhub/report/content-trends",
+      "method": "GET",
+      "category": "report",
+      "price": 0.08,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "country_code", "required": false, "type": "string", "default": "US", "description": "国家代码"},
+        {"name": "time_range", "required": false, "type": "int", "default": 7, "description": "时间范围(天)"}
+      ]
+    },
+    {
+      "endpoint": "report-video-analysis",
+      "name": "视频深度分析报告",
+      "route": "/api/public/tikhub/report/video-analysis",
+      "method": "GET",
+      "category": "report",
+      "price": 0.10,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "aweme_id", "required": true, "type": "string", "description": "视频ID"},
+        {"name": "cookie", "required": false, "type": "string", "description": "TikTok Cookie(可选)"},
+        {"name": "proxy", "required": false, "type": "string", "description": "代理地址"}
+      ]
+    },
+    {
+      "endpoint": "report-competitor-monitor",
+      "name": "竞品监控报告",
+      "route": "/api/public/tikhub/report/competitor-monitor",
+      "method": "GET",
+      "category": "report",
+      "price": 0.08,
+      "requires_cookie": false,
+      "enabled": true,
+      "params": [
+        {"name": "seller_id", "required": true, "type": "string", "description": "商家ID"},
+        {"name": "region", "required": false, "type": "string", "default": "US", "description": "地区代码"}
+      ]
+    }
+  ]
+}

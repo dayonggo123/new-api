@@ -670,6 +670,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/admin/tikhub/prices", middleware.AdminAuth(), controller.GetTikHubPriceConfigs)
 		apiRouter.POST("/admin/tikhub/prices", middleware.AdminAuth(), controller.CreateTikHubPriceConfig)
 		apiRouter.POST("/admin/tikhub/prices/init", middleware.AdminAuth(), controller.InitTikHubPriceConfigs)
+		apiRouter.POST("/admin/tikhub/prices/test", middleware.AdminAuth(), controller.TestTikHubEndpoint)
 		apiRouter.PUT("/admin/tikhub/prices/:id", middleware.AdminAuth(), controller.UpdateTikHubPriceConfig)
 		apiRouter.DELETE("/admin/tikhub/prices/:id", middleware.AdminAuth(), controller.DeleteTikHubPriceConfig)
 
