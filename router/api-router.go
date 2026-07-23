@@ -655,6 +655,14 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/tikhub/tiktok/ads/ad-interactive-analysis", middleware.TokenAuthReadOnly(), controller.TikHubAdInteractiveAnalysis)
 		apiRouter.GET("/public/tikhub/tiktok/ads/trends-hashtag-detail", middleware.TokenAuthReadOnly(), controller.TikHubTrendsHashtagDetail)
 
+		// TikHub 整合报告 API
+		apiRouter.GET("/public/tikhub/report/product-analysis", middleware.TokenAuthReadOnly(), controller.TikHubProductAnalysisReport)
+		apiRouter.POST("/public/tikhub/report/creator-diagnosis", middleware.TokenAuthReadOnly(), controller.TikHubCreatorDiagnosisReport)
+		apiRouter.GET("/public/tikhub/report/ad-creative-analysis", middleware.TokenAuthReadOnly(), controller.TikHubAdCreativeAnalysisReport)
+		apiRouter.GET("/public/tikhub/report/content-trends", middleware.TokenAuthReadOnly(), controller.TikHubContentTrendsReport)
+		apiRouter.GET("/public/tikhub/report/video-analysis", middleware.TokenAuthReadOnly(), controller.TikHubVideoAnalysisReport)
+		apiRouter.GET("/public/tikhub/report/competitor-monitor", middleware.TokenAuthReadOnly(), controller.TikHubCompetitorMonitorReport)
+
 		// TikHub 价格公开接口
 		apiRouter.GET("/public/tikhub/prices", controller.GetTikHubPrices)
 

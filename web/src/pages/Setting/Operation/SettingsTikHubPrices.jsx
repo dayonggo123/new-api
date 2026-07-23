@@ -49,6 +49,7 @@ const CATEGORY_OPTIONS = [
   { value: 'creator', label: '创作者' },
   { value: 'ads', label: '广告' },
   { value: 'trends', label: '趋势' },
+  { value: 'report', label: '整合报告' },
   { value: 'other', label: '其他' },
 ];
 
@@ -62,6 +63,7 @@ const CATEGORY_COLORS = {
   creator: 'pink',
   ads: 'red',
   trends: 'yellow',
+  report: 'teal',
   other: 'grey',
 };
 

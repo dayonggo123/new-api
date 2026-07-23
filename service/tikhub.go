@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -2685,4 +2686,769 @@ func FetchTikHubAccountViolationList(ctx context.Context, cookie string, proxy s
 	common.SysLog(fmt.Sprintf("[TikHub] fetched account violation list: page=%d", page))
 
 	return body, nil
+}
+
+// =============================================================================
+// 整合报告 API - Product Analysis Report
+// =============================================================================
+
+// FetchProductAnalysisReport 获取商品分析报告
+// 整合商品详情、评论、关联视频等数据
+func FetchProductAnalysisReport(ctx context.Context, productID string, region string) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://heharse.cloud"
+	}
+
+	// 并行获取多个接口数据
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	type PartialResult struct {
+		ProductDetail []byte
+		ProductReviews []byte
+		RelatedVideos []byte
+		HotProducts []byte
+	}
+
+	result := PartialResult{}
+	hasError := false
+	var errorMsg string
+
+	// 1. 获取商品详情
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := fetchProductDetail(ctx, productID)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.ProductDetail = body
+		}
+	}()
+
+	// 2. 获取商品评论
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := fetchProductReviews(ctx, productID, 1, 20)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.ProductReviews = body
+		}
+	}()
+
+	// 3. 获取关联视频
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubProductRelatedVideos(ctx, "", "", "", productID, "")
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.RelatedVideos = body
+		}
+	}()
+
+	// 4. 获取热卖商品列表（同类目对比）
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubHotSellingProductsList(ctx, region, 20)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.HotProducts = body
+		}
+	}()
+
+	wg.Wait()
+
+	if hasError {
+		return nil, fmt.Errorf("failed to fetch product analysis: %s", errorMsg)
+	}
+
+	// 整合数据
+	response := map[string]interface{}{
+		"product_detail":   json.RawMessage(result.ProductDetail),
+		"product_reviews": json.RawMessage(result.ProductReviews),
+		"related_videos":  json.RawMessage(result.RelatedVideos),
+		"hot_products":    json.RawMessage(result.HotProducts),
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub product analysis report generated: product_id=%s", productID))
+	common.SysLog(fmt.Sprintf("[TikHub] generated product analysis report: product_id=%s", productID))
+
+	return responseBytes, nil
+}
+
+// 辅助函数：获取商品详情
+func fetchProductDetail(ctx context.Context, productID string) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://heharse.cloud"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/shop/web/fetch_product_detail_v2")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	q := reqURL.Query()
+	q.Set("product_id", productID)
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("tikhub api returned status %d", resp.StatusCode)
+	}
+
+	return body, nil
+}
+
+// 辅助函数：获取商品评论
+func fetchProductReviews(ctx context.Context, productID string, page, limit int) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://heharse.cloud"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/shop/web/fetch_product_reviews_v2")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	q := reqURL.Query()
+	q.Set("product_id", productID)
+	q.Set("page", fmt.Sprintf("%d", page))
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("tikhub api returned status %d", resp.StatusCode)
+	}
+
+	return body, nil
+}
+
+// =============================================================================
+// 整合报告 API - Creator Diagnosis Report
+// =============================================================================
+
+// FetchCreatorDiagnosisReport 获取创作者诊断报告
+// 整合账号概览、健康状态、违规记录、视频列表、受众分析
+func FetchCreatorDiagnosisReport(ctx context.Context, cookie string, proxy string) ([]byte, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	type PartialResult struct {
+		AccountOverview  []byte
+		HealthStatus     []byte
+		ViolationList    []byte
+		VideoAnalytics   []byte
+		AudienceStats    []byte
+	}
+
+	result := PartialResult{}
+	hasError := false
+	var errorMsg string
+
+	// 并行获取多个接口数据
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubAccountInsightsOverview(ctx, cookie, "", proxy)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.AccountOverview = body
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubAccountHealthStatus(ctx, cookie, proxy)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.HealthStatus = body
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubAccountViolationList(ctx, cookie, proxy, 1)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.ViolationList = body
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubVideoListAnalytics(ctx, cookie, "", "", proxy, 1)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.VideoAnalytics = body
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// 需要先获取视频ID才能分析受众，这里传空获取默认
+		body, err := FetchTikHubVideoAudienceStats(ctx, cookie, "", "", proxy)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.AudienceStats = body
+		}
+	}()
+
+	wg.Wait()
+
+	if hasError {
+		return nil, fmt.Errorf("failed to fetch creator diagnosis: %s", errorMsg)
+	}
+
+	// 整合数据
+	response := map[string]interface{}{
+		"account_overview":  json.RawMessage(result.AccountOverview),
+		"health_status":    json.RawMessage(result.HealthStatus),
+		"violation_list":   json.RawMessage(result.ViolationList),
+		"video_analytics":  json.RawMessage(result.VideoAnalytics),
+		"audience_stats":  json.RawMessage(result.AudienceStats),
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	logger.LogInfo(ctx, "TikHub creator diagnosis report generated")
+	common.SysLog("[TikHub] generated creator diagnosis report")
+
+	return responseBytes, nil
+}
+
+// =============================================================================
+// 整合报告 API - Ad Creative Analysis Report
+// =============================================================================
+
+// FetchAdCreativeAnalysisReport 获取广告创意分析报告
+func FetchAdCreativeAnalysisReport(ctx context.Context, materialID string, industry string) ([]byte, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	type PartialResult struct {
+		TopSpotlight    []byte
+		KeyframeAnalysis []byte
+		PercentileData  []byte
+		InteractiveData  []byte
+	}
+
+	result := PartialResult{}
+	hasError := false
+	var errorMsg string
+
+	// 1. 热门广告聚光灯
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubTopAdsSpotlight(ctx, industry, 1, 20)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.TopSpotlight = body
+		}
+	}()
+
+	// 2. 关键帧分析
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubAdKeyframeAnalysis(ctx, materialID, "retain_ctr")
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.KeyframeAnalysis = body
+		}
+	}()
+
+	// 3. 百分位数据
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubAdPercentile(ctx, materialID, "ctr_percentile", 180)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.PercentileData = body
+		}
+	}()
+
+	// 4. 互动分析
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubAdInteractiveAnalysis(ctx, materialID, "remain", 180)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.InteractiveData = body
+		}
+	}()
+
+	wg.Wait()
+
+	if hasError {
+		return nil, fmt.Errorf("failed to fetch ad creative analysis: %s", errorMsg)
+	}
+
+	// 整合数据
+	response := map[string]interface{}{
+		"top_spotlight":     json.RawMessage(result.TopSpotlight),
+		"keyframe_analysis": json.RawMessage(result.KeyframeAnalysis),
+		"percentile_data":   json.RawMessage(result.PercentileData),
+		"interactive_data":  json.RawMessage(result.InteractiveData),
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub ad creative analysis report generated: material_id=%s", materialID))
+	common.SysLog(fmt.Sprintf("[TikHub] generated ad creative analysis report: material_id=%s", materialID))
+
+	return responseBytes, nil
+}
+
+// =============================================================================
+// 整合报告 API - Content Trends Report
+// =============================================================================
+
+// FetchContentTrendsReport 获取内容趋势报告
+func FetchContentTrendsReport(ctx context.Context, countryCode string, timeRange int, industryID int) ([]byte, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	type PartialResult struct {
+		HashtagList    []byte
+		TrendingWords  []byte
+		MusicChart     []byte
+		SearchResults  []byte
+	}
+
+	result := PartialResult{}
+	hasError := false
+	var errorMsg string
+
+	// 1. 热门标签
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubTrendsHashtagList(ctx, timeRange, countryCode, 1, 30, int64(industryID))
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.HashtagList = body
+		}
+	}()
+
+	// 2. 趋势搜索词
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubTrendingSearchWords(ctx)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.TrendingWords = body
+		}
+	}()
+
+	// 3. 音乐排行
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubMusicChartList(ctx, 1, 0, 20)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.MusicChart = body
+		}
+	}()
+
+	// 4. 综合搜索（可选关键词）
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubGeneralSearchResult(ctx, "", 0, 20, 0, 0)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.SearchResults = body
+		}
+	}()
+
+	wg.Wait()
+
+	if hasError {
+		return nil, fmt.Errorf("failed to fetch content trends: %s", errorMsg)
+	}
+
+	// 整合数据
+	response := map[string]interface{}{
+		"hashtag_list":    json.RawMessage(result.HashtagList),
+		"trending_words":  json.RawMessage(result.TrendingWords),
+		"music_chart":     json.RawMessage(result.MusicChart),
+		"search_results":  json.RawMessage(result.SearchResults),
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	logger.LogInfo(ctx, "TikHub content trends report generated")
+	common.SysLog("[TikHub] generated content trends report")
+
+	return responseBytes, nil
+}
+
+// =============================================================================
+// 整合报告 API - Video Deep Analysis Report
+// =============================================================================
+
+// FetchVideoAnalysisReport 获取视频深度分析报告
+func FetchVideoAnalysisReport(ctx context.Context, awemeID string, cookie, proxy string) ([]byte, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	type PartialResult struct {
+		VideoData     []byte
+		VideoMetrics  []byte
+		FakeViews     []byte
+		Comments      []byte
+		Keywords      []byte
+		AudienceStats []byte
+	}
+
+	result := PartialResult{}
+	hasError := false
+	var errorMsg string
+
+	// 1. 视频数据
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubSingleVideo(ctx, awemeID)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.VideoData = body
+		}
+	}()
+
+	// 2. 视频统计
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubVideoMetrics(ctx, awemeID)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.VideoMetrics = body
+		}
+	}()
+
+	// 3. 虚假流量检测
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubDetectFakeViews(ctx, awemeID, "")
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.FakeViews = body
+		}
+	}()
+
+	// 4. 视频评论
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubVideoComments(ctx, awemeID, 0, 50)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.Comments = body
+		}
+	}()
+
+	// 5. 评论关键词
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubCommentKeywords(ctx, awemeID)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.Keywords = body
+		}
+	}()
+
+	// 6. 受众分析（可选，需要 cookie）
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubVideoAudienceStats(ctx, cookie, "", awemeID, proxy)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			// 不阻塞，受众分析失败不报错
+			result.AudienceStats = []byte("{}")
+		} else {
+			result.AudienceStats = body
+		}
+	}()
+
+	wg.Wait()
+
+	if hasError {
+		return nil, fmt.Errorf("failed to fetch video analysis: %s", errorMsg)
+	}
+
+	// 整合数据
+	response := map[string]interface{}{
+		"video_data":      json.RawMessage(result.VideoData),
+		"video_metrics":   json.RawMessage(result.VideoMetrics),
+		"fake_views":      json.RawMessage(result.FakeViews),
+		"comments":        json.RawMessage(result.Comments),
+		"keywords":        json.RawMessage(result.Keywords),
+		"audience_stats":  json.RawMessage(result.AudienceStats),
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub video analysis report generated: aweme_id=%s", awemeID))
+	common.SysLog(fmt.Sprintf("[TikHub] generated video analysis report: aweme_id=%s", awemeID))
+
+	return responseBytes, nil
+}
+
+// =============================================================================
+// 整合报告 API - Competitor Monitor Report
+// =============================================================================
+
+// FetchCompetitorMonitorReport 获取竞品监控报告
+func FetchCompetitorMonitorReport(ctx context.Context, sellerID string, region string) ([]byte, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	type PartialResult struct {
+		SellerProducts   []byte
+		HashtagVideos   []byte
+		ProductRelated  []byte
+		SearchProducts  []byte
+		HotProducts     []byte
+	}
+
+	result := PartialResult{}
+	hasError := false
+	var errorMsg string
+
+	// 1. 商家商品列表
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubSellerProductsList(ctx, sellerID, "", region)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.SellerProducts = body
+		}
+	}()
+
+	// 2. 搜索商品列表（获取竞品关键词）
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// 使用热门类目关键词搜索
+		body, err := FetchTikHubSearchProductsList(ctx, "", 0, "", region)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.SearchProducts = body
+		}
+	}()
+
+	// 3. 热卖商品（市场基准）
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body, err := FetchTikHubHotSellingProductsList(ctx, region, 50)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			hasError = true
+			errorMsg = err.Error()
+		} else {
+			result.HotProducts = body
+		}
+	}()
+
+	wg.Wait()
+
+	// 注意：hashtag_videos 和 product_related 需要额外参数，这里简化处理
+
+	if hasError {
+		return nil, fmt.Errorf("failed to fetch competitor monitor: %s", errorMsg)
+	}
+
+	// 整合数据
+	response := map[string]interface{}{
+		"seller_products":   json.RawMessage(result.SellerProducts),
+		"search_products":  json.RawMessage(result.SearchProducts),
+		"hot_products":     json.RawMessage(result.HotProducts),
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub competitor monitor report generated: seller_id=%s", sellerID))
+	common.SysLog(fmt.Sprintf("[TikHub] generated competitor monitor report: seller_id=%s", sellerID))
+
+	return responseBytes, nil
 }

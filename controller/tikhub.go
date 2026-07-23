@@ -2302,3 +2302,322 @@ func TikHubTrendsHashtagDetail(c *gin.Context) {
 	// 直接透传上游原始 JSON
 	c.Data(http.StatusOK, "application/json", body)
 }
+
+// =============================================================================
+// 整合报告 API
+// =============================================================================
+
+// TikHubProductAnalysisReport 代理 TikHub 获取商品分析报告
+// GET /api/public/tikhub/report/product-analysis
+func TikHubProductAnalysisReport(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	// product_id: 商品ID，必填
+	productID := c.Query("product_id")
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "product_id 不能为空",
+		})
+		return
+	}
+
+	// region: 地区代码，默认 US
+	region := c.DefaultQuery("region", "US")
+
+	body, err := service.FetchProductAnalysisReport(c.Request.Context(), productID, region)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "report-product-analysis")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}
+
+// TikHubCreatorDiagnosisReport 代理 TikHub 获取创作者诊断报告
+// POST /api/public/tikhub/report/creator-diagnosis
+func TikHubCreatorDiagnosisReport(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	var reqBody struct {
+		Cookie string `json:"cookie"`
+		Proxy  string `json:"proxy"`
+	}
+
+	if err := c.ShouldBindJSON(&reqBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "cookie 不能为空",
+		})
+		return
+	}
+
+	if reqBody.Cookie == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "cookie 不能为空",
+		})
+		return
+	}
+
+	body, err := service.FetchCreatorDiagnosisReport(c.Request.Context(), reqBody.Cookie, reqBody.Proxy)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "report-creator-diagnosis")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}
+
+// TikHubAdCreativeAnalysisReport 代理 TikHub 获取广告创意分析报告
+// GET /api/public/tikhub/report/ad-creative-analysis
+func TikHubAdCreativeAnalysisReport(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	// material_id: 广告素材ID，必填
+	materialID := c.Query("material_id")
+	if materialID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "material_id 不能为空",
+		})
+		return
+	}
+
+	// industry: 行业ID，可选
+	industry := c.Query("industry")
+
+	body, err := service.FetchAdCreativeAnalysisReport(c.Request.Context(), materialID, industry)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "report-ad-creative-analysis")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}
+
+// TikHubContentTrendsReport 代理 TikHub 获取内容趋势报告
+// GET /api/public/tikhub/report/content-trends
+func TikHubContentTrendsReport(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	// country_code: 国家代码，默认 US
+	countryCode := c.DefaultQuery("country_code", "US")
+
+	// time_range: 时间范围(天)，默认 7
+	timeRange := 7
+	if tr := c.Query("time_range"); tr != "" {
+		if parsed, err := strconv.Atoi(tr); err == nil && (parsed == 7 || parsed == 30 || parsed == 90) {
+			timeRange = parsed
+		}
+	}
+
+	// industry_id: 行业ID，可选
+	industryID := 0
+	if iid := c.Query("industry_id"); iid != "" {
+		if parsed, err := strconv.Atoi(iid); err == nil {
+			industryID = parsed
+		}
+	}
+
+	body, err := service.FetchContentTrendsReport(c.Request.Context(), countryCode, timeRange, industryID)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "report-content-trends")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}
+
+// TikHubVideoAnalysisReport 代理 TikHub 获取视频深度分析报告
+// GET /api/public/tikhub/report/video-analysis
+func TikHubVideoAnalysisReport(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	// aweme_id: 视频ID，必填
+	awemeID := c.Query("aweme_id")
+	if awemeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "aweme_id 不能为空",
+		})
+		return
+	}
+
+	// cookie: 可选，用于获取受众分析
+	cookie := c.Query("cookie")
+	proxy := c.Query("proxy")
+
+	body, err := service.FetchVideoAnalysisReport(c.Request.Context(), awemeID, cookie, proxy)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "report-video-analysis")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}
+
+// TikHubCompetitorMonitorReport 代理 TikHub 获取竞品监控报告
+// GET /api/public/tikhub/report/competitor-monitor
+func TikHubCompetitorMonitorReport(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	// seller_id: 商家ID，必填
+	sellerID := c.Query("seller_id")
+	if sellerID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "seller_id 不能为空",
+		})
+		return
+	}
+
+	// region: 地区代码，默认 US
+	region := c.DefaultQuery("region", "US")
+
+	body, err := service.FetchCompetitorMonitorReport(c.Request.Context(), sellerID, region)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "report-competitor-monitor")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}

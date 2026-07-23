@@ -275,6 +275,14 @@ func InitDefaultTikHubPriceConfigs() error {
 		{Endpoint: "ads-ad-percentile", Name: "广告百分位数据", Description: "获取广告在同行业中的百分位排名数据", Category: "ads", Price: 0.03, Enabled: true},
 		{Endpoint: "ads-ad-interactive-analysis", Name: "广告互动分析", Description: "获取广告的互动时间分析", Category: "ads", Price: 0.03, Enabled: true},
 		{Endpoint: "ads-trends-hashtag-detail", Name: "热门标签详情", Description: "获取热门标签的详细数据", Category: "ads", Price: 0.02, Enabled: true},
+
+		// 整合报告
+		{Endpoint: "report-product-analysis", Name: "商品分析报告", Description: "整合商品详情、评论、关联视频、热卖商品", Category: "report", Price: 0.10, Enabled: true},
+		{Endpoint: "report-creator-diagnosis", Name: "创作者诊断报告", Description: "整合账号概览、健康状态、违规记录、视频分析、受众分析", Category: "report", RequiresCookie: true, Price: 0.15, Enabled: true},
+		{Endpoint: "report-ad-creative-analysis", Name: "广告创意分析报告", Description: "整合热门广告、关键帧、百分位、互动分析", Category: "report", Price: 0.12, Enabled: true},
+		{Endpoint: "report-content-trends", Name: "内容趋势报告", Description: "整合热门标签、趋势搜索词、音乐排行、综合搜索", Category: "report", Price: 0.08, Enabled: true},
+		{Endpoint: "report-video-analysis", Name: "视频深度分析报告", Description: "整合视频数据、统计、虚假流量、评论、关键词、受众", Category: "report", Price: 0.10, Enabled: true},
+		{Endpoint: "report-competitor-monitor", Name: "竞品监控报告", Description: "整合商家商品、搜索商品、热卖商品", Category: "report", Price: 0.08, Enabled: true},
 	}
 
 	for _, c := range defaultConfigs {
