@@ -927,3 +927,55 @@ func FetchTikHubVideoMetrics(ctx context.Context, itemID string) ([]byte, error)
 
 	return body, nil
 }
+
+// FetchTikHubDetectFakeViews 请求 TikHub 检测视频虚假流量分析。
+// endpoint: /api/v1/tiktok/analytics/detect_fake_views
+func FetchTikHubDetectFakeViews(ctx context.Context, itemID string, contentCategory string) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://heharse.cloud"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/analytics/detect_fake_views")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	q := reqURL.Query()
+	q.Set("item_id", itemID)
+	if contentCategory != "" {
+		q.Set("content_category", contentCategory)
+	}
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("TikHub detect fake views API error: status=%d, body=%s", resp.StatusCode, string(body)))
+		return nil, fmt.Errorf("tikhub api returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub detect fake views fetched: item_id=%s", itemID))
+	common.SysLog(fmt.Sprintf("[TikHub] fetched detect fake views: item_id=%s", itemID))
+
+	return body, nil
+}
