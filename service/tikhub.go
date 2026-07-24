@@ -1432,7 +1432,7 @@ func FetchTikHubProductRelatedVideos(ctx context.Context, cookie, startDate, ite
 }
 
 // FetchTikHubProductDetail 请求 TikHub 获取 TikTok 商品详情数据 V2。
-// endpoint: /api/v1/tiktok/app/v3/fetch_product_detail_v2?product_id=xxx
+// endpoint: /api/v1/tiktok/shop/web/fetch_product_detail_v2?product_id=xxx
 func FetchTikHubProductDetail(ctx context.Context, productID string) ([]byte, error) {
 	setting := operation_setting.GetTikHubSetting()
 	baseURL := setting.TikHubBaseURL
@@ -1440,7 +1440,7 @@ func FetchTikHubProductDetail(ctx context.Context, productID string) ([]byte, er
 		baseURL = "https://heharse.cloud"
 	}
 
-	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/app/v3/fetch_product_detail_v2")
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/shop/web/fetch_product_detail_v2")
 	if err != nil {
 		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
 	}
