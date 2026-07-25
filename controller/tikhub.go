@@ -32,17 +32,28 @@ func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
 	// 根据用户等级获取价格
 	price, quota, freeQuota, shouldCharge := config.GetTikHubPriceWithTier(tier)
 
-	// 不需要扣费的情况（仅当有免费额度且未用完时）
-	if !shouldCharge && freeQuota > 0 {
-		tierName := map[string]string{
-			"root":   "管理员",
-			"admin":  "管理员",
-			"svip":   "SVIP",
-			"vip":    "VIP",
-			"common": "普通用户",
-		}[tier]
+	tierName := map[string]string{
+		"root":   "管理员",
+		"admin":  "管理员",
+		"svip":   "SVIP",
+		"vip":    "VIP",
+		"common": "普通用户",
+	}[tier]
 
-		logger.LogInfo(c.Request.Context(), fmt.Sprintf("[TikHub] 用户 %d (%s) 调用接口 %s，免费条数: %d", userID, tierName, endpoint, freeQuota))
+	// 记录使用日志（无论免费还是收费都记录）
+	var logContent string
+	if shouldCharge && quota > 0 {
+		logContent = fmt.Sprintf("TikHub接口 %s (%s，扣费 %.2f USD / %d 积分)", config.Name, tierName, price, quota)
+	} else if freeQuota > 0 {
+		logContent = fmt.Sprintf("TikHub接口 %s (%s，免费额度 %d 次)", config.Name, tierName, freeQuota)
+	} else {
+		logContent = fmt.Sprintf("TikHub接口 %s (%s，免费 / 价格配置为 0)", config.Name, tierName)
+	}
+	model.RecordLog(userID, model.LogTypeConsume, logContent)
+
+	// 不需要扣费的情况
+	if !shouldCharge {
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("[TikHub] 用户 %d (%s) 调用接口 %s，未扣费（免费额度: %d, 价格: %.2f USD）", userID, tierName, endpoint, freeQuota, price))
 		return false
 	}
 
@@ -52,15 +63,6 @@ func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
 		logger.LogError(c.Request.Context(), "TikHub扣费失败: "+err.Error())
 		return false
 	}
-
-	// 记录使用日志到数据库
-	tierName := map[string]string{
-		"svip":   "SVIP",
-		"vip":    "VIP",
-		"common": "普通用户",
-	}[tier]
-	logContent := fmt.Sprintf("TikHub接口 %s (%s %.2f USD)", config.Name, tierName, price)
-	model.RecordLog(userID, model.LogTypeConsume, logContent)
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("[TikHub] 用户 %d (%s) 调用接口 %s，消费 %.2f USD (%d 积分)", userID, tierName, endpoint, price, quota))
 	return true
