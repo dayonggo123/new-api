@@ -185,8 +185,9 @@ func GetUserTikHubTier(userID int) string {
 func (config *TikHubPriceConfig) GetTikHubPriceWithTier(tier string) (price float64, quota int, freeQuota int, shouldCharge bool) {
 	switch tier {
 	case "root", "admin":
-		// 管理员用户免费
-		return 0, 0, 0, false
+		// 管理员用户也收费，使用普通用户价格
+		price = config.Price
+		freeQuota = config.FreeQuota
 	case "svip":
 		price = config.SvipPrice
 		freeQuota = config.SvipFreeQuota

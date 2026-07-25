@@ -32,8 +32,8 @@ func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
 	// 根据用户等级获取价格
 	price, quota, freeQuota, shouldCharge := config.GetTikHubPriceWithTier(tier)
 
-	// 不需要扣费的情况
-	if !shouldCharge {
+	// 不需要扣费的情况（仅当有免费额度且未用完时）
+	if !shouldCharge && freeQuota > 0 {
 		tierName := map[string]string{
 			"root":   "管理员",
 			"admin":  "管理员",
