@@ -330,7 +330,10 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		}
 
 		c.Set("id", token.UserId)
+		c.Set("username", userCache.Username)
+		c.Set("group", userCache.Group)
 		c.Set("token_id", token.Id)
+		c.Set("token_name", token.Name)
 		c.Set("token_key", token.Key)
 		c.Next()
 	}

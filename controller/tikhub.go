@@ -49,7 +49,20 @@ func chargeTikHubIfEnabled(c *gin.Context, endpoint string) bool {
 	} else {
 		logContent = fmt.Sprintf("TikHub接口 %s (%s，免费 / 价格配置为 0)", config.Name, tierName)
 	}
-	model.RecordLog(userID, model.LogTypeConsume, logContent)
+	model.RecordConsumeLog(c, userID, model.RecordConsumeLogParams{
+		ChannelId:        0,
+		PromptTokens:     0,
+		CompletionTokens: 0,
+		ModelName:        config.Name,
+		TokenName:        c.GetString("token_name"),
+		Quota:            quota,
+		Content:          logContent,
+		TokenId:          c.GetInt("token_id"),
+		UseTimeSeconds:   0,
+		IsStream:         false,
+		Group:            c.GetString("group"),
+		Other:            map[string]interface{}{"endpoint": endpoint},
+	})
 
 	// 不需要扣费的情况
 	if !shouldCharge {
