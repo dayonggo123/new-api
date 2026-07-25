@@ -56,6 +56,10 @@ func (q *ImageTaskQueue) CreateTask(relayInfo *relaycommon.RelayInfo, requestPay
 	if relayInfo.Request != nil {
 		if imageReq, ok := relayInfo.Request.(*dto.ImageRequest); ok {
 			task.Properties.Input = imageReq.Prompt
+			// 保存图片尺寸参数
+			if imageReq.Size != "" {
+				task.Properties.Size = imageReq.Size
+			}
 		}
 	}
 

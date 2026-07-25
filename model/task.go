@@ -79,6 +79,9 @@ type Properties struct {
 	Input             string `json:"input"`
 	UpstreamModelName string `json:"upstream_model_name,omitempty"`
 	OriginModelName   string `json:"origin_model_name,omitempty"`
+	Size              string `json:"size,omitempty"`        // 图片/视频尺寸或比例，如 1024x1024, 16:9, 3:4
+	AspectRatio       string `json:"aspect_ratio,omitempty"` // 图片比例（别名，与 size 兼容）
+	Quality           string `json:"quality,omitempty"`     // 质量参数
 }
 
 func (m *Properties) Scan(val interface{}) error {

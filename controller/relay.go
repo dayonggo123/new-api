@@ -876,6 +876,17 @@ func RelayTask(c *gin.Context) {
 		task.Action = relayInfo.Action
 		if taskReq, err := relaycommon.GetTaskRequest(c); err == nil {
 			task.Properties.Input = taskReq.GetPrompt()
+			// 保存图片/视频尺寸参数
+			if taskReq.Size != "" {
+				task.Properties.Size = taskReq.Size
+			}
+			if taskReq.AspectRatio != "" {
+				task.Properties.AspectRatio = taskReq.AspectRatio
+			}
+			// 兼容 ratio 字段
+			if taskReq.Ratio != "" && task.Properties.Size == "" {
+				task.Properties.Size = taskReq.Ratio
+			}
 		}
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
