@@ -2,8 +2,11 @@ package controller
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -722,6 +725,114 @@ func TikHubSingleVideoByShareURL(c *gin.Context) {
 		"author":    info.Author,
 		"data":      info.RawData,
 	})
+}
+
+// TikHubVideoDownload 代理下载 TikTok 无水印视频
+// GET /api/public/tikhub/tiktok/video-download?share_url=...
+// GET /api/public/tikhub/tiktok/video-download?video_url=...
+func TikHubVideoDownload(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	videoURL := c.Query("video_url")
+	shareURL := c.Query("share_url")
+
+	if videoURL == "" && shareURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "share_url 或 video_url 至少需要一个",
+		})
+		return
+	}
+
+	// 如果只有 share_url，先解析出 video_url
+	if videoURL == "" && shareURL != "" {
+		body, err := service.FetchTikHubSingleVideoByShareURL(c.Request.Context(), shareURL)
+		if err != nil {
+			logger.LogError(c.Request.Context(), err.Error())
+			c.JSON(http.StatusBadGateway, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		info, err := service.ExtractTikHubVideoInfo(body)
+		if err != nil || info.VideoURL == "" {
+			c.JSON(http.StatusBadGateway, gin.H{
+				"success": false,
+				"message": "无法从分享链接中解析出视频地址",
+			})
+			return
+		}
+		videoURL = info.VideoURL
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "video-download")
+
+	// 下载视频流
+	resp, err := service.FetchTikHubVideoStream(c.Request.Context(), videoURL)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	// 设置文件名
+	filename := "tiktok_video.mp4"
+	if shareURL != "" {
+		if id := extractTikHubAwemeIDFromShareURL(shareURL); id != "" {
+			filename = "tiktok_" + id + ".mp4"
+		}
+	}
+
+	// 透传或设置响应头
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "video/mp4"
+	}
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	if contentLength := resp.Header.Get("Content-Length"); contentLength != "" {
+		c.Header("Content-Length", contentLength)
+	}
+
+	// 流式返回
+	if _, err := io.Copy(c.Writer, resp.Body); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("stream video failed: %v", err))
+	}
+}
+
+// extractTikHubAwemeIDFromShareURL 从 TikTok 分享链接中提取 aweme_id
+func extractTikHubAwemeIDFromShareURL(shareURL string) string {
+	u, err := url.Parse(shareURL)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) >= 3 && parts[len(parts)-2] == "video" {
+		return parts[len(parts)-1]
+	}
+	return ""
 }
 
 // TikHubMusicChartList 代理 TikHub 获取 TikTok 音乐排行榜

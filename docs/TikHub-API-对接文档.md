@@ -75,6 +75,7 @@ curl -X GET "https://heharse.cloud/public/tikhub/prices"
 |------|------|------|------|
 | 获取单个视频数据 | `/api/public/tikhub/tiktok/video` | GET | 通过 aweme_id 获取 |
 | 通过分享链接获取视频 | `/api/public/tikhub/tiktok/video-by-share-url` | GET | 通过分享链接获取 |
+| **下载无水印视频** | `/api/public/tikhub/tiktok/video-download` | GET | 通过 share_url 或 video_url 后端代理下载 |
 | 获取视频评论 | `/api/public/tikhub/tiktok/video-comments` | GET | 获取视频评论列表 |
 | 获取作品评论列表 | `/api/public/tikhub/tiktok/post-comment` | GET | 获取作品评论列表 |
 | 评论关键词分析 | `/api/public/tikhub/tiktok/comment-keywords` | GET | 评论关键词分析 |
@@ -129,7 +130,39 @@ GET /api/public/tikhub/tiktok/video-by-share-url?share_url=https://www.tiktok.co
 
 ---
 
-### 3. 获取视频评论
+### 3. 下载无水印视频
+
+```http
+GET /api/public/tikhub/tiktok/video-download?share_url=https://www.tiktok.com/@xxx/video/xxx
+```
+
+或
+
+```http
+GET /api/public/tikhub/tiktok/video-download?video_url=https://v19-webapp-prime.us.tiktok.com/video/...
+```
+
+**Query 参数**:
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| share_url | string | 二选一 | TikTok 分享链接，后端会解析并下载 |
+| video_url | string | 二选一 | 已通过 `video-by-share-url` 获取到的无水印视频地址 |
+
+**响应头**：
+- `Content-Type: video/mp4`
+- `Content-Disposition: attachment; filename="tiktok_{aweme_id}.mp4"`
+- `Content-Length`（如果上游返回）
+
+**响应体**：视频二进制流。
+
+**说明**：
+- 该接口后端代理下载，避免客户端直接访问 TikTok CDN 被拦截。
+- 后台价格配置项：`video-download`（需单独配置价格）。
+- 详细文档：`docs/tikhub-video-by-share-url-downstream.md`
+
+---
+
+### 4. 获取视频评论
 
 ```http
 GET /api/public/tikhub/tiktok/video-comments?aweme_id=xxx&cursor=0&count=20
@@ -144,7 +177,7 @@ GET /api/public/tikhub/tiktok/video-comments?aweme_id=xxx&cursor=0&count=20
 
 ---
 
-### 4. 获取作品评论列表
+### 5. 获取作品评论列表
 
 ```http
 GET /api/public/tikhub/tiktok/post-comment?aweme_id=xxx&cursor=0&count=20
@@ -160,7 +193,7 @@ GET /api/public/tikhub/tiktok/post-comment?aweme_id=xxx&cursor=0&count=20
 
 ---
 
-### 5. 评论关键词分析
+### 6. 评论关键词分析
 
 ```http
 GET /api/public/tikhub/tiktok/comment-keywords?item_id=7502551047378832671
@@ -173,7 +206,7 @@ GET /api/public/tikhub/tiktok/comment-keywords?item_id=7502551047378832671
 
 ---
 
-### 6. 音乐排行榜
+### 7. 音乐排行榜
 
 ```http
 GET /api/public/tikhub/tiktok/music-chart-list?scene=0&cursor=0&count=50
@@ -188,7 +221,7 @@ GET /api/public/tikhub/tiktok/music-chart-list?scene=0&cursor=0&count=50
 
 ---
 
-### 7. 每日趋势搜索词
+### 8. 每日趋势搜索词
 
 ```http
 GET /api/public/tikhub/tiktok/trending-search-words
@@ -198,7 +231,7 @@ GET /api/public/tikhub/tiktok/trending-search-words
 
 ---
 
-### 8. 商品详情
+### 9. 商品详情
 
 ```http
 GET /api/public/tikhub/tiktok/product?product_id=1729385239712731370
@@ -211,7 +244,7 @@ GET /api/public/tikhub/tiktok/product?product_id=1729385239712731370
 
 ---
 
-### 9. 视频受众分析
+### 10. 视频受众分析
 
 ```http
 POST /api/public/tikhub/tiktok/video-audience-stats
@@ -237,7 +270,7 @@ Content-Type: application/json
 
 ---
 
-### 10. 账号健康状态
+### 11. 账号健康状态
 
 ```http
 POST /api/public/tikhub/tiktok/account-health-status
@@ -259,7 +292,7 @@ Content-Type: application/json
 
 ---
 
-### 11. 账号概览
+### 12. 账号概览
 
 ```http
 POST /api/public/tikhub/tiktok/account-insights-overview
@@ -283,7 +316,7 @@ Content-Type: application/json
 
 ---
 
-### 12. 视频概览
+### 13. 视频概览
 
 ```http
 POST /api/public/tikhub/tiktok/video-analytics-summary
@@ -305,7 +338,7 @@ Content-Type: application/json
 
 ---
 
-### 13. 同款商品关联视频
+### 14. 同款商品关联视频
 
 ```http
 POST /api/public/tikhub/tiktok/product-related-videos
@@ -333,7 +366,7 @@ Content-Type: application/json
 
 ---
 
-### 14. 热门标签榜单
+### 15. 热门标签榜单
 
 ```http
 GET /api/public/tikhub/tiktok/trends-hashtag-list?time_range=7&country_code=US&page=1&limit=20
@@ -350,7 +383,7 @@ GET /api/public/tikhub/tiktok/trends-hashtag-list?time_range=7&country_code=US&p
 
 ---
 
-### 15. 热卖商品列表
+### 16. 热卖商品列表
 
 ```http
 GET /api/public/tikhub/tiktok/hot-selling-products-list?region=US&count=100

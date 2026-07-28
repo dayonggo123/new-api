@@ -608,6 +608,7 @@ func SetApiRouter(router *gin.Engine) {
 		// TikHub proxy routes (token auth)
 		apiRouter.GET("/public/tikhub/tiktok/video", middleware.TokenAuthReadOnly(), controller.TikHubSingleVideo)
 		apiRouter.GET("/public/tikhub/tiktok/video-by-share-url", middleware.TokenAuthReadOnly(), controller.TikHubSingleVideoByShareURL)
+		apiRouter.GET("/public/tikhub/tiktok/video-download", middleware.TokenAuthReadOnly(), controller.TikHubVideoDownload)
 		apiRouter.GET("/public/tikhub/tiktok/user-country-by-username", middleware.TokenAuthReadOnly(), controller.TikHubUserCountryByUsername)
 		apiRouter.GET("/public/tikhub/tiktok/general-search-result", middleware.TokenAuthReadOnly(), controller.TikHubGeneralSearchResult)
 		apiRouter.GET("/public/tikhub/tiktok/video-search-result", middleware.TokenAuthReadOnly(), controller.TikHubVideoSearchResult)

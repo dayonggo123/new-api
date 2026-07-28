@@ -1144,6 +1144,34 @@ func FetchTikHubSingleVideoByShareURL(ctx context.Context, shareURL string) ([]b
 	return body, nil
 }
 
+// FetchTikHubVideoStream 从 TikTok CDN 下载视频流。
+// 需要模拟浏览器请求头，避免被 CDN 拦截。
+func FetchTikHubVideoStream(ctx context.Context, videoURL string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, videoURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create video download request failed: %w", err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "video/mp4,video/*,*/*;q=0.9,application/octet-stream;q=0.8")
+	req.Header.Set("Referer", "https://www.tiktok.com/")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("download video failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("video download returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return resp, nil
+}
+
 // FetchTikHubMusicChartList 请求 TikHub 获取 TikTok 音乐排行榜。
 // endpoint: /api/v1/tiktok/app/v3/fetch_music_chart_list?scene=0&cursor=0&count=50
 func FetchTikHubMusicChartList(ctx context.Context, scene int, cursor int, count int) ([]byte, error) {

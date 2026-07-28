@@ -161,20 +161,25 @@ export default function TikTokVideoDownload() {
     setLoading(false);
   };
 
-  // 批量下载
+  // 批量下载（走后端代理，避免 CDN 拦截）
   const handleBatchDownload = () => {
     const validResults = results.filter((r) => r.success && r.videoUrl);
     validResults.forEach((result) => {
-      window.open(result.videoUrl, '_blank');
+      window.open(getProxyDownloadUrl(result.url), '_blank');
     });
   };
 
-  // 复制下载链接
+  // 复制下载链接（复制原始 videoUrl）
   const handleCopyLink = (videoUrl, index) => {
     navigator.clipboard.writeText(videoUrl).then(() => {
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 2000);
     });
+  };
+
+  // 后端代理下载地址
+  const getProxyDownloadUrl = (shareUrl) => {
+    return `/api/public/tikhub/tiktok/video-download?share_url=${encodeURIComponent(shareUrl)}`;
   };
 
   // 清除结果
@@ -234,7 +239,7 @@ export default function TikTokVideoDownload() {
                 size='small'
                 type='primary'
                 icon={<Download size={14} />}
-                onClick={() => window.open(record.videoUrl, '_blank')}
+                onClick={() => window.open(getProxyDownloadUrl(record.url), '_blank')}
               >
                 {t('下载')}
               </Button>

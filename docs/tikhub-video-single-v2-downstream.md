@@ -163,4 +163,5 @@ console.log(result.data);
 
 1. 当前 Base URL 已切换到 `https://heharse.cloud`（旧 `https://api.tikhub.io` 已弃用）。
 2. 若需要**通过分享链接获取**同一作品数据，请使用 `GET /api/public/tikhub/tiktok/video-by-share-url?share_url=...`。
-3. 视频下载地址如果存在访问限制，建议后端转发或使用本地代理下载。
+3. 若需要直接下载无水印视频文件，请使用 `GET /api/public/tikhub/tiktok/video-download?video_url={video_url}` 或 `?share_url=...`。
+4. 视频下载地址如果存在访问限制，建议后端转发或使用本地代理下载。

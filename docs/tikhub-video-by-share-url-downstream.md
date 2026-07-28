@@ -6,6 +6,24 @@
 GET /api/public/tikhub/tiktok/video-by-share-url?share_url={share_url}
 ```
 
+## 无水印视频下载接口
+
+如需直接下载无水印视频文件，请使用下方代理下载接口，避免客户端直接访问 TikTok CDN 被拦截。
+
+```http
+GET /api/public/tikhub/tiktok/video-download?share_url={share_url}
+```
+
+或（已拿到 `video_url` 时）：
+
+```http
+GET /api/public/tikhub/tiktok/video-download?video_url={video_url}
+```
+
+- 响应头：`Content-Type: video/mp4`，`Content-Disposition: attachment; filename="tiktok_{aweme_id}.mp4"`
+- 响应体：视频二进制流
+- 后台价格配置项：`video-download`（需单独配置价格）
+
 ## 上游 TikHub 接口
 
 ```http
@@ -165,6 +183,34 @@ if (result.success) {
 } else {
   console.error('获取失败:', result.message);
 }
+```
+
+## 无水印视频下载示例 (JavaScript)
+
+推荐直接通过后端代理下载，避免浏览器被 TikTok CDN 拦截。
+
+```javascript
+// 方式 1：直接传 share_url，后端解析并下载
+const shareUrl = 'https://www.tiktok.com/@boise_brooke/video/7665796670227008781';
+const downloadUrl =
+  'https://heharse.cloud/api/public/tikhub/tiktok/video-download?share_url=' +
+  encodeURIComponent(shareUrl);
+
+// 触发浏览器下载
+window.open(downloadUrl, '_blank');
+
+// 或使用 fetch 保存为 Blob
+const response = await fetch(downloadUrl, {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer your_newapi_token'
+  }
+});
+const blob = await response.blob();
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = 'tiktok_7665796670227008781.mp4';
+a.click();
 ```
 
 ## 注意事项
