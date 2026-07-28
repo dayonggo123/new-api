@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -123,8 +124,28 @@ func TikHubSingleVideo(c *gin.Context) {
 	// 扣费
 	chargeTikHubIfEnabled(c, "video")
 
-	// 直接透传上游原始 JSON
-	c.Data(http.StatusOK, "application/json", body)
+	// 解析并标准化返回，方便下游直接取 video_url
+	info, err := service.ExtractTikHubVideoInfo(body)
+	if err != nil {
+		var rawData interface{}
+		if err2 := common.Unmarshal(body, &rawData); err2 != nil {
+			rawData = string(body)
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    rawData,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"video_url": info.VideoURL,
+		"cover_url": info.CoverURL,
+		"desc":      info.Desc,
+		"author":    info.Author,
+		"data":      info.RawData,
+	})
 }
 
 // TikHubUserCountryByUsername 代理 TikHub 通过用户名获取用户账号国家地区
@@ -679,8 +700,28 @@ func TikHubSingleVideoByShareURL(c *gin.Context) {
 	// 扣费
 	chargeTikHubIfEnabled(c, "video-by-share-url")
 
-	// 直接透传上游原始 JSON
-	c.Data(http.StatusOK, "application/json", body)
+	// 解析并标准化返回，方便下游直接取 video_url
+	info, err := service.ExtractTikHubVideoInfo(body)
+	if err != nil {
+		var rawData interface{}
+		if err2 := common.Unmarshal(body, &rawData); err2 != nil {
+			rawData = string(body)
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    rawData,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"video_url": info.VideoURL,
+		"cover_url": info.CoverURL,
+		"desc":      info.Desc,
+		"author":    info.Author,
+		"data":      info.RawData,
+	})
 }
 
 // TikHubMusicChartList 代理 TikHub 获取 TikTok 音乐排行榜

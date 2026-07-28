@@ -104,6 +104,11 @@ GET /api/public/tikhub/tiktok/video?aweme_id=7350810998023949599
 |------|------|------|------|
 | aweme_id | string | 是 | TikTok 作品 ID |
 
+**返回字段**：
+- 顶层：`success`、`video_url`（无水印视频地址）、`cover_url`、`desc`、`author`
+- 完整数据保留在 `data` 字段中
+- 详细文档：`docs/tikhub-video-single-v2-downstream.md`
+
 ---
 
 ### 2. 通过分享链接获取视频
@@ -116,6 +121,11 @@ GET /api/public/tikhub/tiktok/video-by-share-url?share_url=https://www.tiktok.co
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | share_url | string | 是 | TikTok 分享链接 |
+
+**返回字段**：
+- 顶层：`success`、`video_url`（无水印视频地址）、`cover_url`、`desc`、`author`
+- 完整数据保留在 `data` 字段中
+- 详细文档：`docs/tikhub-video-by-share-url-downstream.md`
 
 ---
 

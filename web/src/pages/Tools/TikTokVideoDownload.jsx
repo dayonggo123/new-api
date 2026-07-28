@@ -91,35 +91,42 @@ export default function TikTokVideoDownload() {
         const data = await response.json();
 
         if (data.success) {
-          // 尝试从响应中提取视频下载链接
-          let videoUrl = '';
-          let coverUrl = '';
-          let desc = '';
-          let author = '';
+          // 优先使用后端标准化后的字段，没有再尝试从 data.data 解析
+          let videoUrl = data.video_url || '';
+          let coverUrl = data.cover_url || '';
+          let desc = data.desc || '';
+          let author = data.author || '';
 
-          // TikHub API 返回的数据结构可能不同，尝试提取
+          // 兼容旧逻辑：如果后端没有抽出，再尝试从 data.data 解析
           if (data.data) {
             const videoData = data.data;
-            // 尝试多种可能的视频 URL 字段
-            videoUrl =
-              videoData.video?.download_addr?.url ||
-              videoData.video?.play_addr?.url ||
-              videoData.video_data?.play_addr?.url ||
-              videoData.aweme_detail?.video?.play_addr?.url ||
-              videoData.aweme_detail?.video?.download_addr?.url ||
-              '';
-            coverUrl =
-              videoData.video?.cover?.url ||
-              videoData.video_data?.cover?.url ||
-              videoData.aweme_detail?.video?.cover?.url ||
-              '';
-            desc = videoData.desc || videoData.aweme_detail?.desc || '';
-            author =
-              videoData.author?.unique_id ||
-              videoData.author?.nickname ||
-              videoData.aweme_detail?.author?.unique_id ||
-              videoData.aweme_detail?.author?.nickname ||
-              '';
+            if (!videoUrl) {
+              videoUrl =
+                videoData.video?.download_addr?.url ||
+                videoData.video?.play_addr?.url ||
+                videoData.video_data?.play_addr?.url ||
+                videoData.aweme_detail?.video?.play_addr?.url ||
+                videoData.aweme_detail?.video?.download_addr?.url ||
+                '';
+            }
+            if (!coverUrl) {
+              coverUrl =
+                videoData.video?.cover?.url ||
+                videoData.video_data?.cover?.url ||
+                videoData.aweme_detail?.video?.cover?.url ||
+                '';
+            }
+            if (!desc) {
+              desc = videoData.desc || videoData.aweme_detail?.desc || '';
+            }
+            if (!author) {
+              author =
+                videoData.author?.unique_id ||
+                videoData.author?.nickname ||
+                videoData.aweme_detail?.author?.unique_id ||
+                videoData.aweme_detail?.author?.nickname ||
+                '';
+            }
           }
 
           newResults.push({

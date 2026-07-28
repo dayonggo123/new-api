@@ -66,6 +66,181 @@ func FetchTikHubSingleVideo(ctx context.Context, awemeID string) ([]byte, error)
 	return body, nil
 }
 
+// TikHubVideoInfo 从 TikHub 上游响应中抽取的视频信息
+type TikHubVideoInfo struct {
+	VideoURL string      `json:"video_url"`
+	CoverURL string      `json:"cover_url"`
+	Desc     string      `json:"desc"`
+	Author   string      `json:"author"`
+	RawData  interface{} `json:"data"`
+}
+
+// ExtractTikHubVideoInfo 从 TikHub 返回的原始 JSON 中提取视频信息
+func ExtractTikHubVideoInfo(body []byte) (*TikHubVideoInfo, error) {
+	var root map[string]interface{}
+	if err := common.Unmarshal(body, &root); err != nil {
+		return nil, err
+	}
+
+	// 优先用上游的 data 字段作为 RawData，没有则回退到 root
+	var rawData interface{}
+	if d, ok := root["data"]; ok {
+		rawData = d
+	} else {
+		rawData = root
+	}
+
+	var data map[string]interface{}
+	if d, ok := rawData.(map[string]interface{}); ok {
+		data = d
+	} else {
+		data = root
+	}
+
+	// 获取 aweme_detail（如果存在）
+	var awemeDetail map[string]interface{}
+	if ad, ok := data["aweme_detail"].(map[string]interface{}); ok {
+		awemeDetail = ad
+	}
+
+	// 获取 video 对象
+	var video map[string]interface{}
+	if v, ok := data["video"].(map[string]interface{}); ok {
+		video = v
+	} else if v, ok := awemeDetail["video"].(map[string]interface{}); ok {
+		video = v
+	}
+
+	return &TikHubVideoInfo{
+		VideoURL: extractTikHubVideoURL(video, awemeDetail, data),
+		CoverURL: extractTikHubCoverURL(video, awemeDetail, data),
+		Desc:     extractTikHubDesc(data, awemeDetail),
+		Author:   extractTikHubAuthor(data, awemeDetail),
+		RawData:  rawData,
+	}, nil
+}
+
+// extractTikHubVideoURL 提取视频下载 URL，优先无水印链接
+func extractTikHubVideoURL(video, awemeDetail, data map[string]interface{}) string {
+	// 优先无水印地址
+	if url := extractTikHubAddrURL(video, "download_no_watermark_addr"); url != "" {
+		return url
+	}
+	if url := extractTikHubAddrURL(video, "download_addr"); url != "" {
+		return url
+	}
+	if url := extractTikHubAddrURL(video, "play_addr"); url != "" {
+		return url
+	}
+	if vd, ok := data["video_data"].(map[string]interface{}); ok {
+		if url := extractTikHubAddrURL(vd, "download_no_watermark_addr"); url != "" {
+			return url
+		}
+		if url := extractTikHubAddrURL(vd, "play_addr"); url != "" {
+			return url
+		}
+	}
+	if url, ok := data["video_url"].(string); ok && url != "" {
+		return url
+	}
+	if url, ok := awemeDetail["video_url"].(string); ok && url != "" {
+		return url
+	}
+	return ""
+}
+
+// extractTikHubAddrURL 从 play_addr/download_addr 中提取 URL
+func extractTikHubAddrURL(video map[string]interface{}, key string) string {
+	if video == nil {
+		return ""
+	}
+	addr, ok := video[key].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if url, ok := addr["url"].(string); ok && url != "" {
+		return url
+	}
+	if urlList, ok := addr["url_list"].([]interface{}); ok && len(urlList) > 0 {
+		if url, ok := urlList[0].(string); ok && url != "" {
+			return url
+		}
+	}
+	return ""
+}
+
+// extractTikHubCoverURL 提取封面 URL
+func extractTikHubCoverURL(video, awemeDetail, data map[string]interface{}) string {
+	if url := extractTikHubCoverFromVideo(video); url != "" {
+		return url
+	}
+	if v, ok := awemeDetail["video"].(map[string]interface{}); ok {
+		if url := extractTikHubCoverFromVideo(v); url != "" {
+			return url
+		}
+	}
+	if vd, ok := data["video_data"].(map[string]interface{}); ok {
+		if url := extractTikHubCoverFromVideo(vd); url != "" {
+			return url
+		}
+	}
+	return ""
+}
+
+// extractTikHubCoverFromVideo 从 video 对象中提取封面
+func extractTikHubCoverFromVideo(video map[string]interface{}) string {
+	if video == nil {
+		return ""
+	}
+	cover, ok := video["cover"].(map[string]interface{})
+	if !ok {
+		cover, ok = video["origin_cover"].(map[string]interface{})
+	}
+	if !ok {
+		return ""
+	}
+	if url, ok := cover["url"].(string); ok && url != "" {
+		return url
+	}
+	if urlList, ok := cover["url_list"].([]interface{}); ok && len(urlList) > 0 {
+		if url, ok := urlList[0].(string); ok && url != "" {
+			return url
+		}
+	}
+	return ""
+}
+
+// extractTikHubDesc 提取视频描述
+func extractTikHubDesc(data, awemeDetail map[string]interface{}) string {
+	if desc, ok := data["desc"].(string); ok && desc != "" {
+		return desc
+	}
+	if desc, ok := awemeDetail["desc"].(string); ok && desc != "" {
+		return desc
+	}
+	return ""
+}
+
+// extractTikHubAuthor 提取作者信息
+func extractTikHubAuthor(data, awemeDetail map[string]interface{}) string {
+	var author map[string]interface{}
+	if a, ok := awemeDetail["author"].(map[string]interface{}); ok {
+		author = a
+	} else if a, ok := data["author"].(map[string]interface{}); ok {
+		author = a
+	}
+	if author == nil {
+		return ""
+	}
+	if uniqueID, ok := author["unique_id"].(string); ok && uniqueID != "" {
+		return uniqueID
+	}
+	if nickname, ok := author["nickname"].(string); ok && nickname != "" {
+		return nickname
+	}
+	return ""
+}
+
 // FetchTikHubUserCountryByUsername 请求 TikHub 通过用户名获取用户账号国家地区。
 // endpoint: /api/v1/tiktok/app/v3/fetch_user_country_by_username?username=xxx
 func FetchTikHubUserCountryByUsername(ctx context.Context, username string) ([]byte, error) {
