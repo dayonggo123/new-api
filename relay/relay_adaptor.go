@@ -37,6 +37,7 @@ import (
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
 	taskomniflash "github.com/QuantumNous/new-api/relay/channel/task/omniflash"
+	tasksecureskill "github.com/QuantumNous/new-api/relay/channel/task/secureskill"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
 	taskvertex "github.com/QuantumNous/new-api/relay/channel/task/vertex"
@@ -50,6 +51,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/gettoken"
 	"github.com/QuantumNous/new-api/relay/channel/task/hongniao"
 	"github.com/QuantumNous/new-api/relay/channel/task/lingdong"
+	"github.com/QuantumNous/new-api/relay/channel/task/muyu"
 	"github.com/QuantumNous/new-api/relay/channel/task/zhangyuge"
 	"github.com/QuantumNous/new-api/relay/channel/task/zapi"
 	channelveo "github.com/QuantumNous/new-api/relay/channel/veo"
@@ -198,6 +200,10 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &zapi.TaskAdaptor{}
 		case constant.ChannelTypeHongniao:
 			return &hongniao.TaskAdaptor{}
+		case constant.ChannelTypeMuyu:
+			return &muyu.TaskAdaptor{}
+		case constant.ChannelTypeSecureSkill:
+			return &tasksecureskill.TaskAdaptor{}
 		}
 	}
 	return nil
