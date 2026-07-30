@@ -446,13 +446,17 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	// WanXiangAI uses JSON body instead of multipart
 	if isWanXiangAI(info) {
 		var imageURLs []string
+		var videoURLs []string
 		for _, f := range files {
 			if f.fieldName == "ref_images" {
 				b64 := base64.StdEncoding.EncodeToString(f.content)
 				imageURLs = append(imageURLs, fmt.Sprintf("data:%s;base64,%s", f.contentType, b64))
+			} else if f.fieldName == "ref_videos" {
+				b64 := base64.StdEncoding.EncodeToString(f.content)
+				videoURLs = append(videoURLs, fmt.Sprintf("data:%s;base64,%s", f.contentType, b64))
 			}
 		}
-		return a.buildWanXiangJSONBody(model, prompt, request.Size, imageURLs)
+		return a.buildWanXiangJSONBody(model, prompt, request.Size, imageURLs, videoURLs)
 	}
 
 	buf, _, err := buildMultipartBody(model, prompt, request.Size, "", "", "", files)
@@ -481,19 +485,24 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	// WanXiangAI uses JSON body instead of multipart
 	if isWanXiangAI(info) {
-		return a.buildWanXiangJSONBody(model, request.Prompt, request.Size, imageURLs)
+		return a.buildWanXiangJSONBody(model, request.Prompt, request.Size, imageURLs, nil)
 	}
 
 	buf, _, err := buildMultipartBody(model, request.Prompt, request.Size, "", "", "", nil)
 	return buf, err
 }
 
-func (a *Adaptor) buildWanXiangJSONBody(model, prompt, size string, images []string) (any, error) {
+func (a *Adaptor) buildWanXiangJSONBody(model, prompt, size string, images, videos []string) (any, error) {
 	params := make(map[string]interface{})
 
 	// Images
 	if len(images) > 0 {
 		params["images"] = images
+	}
+
+	// Videos (reference videos for omni-flash model)
+	if len(videos) > 0 {
+		params["ref_videos"] = videos
 	}
 
 	// imageSize mapping
