@@ -1490,8 +1490,32 @@ func TikHubProductDetailV3(c *gin.Context) {
 	// 扣费
 	chargeTikHubIfEnabled(c, "product-v3")
 
-	// 直接透传上游原始 JSON
-	c.Data(http.StatusOK, "application/json", body)
+	// 提取标准商品字段
+	info, extractErr := service.ExtractTikHubProductV3Info(body)
+	if extractErr != nil {
+		logger.LogError(c.Request.Context(), extractErr.Error())
+		// 提取失败仍透传原始响应，保证可用性
+		c.Data(http.StatusOK, "application/json", body)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":            true,
+		"product_id":         info.ProductID,
+		"title":              info.Title,
+		"description":        info.Description,
+		"images":             info.Images,
+		"sold_count":         info.SoldCount,
+		"rating":             info.Rating,
+		"review_count":       info.ReviewCount,
+		"shop_name":          info.ShopName,
+		"shop_logo":          info.ShopLogo,
+		"sale_properties":    info.SaleProperties,
+		"product_properties": info.ProductProperties,
+		"skus":               info.SKUs,
+		"package":            info.Package,
+		"data":               info.RawData,
+	})
 }
 
 // TikHubProductReviewsV1 代理 TikHub 获取商品评论 V1

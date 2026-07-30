@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -1736,6 +1737,368 @@ func FetchTikHubProductDetailV1(ctx context.Context, productID, sellerID, region
 	common.SysLog(fmt.Sprintf("[TikHub] fetched product detail V1: product_id=%s", productID))
 
 	return body, nil
+}
+
+// TikHubProductV3Info TikTok Shop 商品详情 V3 提取后的标准字段。
+type TikHubProductV3Info struct {
+	ProductID         string                       `json:"product_id"`
+	Title             string                       `json:"title"`
+	Description       string                       `json:"description"`
+	Images            []string                     `json:"images"`
+	SoldCount         int64                        `json:"sold_count"`
+	Rating            float64                      `json:"rating"`
+	ReviewCount       int64                        `json:"review_count"`
+	ShopName          string                       `json:"shop_name"`
+	ShopLogo          string                       `json:"shop_logo"`
+	SaleProperties    []TikHubProductV3Property    `json:"sale_properties"`
+	ProductProperties []TikHubProductV3Property    `json:"product_properties"`
+	SKUs              []TikHubProductV3SKU         `json:"skus"`
+	Package           TikHubProductV3Package       `json:"package"`
+	RawData           map[string]interface{}       `json:"data"`
+}
+
+// TikHubProductV3Property 商品属性/销售属性。
+type TikHubProductV3Property struct {
+	PropertyID   string                            `json:"property_id"`
+	PropertyName string                            `json:"property_name"`
+	HasImage     bool                              `json:"has_image"`
+	Values       []TikHubProductV3PropertyValue    `json:"values"`
+}
+
+// TikHubProductV3PropertyValue 属性值。
+type TikHubProductV3PropertyValue struct {
+	PropertyValueID   string   `json:"property_value_id"`
+	PropertyValueName string   `json:"property_value_name"`
+	ImageURL          string   `json:"image_url,omitempty"`
+}
+
+// TikHubProductV3SKU SKU 信息。
+type TikHubProductV3SKU struct {
+	SKUName        string            `json:"sku_name"`
+	SKUStatus      int               `json:"sku_status"`
+	StockStatus    int               `json:"stock_status"`
+	AvailableQty   int64             `json:"available_quantity"`
+	Properties     map[string]string `json:"properties"`
+	PackageWeight  int               `json:"package_weight"`
+	PackageLength  int               `json:"package_length"`
+	PackageWidth   int               `json:"package_width"`
+	PackageHeight  int               `json:"package_height"`
+}
+
+// TikHubProductV3Package 默认物流包装信息。
+type TikHubProductV3Package struct {
+	Weight int `json:"weight"`
+	Length int `json:"length"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// ExtractTikHubProductV3Info 从 TikHub V3 原始响应中提取标准商品字段。
+func ExtractTikHubProductV3Info(body []byte) (*TikHubProductV3Info, error) {
+	var raw map[string]interface{}
+	if err := common.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("decode tikhub product v3 response failed: %w", err)
+	}
+
+	info := &TikHubProductV3Info{
+		RawData: raw,
+	}
+
+	productData, _ := getMap(raw, "data", "product_data")
+	pageConfig, _ := getMap(productData, "page_config")
+	components, _ := getSlice(pageConfig, "components_map")
+
+	// 找到 product_info 组件
+	var productInfoComp map[string]interface{}
+	for _, comp := range components {
+		c, ok := comp.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if getString(c, "component_type") == "product_info" {
+			productInfoComp = c
+			break
+		}
+	}
+	if productInfoComp == nil {
+		return info, nil
+	}
+
+	compData, _ := getMap(productInfoComp, "component_data")
+	pi, _ := getMap(compData, "product_info", "product_info")
+
+	// product_model
+	pm, _ := getMap(pi, "product_model")
+	info.ProductID = getString(pm, "product_id")
+	info.Title = getString(pm, "name")
+	info.Description = extractTikHubV3Description(pm)
+	info.Images = extractTikHubV3ImageURLs(pm)
+	info.SoldCount = getInt64(pm, "sold_count")
+
+	// review_model
+	rm, _ := getMap(pi, "review_model")
+	info.Rating = getFloat64(rm, "product_overall_score")
+	info.ReviewCount = getInt64FromStr(rm, "product_review_count")
+
+	// seller_model
+	sm, _ := getMap(pi, "seller_model")
+	info.ShopName = getString(sm, "shop_name")
+	info.ShopLogo = extractTikHubV3FirstImageURL(sm, "shop_logo")
+
+	// sale_properties / product_properties
+	info.SaleProperties = extractTikHubV3Properties(pm, "sale_properties")
+	info.ProductProperties = extractTikHubV3Properties(pm, "product_properties")
+
+	// SKUs
+	info.SKUs = extractTikHubV3SKUs(pm)
+	if len(info.SKUs) > 0 {
+		first := info.SKUs[0]
+		info.Package = TikHubProductV3Package{
+			Weight: first.PackageWeight,
+			Length: first.PackageLength,
+			Width:  first.PackageWidth,
+			Height: first.PackageHeight,
+		}
+	}
+
+	return info, nil
+}
+
+// helper: 从嵌套 map 中取 string
+func getString(m map[string]interface{}, keys ...string) string {
+	v, ok := getValue(m, keys...).(string)
+	if !ok {
+		return ""
+	}
+	return v
+}
+
+// helper: 从嵌套 map 中取 float64
+func getFloat64(m map[string]interface{}, keys ...string) float64 {
+	switch v := getValue(m, keys...).(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	}
+	return 0
+}
+
+// helper: 从嵌套 map 中取 int64
+func getInt64(m map[string]interface{}, keys ...string) int64 {
+	switch v := getValue(m, keys...).(type) {
+	case float64:
+		return int64(v)
+	case float32:
+		return int64(v)
+	case int:
+		return int64(v)
+	case int64:
+		return v
+	}
+	return 0
+}
+
+// helper: 从嵌套 map 中取 int64（支持字符串数字）
+func getInt64FromStr(m map[string]interface{}, keys ...string) int64 {
+	switch v := getValue(m, keys...).(type) {
+	case float64:
+		return int64(v)
+	case float32:
+		return int64(v)
+	case int:
+		return int64(v)
+	case int64:
+		return v
+	case string:
+		var n int64
+		fmt.Sscanf(v, "%d", &n)
+		return n
+	}
+	return 0
+}
+
+// helper: 从嵌套 map 中取 map
+func getMap(m map[string]interface{}, keys ...string) (map[string]interface{}, bool) {
+	v := getValue(m, keys...)
+	if v == nil {
+		return nil, false
+	}
+	res, ok := v.(map[string]interface{})
+	return res, ok
+}
+
+// helper: 从嵌套 map 中取 slice
+func getSlice(m map[string]interface{}, keys ...string) ([]interface{}, bool) {
+	v := getValue(m, keys...)
+	if v == nil {
+		return nil, false
+	}
+	res, ok := v.([]interface{})
+	return res, ok
+}
+
+// helper: 递归取值
+func getValue(m map[string]interface{}, keys ...string) interface{} {
+	if len(keys) == 0 || m == nil {
+		return nil
+	}
+	v, ok := m[keys[0]]
+	if !ok || v == nil {
+		return nil
+	}
+	if len(keys) == 1 {
+		return v
+	}
+	next, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return getValue(next, keys[1:]...)
+}
+
+func extractTikHubV3Description(pm map[string]interface{}) string {
+	descBlocks, _ := pm["description"].([]interface{})
+	var texts []string
+	for _, block := range descBlocks {
+		b, ok := block.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if getString(b, "type") != "text" {
+			continue
+		}
+		subs, _ := b["sub"].([]interface{})
+		for _, sub := range subs {
+			s, ok := sub.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if t, ok := s["t"].(string); ok && t != "" {
+				texts = append(texts, t)
+			}
+		}
+	}
+	return strings.Join(texts, "\n")
+}
+
+func extractTikHubV3ImageURLs(pm map[string]interface{}) []string {
+	images, _ := pm["images"].([]interface{})
+	var urls []string
+	for _, img := range images {
+		im, ok := img.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if url := firstURLFromImage(im); url != "" {
+			urls = append(urls, url)
+		}
+	}
+	return urls
+}
+
+func extractTikHubV3FirstImageURL(m map[string]interface{}, key string) string {
+	img, _ := m[key].(map[string]interface{})
+	if img == nil {
+		return ""
+	}
+	return firstURLFromImage(img)
+}
+
+func firstURLFromImage(img map[string]interface{}) string {
+	urlList, _ := img["url_list"].([]interface{})
+	if len(urlList) > 0 {
+		if s, ok := urlList[0].(string); ok {
+			return s
+		}
+	}
+	if s, ok := img["url"].(string); ok {
+		return s
+	}
+	if s, ok := img["uri"].(string); ok {
+		return s
+	}
+	return ""
+}
+
+func extractTikHubV3Properties(pm map[string]interface{}, key string) []TikHubProductV3Property {
+	props, _ := pm[key].([]interface{})
+	var result []TikHubProductV3Property
+	for _, p := range props {
+		propMap, ok := p.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		prop := TikHubProductV3Property{
+			PropertyID:   getString(propMap, "property_id"),
+			PropertyName: getString(propMap, "property_name"),
+			HasImage:     false,
+		}
+		if hi, ok := propMap["has_image"].(bool); ok {
+			prop.HasImage = hi
+		}
+		values, _ := propMap["property_values"].([]interface{})
+		for _, v := range values {
+			vm, ok := v.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			pv := TikHubProductV3PropertyValue{
+				PropertyValueID:   getString(vm, "property_value_id"),
+				PropertyValueName: getString(vm, "property_value_name"),
+			}
+			if prop.HasImage {
+				if img, ok := vm["image"].(map[string]interface{}); ok {
+					pv.ImageURL = firstURLFromImage(img)
+				}
+			}
+			prop.Values = append(prop.Values, pv)
+		}
+		result = append(result, prop)
+	}
+	return result
+}
+
+func extractTikHubV3SKUs(pm map[string]interface{}) []TikHubProductV3SKU {
+	skus, _ := pm["skus"].([]interface{})
+	var result []TikHubProductV3SKU
+	for _, s := range skus {
+		sm, ok := s.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sku := TikHubProductV3SKU{
+			SKUName:       getString(sm, "sku_name"),
+			SKUStatus:     int(getInt64(sm, "sku_status")),
+			StockStatus:   int(getInt64(sm, "sku_stock_status")),
+			PackageWeight: int(getInt64(sm, "package_weight")),
+			PackageLength: int(getInt64(sm, "package_length")),
+			PackageWidth:  int(getInt64(sm, "package_width")),
+			PackageHeight: int(getInt64(sm, "package_height")),
+		}
+		if qtyMap, ok := getMap(sm, "sku_quantity"); ok {
+			sku.AvailableQty = getInt64(qtyMap, "available_quantity")
+		}
+		pairs, _ := sm["property_pairs"].([]interface{})
+		sku.Properties = make(map[string]string)
+		for _, pair := range pairs {
+			pm, ok := pair.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			name := getString(pm, "sku_property_name")
+			value := getString(pm, "sku_property_value_name")
+			if name != "" {
+				sku.Properties[name] = value
+			}
+		}
+		result = append(result, sku)
+	}
+	return result
 }
 
 // FetchTikHubProductDetailV3 请求 TikHub 获取 TikTok 商品详情数据 V3 (移动端-数据完整)。
