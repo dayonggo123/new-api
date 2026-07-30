@@ -233,14 +233,34 @@ GET /api/public/tikhub/tiktok/trending-search-words
 
 ### 9. 商品详情
 
+#### V1（桌面端）
+
 ```http
-GET /api/public/tikhub/tiktok/product?product_id=1729385239712731370
+GET /api/public/tikhub/tiktok/shop-product-detail?product_id=1729385239712731370&region=US
 ```
 
 **Query 参数**:
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | product_id | string | 是 | TikTok 商品 ID |
+| seller_id | string | 否 | 卖家 ID，可传空 |
+| region | string | 否 | 地区代码，默认 `MY` |
+
+> 注意：V1 对部分商品/地区可能只返回推荐内容，不返回目标商品详情。
+
+#### V3（移动端-数据完整）
+
+```http
+GET /api/public/tikhub/tiktok/product-v3?product_id=1729556031006938037&region=US
+```
+
+**Query 参数**:
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| product_id | string | 是 | TikTok 商品 ID |
+| region | string | 否 | 地区代码，默认 `SG` |
+
+> 推荐：优先使用 V3，数据更完整，适用所有地区。
 
 ---
 

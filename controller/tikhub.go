@@ -1446,6 +1446,54 @@ func TikHubProductDetailV1(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json", body)
 }
 
+// TikHubProductDetailV3 代理 TikHub 获取 TikTok 商品详情数据 V3 (移动端-数据完整)
+// GET /api/public/tikhub/tiktok/product-v3?product_id=xxx&region=xxx
+func TikHubProductDetailV3(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	productID := c.Query("product_id")
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "product_id 不能为空",
+		})
+		return
+	}
+
+	region := c.DefaultQuery("region", "SG")
+
+	body, err := service.FetchTikHubProductDetailV3(c.Request.Context(), productID, region)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "product-v3")
+
+	// 直接透传上游原始 JSON
+	c.Data(http.StatusOK, "application/json", body)
+}
+
 // TikHubProductReviewsV1 代理 TikHub 获取商品评论 V1
 // GET /api/public/tikhub/tiktok/product-reviews?product_id=xxx
 func TikHubProductReviewsV1(c *gin.Context) {

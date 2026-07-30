@@ -1738,6 +1738,58 @@ func FetchTikHubProductDetailV1(ctx context.Context, productID, sellerID, region
 	return body, nil
 }
 
+// FetchTikHubProductDetailV3 请求 TikHub 获取 TikTok 商品详情数据 V3 (移动端-数据完整)。
+// endpoint: /api/v1/tiktok/shop/web/fetch_product_detail_v3?product_id=xxx&region=xxx
+func FetchTikHubProductDetailV3(ctx context.Context, productID, region string) ([]byte, error) {
+	setting := operation_setting.GetTikHubSetting()
+	baseURL := setting.TikHubBaseURL
+	if baseURL == "" {
+		baseURL = "https://heharse.cloud"
+	}
+
+	reqURL, err := url.Parse(baseURL + "/api/v1/tiktok/shop/web/fetch_product_detail_v3")
+	if err != nil {
+		return nil, fmt.Errorf("invalid tikhub base url: %w", err)
+	}
+
+	q := reqURL.Query()
+	q.Set("product_id", productID)
+	if region != "" {
+		q.Set("region", region)
+	}
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+setting.TikHubAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request tikhub failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read tikhub response failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("TikHub Product V3 API error: status=%d, body=%s", resp.StatusCode, string(body)))
+		return nil, fmt.Errorf("tikhub api returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("TikHub product detail V3 fetched: product_id=%s", productID))
+	common.SysLog(fmt.Sprintf("[TikHub] fetched product detail V3: product_id=%s", productID))
+
+	return body, nil
+}
+
 // FetchTikHubProductReviewsV1 请求 TikHub 获取商品评论 V1。
 // endpoint: /api/v1/tiktok/shop/web/fetch_product_reviews?product_id=xxx
 func FetchTikHubProductReviewsV1(ctx context.Context, productID string, pageStart, pageSize, sortRule, filterType, filterValue int, region string) ([]byte, error) {

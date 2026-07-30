@@ -627,6 +627,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/tikhub/tiktok/trending-search-words", middleware.TokenAuthReadOnly(), controller.TikHubTrendingSearchWords)
 		apiRouter.GET("/public/tikhub/tiktok/product", middleware.TokenAuthReadOnly(), controller.TikHubProductDetail)
 		apiRouter.GET("/public/tikhub/tiktok/shop-product-detail", middleware.TokenAuthReadOnly(), controller.TikHubProductDetailV1)
+		apiRouter.GET("/public/tikhub/tiktok/product-v3", middleware.TokenAuthReadOnly(), controller.TikHubProductDetailV3)
 		apiRouter.GET("/public/tikhub/tiktok/product-reviews", middleware.TokenAuthReadOnly(), controller.TikHubProductReviewsV1)
 		apiRouter.GET("/public/tikhub/tiktok/product-reviews-v2", middleware.TokenAuthReadOnly(), controller.TikHubProductReviewsV2)
 		apiRouter.GET("/public/tikhub/tiktok/seller-products-list", middleware.TokenAuthReadOnly(), controller.TikHubSellerProductsList)
