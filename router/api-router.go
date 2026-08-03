@@ -207,6 +207,31 @@ func SetApiRouter(router *gin.Engine) {
 			curatedCategoryAdminRoute.DELETE("/:id", controller.AdminDeleteCuratedCategory)
 		}
 
+		// Shared workflow templates (UGC template market)
+		sharedTemplateGroup := apiRouter.Group("/shared-templates")
+		{
+			sharedTemplateGroup.GET("/", controller.GetSharedTemplates)
+			sharedTemplateGroup.GET("/mine", middleware.TokenAuth(), controller.GetMySharedTemplates) // must be before :id
+			sharedTemplateGroup.GET("/:id", controller.GetSharedTemplateDetail)
+		}
+		// User actions (require login)
+		sharedTemplateAuthGroup := apiRouter.Group("/shared-templates")
+		sharedTemplateAuthGroup.Use(middleware.TokenAuth())
+		{
+			sharedTemplateAuthGroup.POST("/", controller.ShareSharedTemplate)
+			sharedTemplateAuthGroup.DELETE("/:id", controller.DeleteSharedTemplate)
+			sharedTemplateAuthGroup.POST("/:id/use", controller.RecordSharedTemplateUse)
+		}
+		// Admin routes
+		sharedTemplateAdminRoute := apiRouter.Group("/admin/shared-templates")
+		sharedTemplateAdminRoute.Use(middleware.AdminAuth())
+		{
+			sharedTemplateAdminRoute.GET("/pending", controller.AdminGetPendingSharedTemplates)
+			sharedTemplateAdminRoute.GET("/all", controller.AdminListSharedTemplates)
+			sharedTemplateAdminRoute.GET("/:id", controller.AdminGetSharedTemplateDetail)
+			sharedTemplateAdminRoute.POST("/:id/audit", controller.AdminAuditSharedTemplate)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		// Plans list is publicly accessible (like pricing)
 		apiRouter.GET("/subscription/plans", middleware.TryUserAuth(), controller.GetSubscriptionPlans)
