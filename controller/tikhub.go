@@ -143,11 +143,70 @@ func TikHubSingleVideo(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
-		"video_url": info.VideoURL,
+			"video_url": info.VideoURL,
 		"cover_url": info.CoverURL,
 		"desc":      info.Desc,
 		"author":    info.Author,
 		"data":      info.RawData,
+	})
+}
+
+// TikHubFetchOneVideoV3 代理 TikHub V3 单个视频接口
+// GET /api/public/tikhub/v1/tiktok/fetch-one-video?aweme_id=7350810998023949599
+// 透传至上游 /api/v1/tiktok/app/v3/fetch_one_video_v2
+func TikHubFetchOneVideoV3(c *gin.Context) {
+	setting := operation_setting.GetTikHubSetting()
+	if !setting.TikHubEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub 接口未启用",
+		})
+		return
+	}
+
+	if setting.TikHubAPIKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "TikHub API Key 未配置",
+		})
+		return
+	}
+
+	awemeID := c.Query("aweme_id")
+	if awemeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "aweme_id 不能为空",
+		})
+		return
+	}
+
+	body, err := service.FetchTikHubSingleVideo(c.Request.Context(), awemeID)
+	if err != nil {
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusBadGateway, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 扣费
+	chargeTikHubIfEnabled(c, "video")
+
+	// 直接透传上游原始响应
+	var rawData interface{}
+	if err := common.Unmarshal(body, &rawData); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    string(body),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    rawData,
 	})
 }
 
