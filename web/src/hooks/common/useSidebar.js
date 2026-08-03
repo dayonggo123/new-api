@@ -59,6 +59,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     subscription: true,
     setting: true,
     ecommerce_wizard: true,
+    shared_templates: true,
     'tikhub-prices': true,
     'tiktok-video-download': true,
   },

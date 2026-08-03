@@ -50,6 +50,7 @@ import ImageStudio from './pages/ImageStudio';
 import NotificationManagement from './pages/NotificationManagement';
 import PresetPrompt from './pages/PresetPrompt';
 import SkillManagement from './pages/SkillManagement';
+import SharedTemplateManagement from './pages/SharedTemplateManagement';
 import AppReleaseManagement from './pages/AppReleaseManagement';
 import TierManagement from './pages/TierManagement';
 import TagManagement from './pages/TagManagement';
@@ -279,6 +280,14 @@ function App() {
           element={
             <AdminRoute>
               <SkillManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/shared-templates'
+          element={
+            <AdminRoute>
+              <SharedTemplateManagement />
             </AdminRoute>
           }
         />
