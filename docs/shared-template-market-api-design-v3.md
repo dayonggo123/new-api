@@ -48,6 +48,7 @@ type SharedTemplate struct {
     TotalSize      int64           `json:"totalSize" gorm:"column:total_size;default:0"`
     HasAssets      bool            `json:"hasAssets" gorm:"column:has_assets;default:false"`
     ThumbnailUrl   string          `json:"thumbnailUrl,omitempty" gorm:"column:thumbnail_url;size:500"`
+    ThumbnailType  string          `json:"thumbnailType,omitempty" gorm:"column:thumbnail_type;size:20"` // image / video，默认 image
     UseCount       int             `json:"useCount" gorm:"column:use_count;default:0;index"`
     CreatedAt      int64           `json:"createdAt" gorm:"column:created_at;autoCreateTime;index"`
     UpdatedAt      int64           `json:"updatedAt" gorm:"column:updated_at;autoUpdateTime"`
@@ -167,6 +168,8 @@ Authorization: Bearer <token>
 | planJson | text | 是 | 合法 JSON，steps 非空，含 templateVersion 字段 |
 | planVersion | text | 否 | 默认 3 |
 | appMinVersion | text | 否 | 最低兼容版本 |
+| thumbnailUrl | text | 否 | 封面 URL（图片或视频，由上传接口返回） |
+| thumbnailType | text | 否 | 封面类型：image / video，默认 image |
 | thumbnail | file | 否 | jpg/png，≤ 2MB |
 | package | file | 否 | ZIP，≤ 100MB |
 
@@ -254,6 +257,7 @@ Authorization: Bearer <token> (可选)
         "name": "电商穿搭模板",
         "description": "适合电商产品展示的穿搭视频模板",
         "thumbnailUrl": "https://cdn.example.com/templates/a1b2c3d4e5f6/thumbnail.jpg",
+        "thumbnailType": "image",
         "category": "ecommerce",
         "authorId": 1001,
         "authorName": "大勇",
@@ -298,6 +302,7 @@ Authorization: Bearer <token> (可选)
     "name": "电商穿搭模板",
     "description": "...",
     "thumbnailUrl": "https://cdn.example.com/templates/a1b2c3d4e5f6/thumbnail.jpg",
+    "thumbnailType": "image",
     "category": "ecommerce",
     "authorId": 1001,
     "authorName": "大勇",
@@ -600,18 +605,19 @@ type AssetInfo struct {
 }
 
 type SharedTemplateListItem struct {
-    Id           string     `json:"id"`
-    Name         string     `json:"name"`
-    Description  string     `json:"description,omitempty"`
-    ThumbnailUrl string     `json:"thumbnailUrl,omitempty"`
-    Category     string     `json:"category"`
-    AuthorId     int        `json:"authorId"`
-    AuthorName   string     `json:"authorName"`
-    Status       string     `json:"status"`
-    AssetInfo    *AssetInfo `json:"assetInfo,omitempty"`
-    UseCount     int        `json:"useCount"`
-    CreatedAt    int64      `json:"createdAt"`
-    UpdatedAt    int64      `json:"updatedAt"`
+    Id            string     `json:"id"`
+    Name          string     `json:"name"`
+    Description   string     `json:"description,omitempty"`
+    ThumbnailUrl  string     `json:"thumbnailUrl,omitempty"`
+    ThumbnailType string     `json:"thumbnailType,omitempty"` // image / video
+    Category      string     `json:"category"`
+    AuthorId      int        `json:"authorId"`
+    AuthorName    string     `json:"authorName"`
+    Status        string     `json:"status"`
+    AssetInfo     *AssetInfo `json:"assetInfo,omitempty"`
+    UseCount      int        `json:"useCount"`
+    CreatedAt     int64      `json:"createdAt"`
+    UpdatedAt     int64      `json:"updatedAt"`
 }
 
 type SharedTemplateDetail struct {

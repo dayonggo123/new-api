@@ -163,6 +163,8 @@ func ShareTemplate(userId int, userName string, req *dto.SharedTemplateShareRequ
 		PlanJson:      req.PlanJson,
 		PlanVersion:   planVersion,
 		AppMinVersion: req.AppMinVersion,
+		ThumbnailUrl:  req.ThumbnailUrl,
+		ThumbnailType: req.ThumbnailType,
 	}
 
 	if err := template.Insert(); err != nil {
@@ -399,17 +401,18 @@ func AuditSharedTemplate(templateId string, adminId int, adminName string, req *
 // toSharedTemplateListItem 将 model 转为列表项 DTO
 func toSharedTemplateListItem(t *model.SharedTemplate) dto.SharedTemplateListItem {
 	item := dto.SharedTemplateListItem{
-		Id:           t.TemplateId,
-		Name:         t.Name,
-		Description:  t.Description,
-		ThumbnailUrl: t.ThumbnailUrl,
-		Category:     t.Category,
-		AuthorId:     t.AuthorId,
-		AuthorName:   t.AuthorName,
-		Status:       t.Status,
-		UseCount:     t.UseCount,
-		CreatedAt:    t.CreatedAt,
-		UpdatedAt:    t.UpdatedAt,
+		Id:            t.TemplateId,
+		Name:          t.Name,
+		Description:   t.Description,
+		ThumbnailUrl:  t.ThumbnailUrl,
+		ThumbnailType: t.ThumbnailType,
+		Category:      t.Category,
+		AuthorId:      t.AuthorId,
+		AuthorName:    t.AuthorName,
+		Status:        t.Status,
+		UseCount:      t.UseCount,
+		CreatedAt:     t.CreatedAt,
+		UpdatedAt:     t.UpdatedAt,
 	}
 	if t.HasAssets {
 		item.AssetInfo = &dto.SharedTemplateAssetInfo{

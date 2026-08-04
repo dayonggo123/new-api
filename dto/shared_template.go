@@ -19,6 +19,8 @@ type SharedTemplateShareRequest struct {
 	PlanJson      string `json:"planJson" binding:"required"`
 	PlanVersion   int    `json:"planVersion"`
 	AppMinVersion string `json:"appMinVersion"`
+	ThumbnailUrl  string `json:"thumbnailUrl"`
+	ThumbnailType string `json:"thumbnailType"`
 }
 
 // AuditRequest 审核请求
@@ -52,18 +54,19 @@ type SharedTemplateAssetInfo struct {
 
 // SharedTemplateListItem 模板列表项
 type SharedTemplateListItem struct {
-	Id           string                 `json:"id"`
-	Name         string                 `json:"name"`
-	Description  string                 `json:"description,omitempty"`
-	ThumbnailUrl string                 `json:"thumbnailUrl,omitempty"`
-	Category     string                 `json:"category"`
-	AuthorId     int                    `json:"authorId"`
-	AuthorName   string                 `json:"authorName"`
-	Status       string                 `json:"status"`
-	AssetInfo    *SharedTemplateAssetInfo `json:"assetInfo,omitempty"`
-	UseCount     int                    `json:"useCount"`
-	CreatedAt    int64                  `json:"createdAt"`
-	UpdatedAt    int64                  `json:"updatedAt"`
+	Id            string                   `json:"id"`
+	Name          string                   `json:"name"`
+	Description   string                   `json:"description,omitempty"`
+	ThumbnailUrl  string                   `json:"thumbnailUrl,omitempty"`
+	ThumbnailType string                   `json:"thumbnailType,omitempty"`
+	Category      string                   `json:"category"`
+	AuthorId      int                      `json:"authorId"`
+	AuthorName    string                   `json:"authorName"`
+	Status        string                   `json:"status"`
+	AssetInfo     *SharedTemplateAssetInfo `json:"assetInfo,omitempty"`
+	UseCount      int                      `json:"useCount"`
+	CreatedAt     int64                    `json:"createdAt"`
+	UpdatedAt     int64                    `json:"updatedAt"`
 }
 
 // SharedTemplateDetail 模板详情

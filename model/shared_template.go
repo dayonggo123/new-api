@@ -29,6 +29,7 @@ type SharedTemplate struct {
 	TotalSize     int64          `json:"totalSize" gorm:"column:total_size;default:0"`
 	HasAssets     bool           `json:"hasAssets" gorm:"column:has_assets;default:false"`
 	ThumbnailUrl  string         `json:"thumbnailUrl,omitempty" gorm:"column:thumbnail_url;size:500"`
+	ThumbnailType string         `json:"thumbnailType,omitempty" gorm:"column:thumbnail_type;size:20"`
 	UseCount      int            `json:"useCount" gorm:"column:use_count;default:0;index"`
 	CreatedAt     int64          `json:"createdAt" gorm:"column:created_at;autoCreateTime;index"`
 	UpdatedAt     int64          `json:"updatedAt" gorm:"column:updated_at;autoUpdateTime"`
