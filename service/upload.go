@@ -199,6 +199,13 @@ func uploadBytes(ctx context.Context, c *gin.Context, data []byte, contentType, 
 
 // BuildUploadURL 根据请求上下文构建上传文件的公网 URL
 func BuildUploadURL(c *gin.Context, relativePath string) string {
+	// 优先使用显式配置的公网 URL（推荐生产环境配置），避免 localhost/内网 IP 泄漏
+	// 注意：调用处拼接 /uploads/%s，因此这里返回站点根（去掉 /uploads 后缀）
+	if publicURL := os.Getenv("UPLOADS_PUBLIC_URL"); publicURL != "" {
+		publicURL = strings.TrimRight(publicURL, "/")
+		publicURL = strings.TrimSuffix(publicURL, "/uploads")
+		return fmt.Sprintf("%s/uploads/%s", publicURL, relativePath)
+	}
 	scheme := "https"
 	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
 		scheme = proto

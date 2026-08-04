@@ -3,6 +3,8 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -58,6 +60,79 @@ func validatePlanJson(planJson string) error {
 	}
 
 	return nil
+}
+
+// normalizeTemplateThumbnailUrl 规范化模板封面 URL：
+//   - 空值或已是公网 URL 直接返回
+//   - 相对路径（如 /uploads/xxx.jpg）自动拼接公网域名
+//   - localhost / 内网地址前缀替换为公网域名（取 UPLOADS_PUBLIC_URL 的站点根）
+func normalizeTemplateThumbnailUrl(url string) string {
+	url = strings.TrimSpace(url)
+	if url == "" {
+		return url
+	}
+	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+		// 若是 localhost / 127.0.0.1 / 内网地址，替换为公网域名
+		if isLocalOrPrivateURL(url) {
+			publicRoot := getUploadsPublicRoot()
+			if publicRoot != "" {
+				if idx := strings.Index(url, "/uploads"); idx >= 0 {
+					return publicRoot + url[idx:]
+				}
+			}
+		}
+		return url
+	}
+	// 相对路径（/uploads/...）
+	if strings.HasPrefix(url, "/") {
+		publicRoot := getUploadsPublicRoot()
+		if publicRoot != "" {
+			return publicRoot + url
+		}
+	}
+	return url
+}
+
+// getUploadsPublicRoot 从 UPLOADS_PUBLIC_URL 提取站点根（如 https://heharse.cloud）
+func getUploadsPublicRoot() string {
+	publicURL := os.Getenv("UPLOADS_PUBLIC_URL")
+	if publicURL == "" {
+		return ""
+	}
+	publicURL = strings.TrimRight(publicURL, "/")
+	publicURL = strings.TrimSuffix(publicURL, "/uploads")
+	return publicURL
+}
+
+// isLocalOrPrivateURL 判断 URL 是否指向本机或内网（localhost、127.x、10.x、192.168.x、172.16-31.x）
+func isLocalOrPrivateURL(url string) bool {
+	lower := strings.ToLower(url)
+	if strings.Contains(lower, "localhost") || strings.Contains(lower, "127.0.0.1") {
+		return true
+	}
+	hostPart := url
+	if idx := strings.Index(url, "://"); idx >= 0 {
+		hostPart = url[idx+3:]
+	}
+	if idx := strings.Index(hostPart, "/"); idx >= 0 {
+		hostPart = hostPart[:idx]
+	}
+	if idx := strings.Index(hostPart, ":"); idx >= 0 {
+		hostPart = hostPart[:idx]
+	}
+	if strings.HasPrefix(hostPart, "10.") || strings.HasPrefix(hostPart, "192.168.") {
+		return true
+	}
+	if strings.HasPrefix(hostPart, "172.") {
+		parts := strings.Split(hostPart, ".")
+		if len(parts) >= 2 {
+			second, err := strconv.Atoi(parts[1])
+			if err == nil && second >= 16 && second <= 31 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ========== 公开接口 ==========
@@ -151,7 +226,11 @@ func ShareTemplate(userId int, userName string, req *dto.SharedTemplateShareRequ
 		planVersion = 3
 	}
 
-	// 5. 保存到数据库
+	// 5. 规范化 ThumbnailUrl：相对路径或 localhost/内网地址修正为公网 URL，
+	//    避免封面在其他用户端无法访问（图片裂开）
+	req.ThumbnailUrl = normalizeTemplateThumbnailUrl(req.ThumbnailUrl)
+
+	// 6. 保存到数据库
 	template := &model.SharedTemplate{
 		TemplateId:    templateId,
 		Name:          req.Name,

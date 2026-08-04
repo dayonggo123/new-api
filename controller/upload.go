@@ -108,6 +108,13 @@ func UploadImages(c *gin.Context) {
 }
 
 func getUploadBaseURL(c *gin.Context) string {
+	// 优先使用显式配置的公网 URL（推荐生产环境配置），避免 localhost/内网 IP 泄漏
+	// 注意：调用处拼接 %s/uploads/xxx，因此这里返回站点根（去掉 /uploads 后缀）
+	if publicURL := os.Getenv("UPLOADS_PUBLIC_URL"); publicURL != "" {
+		publicURL = strings.TrimRight(publicURL, "/")
+		publicURL = strings.TrimSuffix(publicURL, "/uploads")
+		return publicURL
+	}
 	// Use X-Forwarded-Host/Proto if behind proxy, otherwise infer from request
 	scheme := "https"
 	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
