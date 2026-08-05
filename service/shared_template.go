@@ -92,41 +92,86 @@ func logSharedTemplatePlanInfo(userId int, planJson string) {
 	common.SysLog(fmt.Sprintf("shared-template share: userId=%d planJson summary=%v", userId, summary))
 }
 
-// detectLocalAssetPaths 检测 planJson 中是否包含本机本地路径（如 F:\...、C:/...、/Users/...），
-// 这些路径其他用户无法访问，分享前必须由客户端上传素材并替换为公网 URL
-func detectLocalAssetPaths(planJson string) []string {
-	// 匹配 Windows 盘符路径: F:\... 或 C:/...
-	// 贪婪匹配到空白/JSON 分隔符为止，再在过滤时剔除 X:// 伪盘符（https:// 的 s:）
-	reWin := regexp.MustCompile(`[A-Za-z]:[\\/][^"',}\s\]]+`)
-	// 匹配 Unix 绝对路径（排除 URL 和 /uploads 相对资源）
-	reUnix := regexp.MustCompile(`/(?:Users|home|data|tmp|var|opt|usr|private)[^\s"',}\]]+`)
+// 匹配 Windows 盘符路径: F:\... 或 C:/...
+// 贪婪匹配到空白/JSON 分隔符为止，再在过滤时剔除 X:// 伪盘符（https:// 的 s:）
+var planWinPathRe = regexp.MustCompile(`[A-Za-z]:[\\/][^"',}\s\]]+`)
 
+// 匹配 Unix 绝对路径（排除 URL 和 /uploads 相对资源）
+var planUnixPathRe = regexp.MustCompile(`/(?:Users|home|data|tmp|var|opt|usr|private)[^\s"',}\]]+`)
+
+// detectLocalAssetPaths 检测 planJson 中是否包含本机本地路径（如 F:\...、C:/...、/Users/...），
+// 这些路径其他用户无法访问，分享前必须由客户端上传素材并替换为公网 URL。
+// 注意：必须在 JSON 解析后的 plan 树上递归扫描——若直接扫原始 JSON 文本，
+// 转义序列 \n（字面反斜杠+n）会被 [A-Za-z]:[\\/] 误判为盘符路径，
+// 导致提示词中的 "e:\n\n【Basic" 之类内容被误报为本地路径而拒绝分享。
+func detectLocalAssetPaths(planJson string) []string {
 	seen := make(map[string]bool)
 	var result []string
 	add := func(matches []string) {
 		for _, m := range matches {
 			m = strings.TrimSpace(m)
-			if m == "" || seen[m] {
+			if m == "" {
+				continue
+			}
+			// Windows 路径在嵌套 JSON 字符串中可能带双重反斜杠（\\），归一化后去重，
+			// 避免同一路径被外层序列化字符串与内层解码字符串各报一次
+			key := strings.ReplaceAll(m, `\\`, `\`)
+			if seen[key] {
 				continue
 			}
 			// 剔除伪盘符：https:// 中的 s://（盘符后紧跟 :// 视为 URL 而非本地路径）
-			if strings.HasPrefix(m, "://") || len(m) >= 3 && m[1] == ':' && m[2] == '/' {
+			if strings.HasPrefix(key, "://") || len(key) >= 3 && key[1] == ':' && key[2] == '/' {
 				continue
 			}
 			// 排除已经是 URL 的情况
-			if strings.HasPrefix(m, "http://") || strings.HasPrefix(m, "https://") {
+			if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
 				continue
 			}
-			seen[m] = true
+			seen[key] = true
 			if len(result) < 10 {
-				result = append(result, m)
+				result = append(result, key)
 			}
 		}
 	}
+	scan := func(s string) {
+		add(planWinPathRe.FindAllString(s, -1))
+		add(planUnixPathRe.FindAllString(s, -1))
+	}
 
-	add(reWin.FindAllString(planJson, -1))
-	add(reUnix.FindAllString(planJson, -1))
+	// 优先在解析后的 plan 树上递归扫描（解码后的字符串中 \n 是真正空白，不会被误判）
+	var plan interface{}
+	if err := json.Unmarshal([]byte(planJson), &plan); err == nil {
+		collectPlanStringValues(plan, scan)
+		return result
+	}
+	// 兜底：JSON 解析失败时扫描原始文本（validatePlanJson 前置校验通常已保证可解析）
+	scan(planJson)
 	return result
+}
+
+// collectPlanStringValues 深度遍历 plan 树，对每个字符串值调用 visit；
+// 若字符串本身是嵌套 JSON（如序列化的 nodeData），继续展开其内部字符串再扫描。
+func collectPlanStringValues(v interface{}, visit func(string)) {
+	switch t := v.(type) {
+	case string:
+		visit(t)
+		// 嵌套 JSON 字符串展开，避免其内部转义序列再次触发误报
+		trimmed := strings.TrimSpace(t)
+		if (strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[")) && len(trimmed) > 2 {
+			var inner interface{}
+			if err := json.Unmarshal([]byte(trimmed), &inner); err == nil {
+				collectPlanStringValues(inner, visit)
+			}
+		}
+	case []interface{}:
+		for _, e := range t {
+			collectPlanStringValues(e, visit)
+		}
+	case map[string]interface{}:
+		for _, e := range t {
+			collectPlanStringValues(e, visit)
+		}
+	}
 }
 
 // validateNoLocalAssetPaths 校验 planJson 中没有本机本地路径，有则返回错误

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -126,4 +127,85 @@ func TestResolveTemplateThumbnailUrl(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDetectLocalAssetPaths 验证本地路径检测：
+// 提示词文本中的 JSON 转义 \n 不应被误判为盘符路径（曾导致 "e:\n\n【Basic" 误报拒绝分享）。
+// 所有输入均用 json.Marshal 序列化，模拟服务端实际收到的 planJson（\n 为字面反斜杠+n）。
+func TestDetectLocalAssetPaths(t *testing.T) {
+	marshal := func(v interface{}) string {
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+		return string(b)
+	}
+
+	t.Run("prompt text with JSON escapes not misdetected", func(t *testing.T) {
+		prompt := "请生成一张16:9的横版图片。\n\n**通用指令：**\n- 画面风格：超真实UGC手机直拍效果\n\ne:\n\n【Basic Prompt:**\n\n**Overall Scene:**"
+		plan := marshal(map[string]interface{}{
+			"name":  "storyboard",
+			"steps": []interface{}{map[string]interface{}{"nodeData": map[string]interface{}{"prompt": prompt}}},
+		})
+		got := detectLocalAssetPaths(plan)
+		if len(got) != 0 {
+			t.Errorf("JSON escape sequences misdetected as local paths: %v", got)
+		}
+	})
+
+	t.Run("real windows path detected", func(t *testing.T) {
+		plan := marshal(map[string]interface{}{
+			"steps": []interface{}{map[string]interface{}{
+				"nodeData": map[string]interface{}{
+					"imageUrl": `F:\无线画布-分镜\图片和视频\assets\images\cb7c8862d66950289ba5e10afec7e8a4950f0480720bcf6ad8fc4a731c70ab13.png`,
+				},
+			}},
+		})
+		got := detectLocalAssetPaths(plan)
+		if len(got) != 1 {
+			t.Errorf("real windows path not detected, got: %v", got)
+		}
+	})
+
+	t.Run("real unix path detected", func(t *testing.T) {
+		plan := marshal(map[string]interface{}{
+			"steps": []interface{}{map[string]interface{}{
+				"nodeData": map[string]interface{}{
+					"imageUrl": "/Users/me/workspace/assets/a.png",
+				},
+			}},
+		})
+		got := detectLocalAssetPaths(plan)
+		if len(got) != 1 {
+			t.Errorf("real unix path not detected, got: %v", got)
+		}
+	})
+
+	t.Run("public url not misdetected", func(t *testing.T) {
+		plan := marshal(map[string]interface{}{
+			"steps": []interface{}{map[string]interface{}{
+				"nodeData": map[string]interface{}{
+					"imageUrl":        "https://heharse.cloud/uploads/permanent/ca430ce0-42ee-46b7-b80b-75afdf89e542.png",
+					"previewImageUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD",
+				},
+			}},
+		})
+		got := detectLocalAssetPaths(plan)
+		if len(got) != 0 {
+			t.Errorf("public URL misdetected as local path: %v", got)
+		}
+	})
+
+	t.Run("nested json string expanded", func(t *testing.T) {
+		nested := marshal(map[string]interface{}{
+			"imageUrl": `C:\Users\me\Desktop\shot.png`,
+		})
+		plan := marshal(map[string]interface{}{
+			"steps": []interface{}{map[string]interface{}{"nodeData": nested}},
+		})
+		got := detectLocalAssetPaths(plan)
+		if len(got) != 1 {
+			t.Errorf("nested json local path not detected, got: %v", got)
+		}
+	})
 }
