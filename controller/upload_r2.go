@@ -154,6 +154,48 @@ func UploadImageR2Base64(c *gin.Context) {
 	})
 }
 
+// ProxyR2Object handles GET /api/public/r2
+// 永久服务器地址：服务端根据 bucket/key 实时生成新的 presigned URL 后 302 重定向到 R2，
+// 客户端直连 R2 拉取对象，不占用服务端带宽，且不依赖任何历史签名是否过期。
+// 用于模板市场等场景的持久封面/资源 URL（DB 中只存 r2://bucket/key 短路径）。
+func ProxyR2Object(c *gin.Context) {
+	if !storage.R2Enabled() {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "R2 storage is not configured",
+		})
+		return
+	}
+
+	bucket := strings.TrimSpace(c.Query("bucket"))
+	key := strings.TrimSpace(c.Query("key"))
+	if bucket == "" || key == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "bucket and key are required",
+		})
+		return
+	}
+	// 防御性限制：R2 key 长度通常 < 512，避免异常入参
+	if len(bucket) > 128 || len(key) > 2048 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid bucket or key",
+		})
+		return
+	}
+
+	signed, err := storage.PresignBucketObject(bucket, key)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("ProxyR2Object presign failed bucket=%s key=%s: %v", bucket, key, err))
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "object not found or access denied",
+		})
+		return
+	}
+
+	// 302 可被浏览器/CDN 缓存，减少服务端调用次数（签名有效期默认 600s，缓存 300s 安全）
+	c.Header("Cache-Control", "public, max-age=300")
+	c.Redirect(http.StatusFound, signed)
+}
+
 // PresignImageR2 handles POST /uapi/v1/r2/presign
 // Accepts JSON body: {"key": "tmp/uuid.png"}, returns a fresh presigned URL.
 func PresignImageR2(c *gin.Context) {

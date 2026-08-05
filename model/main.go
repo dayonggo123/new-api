@@ -254,6 +254,11 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// Migrate shared_templates.thumbnail_url from varchar(500) to text for existing tables
+	// R2 presigned URLs (with AWS signature params) can exceed 500 chars -> MySQL Error 1406
+	if err := migrateSharedTemplateThumbnailUrlToText(); err != nil {
+		return err
+	}
 	// Migrate articles.i18n and articles.seo_i18n from text to longtext for existing tables (MySQL)
 	if err := migrateArticleI18nToLongText(); err != nil {
 		return err
@@ -529,6 +534,61 @@ func migrateArticleI18nToLongText() error {
 			return fmt.Errorf("failed to migrate %s.%s to longtext: %w", tableName, columnName, err)
 		}
 		common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to longtext", tableName, columnName))
+	}
+	return nil
+}
+
+// migrateSharedTemplateThumbnailUrlToText migrates shared_templates.thumbnail_url from varchar(500)
+// to text. R2 presigned URLs (with X-Amz-* signature query params) are 513+ chars, exceeding
+// VARCHAR(500) and causing MySQL Error 1406 "Data too long" when sharing templates.
+// Safe to run multiple times - it checks the column type first.
+func migrateSharedTemplateThumbnailUrlToText() error {
+	// SQLite uses type affinity, so TEXT and VARCHAR are effectively the same — no migration needed
+	if common.UsingSQLite {
+		return nil
+	}
+
+	tableName := "shared_templates"
+	columnName := "thumbnail_url"
+
+	if !DB.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	if !DB.Migrator().HasColumn(&SharedTemplate{}, columnName) {
+		return nil
+	}
+
+	var alterSQL string
+	if common.UsingPostgreSQL {
+		var dataType string
+		if err := DB.Raw(`SELECT data_type FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Scan(&dataType).Error; err != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to query metadata for %s.%s: %v", tableName, columnName, err))
+		} else if dataType == "text" {
+			return nil
+		}
+		alterSQL = fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s TYPE text`, tableName, columnName)
+	} else if common.UsingMySQL {
+		var columnType string
+		if err := DB.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
+				WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Scan(&columnType).Error; err != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to query metadata for %s.%s: %v", tableName, columnName, err))
+		} else if strings.ToLower(columnType) == "text" || strings.HasPrefix(strings.ToLower(columnType), "longtext") {
+			return nil
+		}
+		alterSQL = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s TEXT", tableName, columnName)
+	} else {
+		return nil
+	}
+
+	if alterSQL != "" {
+		if err := DB.Exec(alterSQL).Error; err != nil {
+			return fmt.Errorf("failed to migrate %s.%s to text: %w", tableName, columnName, err)
+		}
+		common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to text", tableName, columnName))
 	}
 	return nil
 }

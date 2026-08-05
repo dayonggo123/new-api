@@ -28,7 +28,12 @@ type SharedTemplate struct {
 	VideoCount    int            `json:"videoCount" gorm:"column:video_count;default:0"`
 	TotalSize     int64          `json:"totalSize" gorm:"column:total_size;default:0"`
 	HasAssets     bool           `json:"hasAssets" gorm:"column:has_assets;default:false"`
-	ThumbnailUrl  string         `json:"thumbnailUrl,omitempty" gorm:"column:thumbnail_url;size:500"`
+	// ThumbnailUrl 模板封面 URL。使用 TEXT 而非 VARCHAR：
+	// R2 presigned URL（含 AWS 签名参数）长度可超过 500 字符（实测 513+），
+	// VARCHAR(500) 在 MySQL 上会报 Error 1406 Data too long。
+	// 新分享入库前会被规范化为 r2://bucket/key 短路径（见 service.ShareTemplate），
+	// 此列同时兼容历史完整 URL 与第三方 CDN URL。
+	ThumbnailUrl  string         `json:"thumbnailUrl,omitempty" gorm:"column:thumbnail_url;type:text"`
 	ThumbnailType string         `json:"thumbnailType,omitempty" gorm:"column:thumbnail_type;size:20"`
 	UseCount      int            `json:"useCount" gorm:"column:use_count;default:0;index"`
 	CreatedAt     int64          `json:"createdAt" gorm:"column:created_at;autoCreateTime;index"`

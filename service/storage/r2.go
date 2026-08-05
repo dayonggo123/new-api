@@ -173,6 +173,33 @@ func PresignedURL(key string) (string, error) {
 	return presigned.URL, nil
 }
 
+// R2Bucket returns the configured default bucket name.
+func R2Bucket() string {
+	return r2Bucket
+}
+
+// PresignBucketObject generates a fresh presigned GET URL for an object in an
+// explicit bucket (may differ from the default R2_BUCKET). The R2 S3 credential
+// is account-scoped, so cross-bucket access works as long as the token has
+// permission on the target bucket. Used to serve permanent server-side URLs for
+// objects uploaded by upstream systems (e.g. GeminiGen results).
+func PresignBucketObject(bucket, key string) (string, error) {
+	if !r2Enabled {
+		return "", fmt.Errorf("R2 storage is not configured")
+	}
+	if bucket == "" || key == "" {
+		return "", fmt.Errorf("bucket and key are required")
+	}
+	presigned, err := r2Presign.PresignGetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	}, s3.WithPresignExpires(r2Expiry))
+	if err != nil {
+		return "", fmt.Errorf("R2 PresignGetObject failed: %w", err)
+	}
+	return presigned.URL, nil
+}
+
 func getEnvInt(name string, defaultVal int) int {
 	s := os.Getenv(name)
 	if s == "" {

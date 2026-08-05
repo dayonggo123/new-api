@@ -3,20 +3,31 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service/storage"
 	"gorm.io/gorm"
 )
 
 const (
 	defaultSharedTemplatePageSize = 20
 	maxSharedTemplatePageSize     = 50
+
+	// r2ShortPrefix 是 R2 对象的短路径存储格式：r2://<bucket>/<key>
+	// 无签名参数，永不过期，且长度远小于 presigned URL（解决 MySQL VARCHAR(500) 超限报 1406）。
+	// 对外输出时通过 resolveTemplateThumbnailUrl 动态生成服务器永久代理地址或新鲜签名。
+	r2ShortPrefix = "r2://"
 )
+
+// r2SignedURLRe 匹配 R2 presigned URL：https://<account>.r2.cloudflarestorage.com/<bucket>/<key>?<signature params>
+var r2SignedURLRe = regexp.MustCompile(`^https://[a-zA-Z0-9_-]+\.r2\.cloudflarestorage\.com/([^/]+)/(.+)$`)
 
 // ========== 参数校验 ==========
 
@@ -62,6 +73,71 @@ func validatePlanJson(planJson string) error {
 	return nil
 }
 
+// logSharedTemplatePlanInfo 记录分享请求中 planJson 的关键字段摘要，
+// 用于排查客户端字段（如 selectedCustomPrompt*）是否到达服务端
+func logSharedTemplatePlanInfo(userId int, planJson string) {
+	summary := map[string]interface{}{
+		"length": len(planJson),
+	}
+	// 提取 planJson 中是否包含自定义提示词相关字段（不做完整解析，避免误伤大 plan）
+	for _, key := range []string{
+		"selectedCustomPrompt", "selected_custom_prompt", "customPrompt", "custom_prompt",
+		"promptId", "prompt_id", "promptTitle", "prompt_title", "promptContent", "prompt_content",
+		"inputHint", "input_hint",
+	} {
+		if strings.Contains(planJson, key) {
+			summary[key] = true
+		}
+	}
+	common.SysLog(fmt.Sprintf("shared-template share: userId=%d planJson summary=%v", userId, summary))
+}
+
+// detectLocalAssetPaths 检测 planJson 中是否包含本机本地路径（如 F:\...、C:/...、/Users/...），
+// 这些路径其他用户无法访问，分享前必须由客户端上传素材并替换为公网 URL
+func detectLocalAssetPaths(planJson string) []string {
+	// 匹配 Windows 盘符路径: F:\... 或 C:/...
+	// 贪婪匹配到空白/JSON 分隔符为止，再在过滤时剔除 X:// 伪盘符（https:// 的 s:）
+	reWin := regexp.MustCompile(`[A-Za-z]:[\\/][^"',}\s\]]+`)
+	// 匹配 Unix 绝对路径（排除 URL 和 /uploads 相对资源）
+	reUnix := regexp.MustCompile(`/(?:Users|home|data|tmp|var|opt|usr|private)[^\s"',}\]]+`)
+
+	seen := make(map[string]bool)
+	var result []string
+	add := func(matches []string) {
+		for _, m := range matches {
+			m = strings.TrimSpace(m)
+			if m == "" || seen[m] {
+				continue
+			}
+			// 剔除伪盘符：https:// 中的 s://（盘符后紧跟 :// 视为 URL 而非本地路径）
+			if strings.HasPrefix(m, "://") || len(m) >= 3 && m[1] == ':' && m[2] == '/' {
+				continue
+			}
+			// 排除已经是 URL 的情况
+			if strings.HasPrefix(m, "http://") || strings.HasPrefix(m, "https://") {
+				continue
+			}
+			seen[m] = true
+			if len(result) < 10 {
+				result = append(result, m)
+			}
+		}
+	}
+
+	add(reWin.FindAllString(planJson, -1))
+	add(reUnix.FindAllString(planJson, -1))
+	return result
+}
+
+// validateNoLocalAssetPaths 校验 planJson 中没有本机本地路径，有则返回错误
+func validateNoLocalAssetPaths(planJson string) error {
+	localPaths := detectLocalAssetPaths(planJson)
+	if len(localPaths) > 0 {
+		return fmt.Errorf("planJson contains local file paths that other users cannot access, please upload assets first: %s (and %d more)", localPaths[0], len(localPaths)-1)
+	}
+	return nil
+}
+
 // normalizeTemplateThumbnailUrl 规范化模板封面 URL：
 //   - 空值或已是公网 URL 直接返回
 //   - 相对路径（如 /uploads/xxx.jpg）自动拼接公网域名
@@ -102,6 +178,82 @@ func getUploadsPublicRoot() string {
 	publicURL = strings.TrimRight(publicURL, "/")
 	publicURL = strings.TrimSuffix(publicURL, "/uploads")
 	return publicURL
+}
+
+// normalizeR2SignedURL 将 R2 presigned URL 规范化为短路径 r2://<bucket>/<key>。
+// 签名参数（X-Amz-*）直接丢弃，避免超长 URL 触发 MySQL Error 1406，也避免签名过期后失效。
+// 仅在 R2 已配置时转换（否则保留完整 URL，由 TEXT 列容纳）。
+func normalizeR2SignedURL(rawURL string) string {
+	if !storage.R2Enabled() {
+		return rawURL
+	}
+	m := r2SignedURLRe.FindStringSubmatch(strings.TrimSpace(rawURL))
+	if len(m) != 3 {
+		return rawURL
+	}
+	bucket, keyWithQuery := m[1], m[2]
+	if idx := strings.IndexAny(keyWithQuery, "?#"); idx >= 0 {
+		keyWithQuery = keyWithQuery[:idx]
+	}
+	if bucket == "" || keyWithQuery == "" {
+		return rawURL
+	}
+	return r2ShortPrefix + bucket + "/" + keyWithQuery
+}
+
+// resolveTemplateThumbnailUrl 将数据库存储的 thumbnailUrl 转为客户端可访问的 URL：
+//   - r2://<bucket>/<key>（新格式）→ 服务器永久代理地址 {root}/api/public/r2?bucket=..&key=..
+//     （R2 未配置或公网域名缺失时降级为直接动态签名）
+//   - 完整 R2 presigned URL（历史数据）→ 同样转为永久代理地址（避免签名过期后裂图）
+//   - 其他 URL（CDN/自有上传）→ 原样返回
+func resolveTemplateThumbnailUrl(storeUrl string) string {
+	storeUrl = strings.TrimSpace(storeUrl)
+	if storeUrl == "" {
+		return storeUrl
+	}
+
+	bucket, key := "", ""
+	switch {
+	case strings.HasPrefix(storeUrl, r2ShortPrefix):
+		path := strings.TrimPrefix(storeUrl, r2ShortPrefix)
+		b, k, ok := strings.Cut(path, "/")
+		if ok {
+			bucket, key = b, k
+		}
+		// r2:// 短路径仅在 R2 可用时可解析；否则没有可用的完整 URL 可返回
+		if bucket == "" || key == "" {
+			return storeUrl
+		}
+		if !storage.R2Enabled() {
+			return ""
+		}
+		if root := getUploadsPublicRoot(); root != "" {
+			return root + "/api/public/r2?bucket=" + url.QueryEscape(bucket) + "&key=" + url.QueryEscape(key)
+		}
+		if signed, err := storage.PresignBucketObject(bucket, key); err == nil && signed != "" {
+			return signed
+		}
+		return ""
+	default:
+		if m := r2SignedURLRe.FindStringSubmatch(storeUrl); len(m) == 3 {
+			bucket, key = m[1], m[2]
+			if idx := strings.IndexAny(key, "?#"); idx >= 0 {
+				key = key[:idx]
+			}
+		}
+		// 历史完整 R2 URL：R2 可用时转为永久代理地址；不可用时原样返回（完整 URL 兜底）
+		if bucket != "" && key != "" && storage.R2Enabled() {
+			if root := getUploadsPublicRoot(); root != "" {
+				return root + "/api/public/r2?bucket=" + url.QueryEscape(bucket) + "&key=" + url.QueryEscape(key)
+			}
+			if signed, err := storage.PresignBucketObject(bucket, key); err == nil && signed != "" {
+				return signed
+			}
+		}
+	}
+
+	// 非 R2 URL 或无法解析：原样返回
+	return storeUrl
 }
 
 // isLocalOrPrivateURL 判断 URL 是否指向本机或内网（localhost、127.x、10.x、192.168.x、172.16-31.x）
@@ -213,6 +365,11 @@ func ShareTemplate(userId int, userName string, req *dto.SharedTemplateShareRequ
 	if err := validatePlanJson(req.PlanJson); err != nil {
 		return nil, err
 	}
+	// 2.1 校验 planJson 中没有本机本地路径（素材必须上传后替换为公网 URL）
+	if err := validateNoLocalAssetPaths(req.PlanJson); err != nil {
+		return nil, err
+	}
+	logSharedTemplatePlanInfo(userId, req.PlanJson)
 
 	// 3. 生成模板 ID
 	templateId := common.GetUUID()
@@ -227,8 +384,10 @@ func ShareTemplate(userId int, userName string, req *dto.SharedTemplateShareRequ
 	}
 
 	// 5. 规范化 ThumbnailUrl：相对路径或 localhost/内网地址修正为公网 URL，
-	//    避免封面在其他用户端无法访问（图片裂开）
+	//    避免封面在其他用户端无法访问（图片裂开）；R2 presigned URL 压缩为 r2:// 短路径，
+	//    避免超长（513+ 字符）触发 MySQL Error 1406 Data too long
 	req.ThumbnailUrl = normalizeTemplateThumbnailUrl(req.ThumbnailUrl)
+	req.ThumbnailUrl = normalizeR2SignedURL(req.ThumbnailUrl)
 
 	// 6. 保存到数据库
 	template := &model.SharedTemplate{
@@ -483,7 +642,7 @@ func toSharedTemplateListItem(t *model.SharedTemplate) dto.SharedTemplateListIte
 		Id:            t.TemplateId,
 		Name:          t.Name,
 		Description:   t.Description,
-		ThumbnailUrl:  t.ThumbnailUrl,
+		ThumbnailUrl:  resolveTemplateThumbnailUrl(t.ThumbnailUrl),
 		ThumbnailType: t.ThumbnailType,
 		Category:      t.Category,
 		AuthorId:      t.AuthorId,

@@ -214,6 +214,8 @@ func SetApiRouter(router *gin.Engine) {
 			sharedTemplateGroup.GET("/mine", middleware.TokenAuth(), controller.GetMySharedTemplates) // must be before :id
 			sharedTemplateGroup.GET("/:id", controller.GetSharedTemplateDetail)
 		}
+		// R2 object proxy: permanent server-side URL for thumbnail/assets (public, template market resources must be reachable)
+		apiRouter.GET("/public/r2", controller.ProxyR2Object)
 		// User actions (require login)
 		sharedTemplateAuthGroup := apiRouter.Group("/shared-templates")
 		sharedTemplateAuthGroup.Use(middleware.TokenAuth())
