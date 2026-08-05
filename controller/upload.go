@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"fmt"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -16,8 +16,12 @@ import (
 )
 
 const (
-	uploadDir       = "./uploads"
-	permanentDir    = "./uploads/permanent"
+	uploadDir    = "./uploads"
+	permanentDir = "./uploads/permanent"
+	// maxUploadRequestBytes 上传请求体上限（200MB，覆盖多图 multipart 场景）。
+	// 服务端显式限制并返回 413 JSON，避免请求体过大时被 nginx client_max_body_size
+	// 直接截断连接，导致客户端（reqwest）只看到 "error sending request" 而无法定位原因。
+	maxUploadRequestBytes = 200 << 20
 )
 
 // UploadImages handles POST /uapi/v1/upload_images
@@ -25,6 +29,8 @@ const (
 // Query param: permanent=true  saves files to ./uploads/permanent/ (long-term retention)
 // Returns URLs for the uploaded files
 func UploadImages(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
+
 	dir := uploadDir
 	if c.Query("permanent") == "true" {
 		dir = permanentDir
@@ -38,6 +44,13 @@ func UploadImages(c *gin.Context) {
 
 	form, err := c.MultipartForm()
 	if err != nil {
+		common.SysLog(fmt.Sprintf("UploadImages multipart parse failed: %v", err))
+		if isRequestBodyTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error": fmt.Sprintf("upload request too large, max %d bytes", maxUploadRequestBytes),
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("failed to parse multipart form: %v", err),
 		})
@@ -59,12 +72,14 @@ func UploadImages(c *gin.Context) {
 	for _, fileHeader := range files {
 		file, err := fileHeader.Open()
 		if err != nil {
+			common.SysLog(fmt.Sprintf("UploadImages open file %s failed: %v", fileHeader.Filename, err))
 			continue
 		}
 
 		data, err := io.ReadAll(file)
 		file.Close()
 		if err != nil {
+			common.SysLog(fmt.Sprintf("UploadImages read file %s failed: %v", fileHeader.Filename, err))
 			continue
 		}
 
@@ -74,6 +89,7 @@ func UploadImages(c *gin.Context) {
 			contentType = http.DetectContentType(data)
 		}
 		if !strings.HasPrefix(contentType, "image/") {
+			common.SysLog(fmt.Sprintf("UploadImages skipped non-image %s: %s (%d bytes)", fileHeader.Filename, contentType, len(data)))
 			continue
 		}
 
@@ -83,7 +99,7 @@ func UploadImages(c *gin.Context) {
 		filePath := filepath.Join(dir, filename)
 
 		if err := os.WriteFile(filePath, data, 0644); err != nil {
-			common.SysLog(fmt.Sprintf("failed to write uploaded file: %v", err))
+			common.SysLog(fmt.Sprintf("failed to write uploaded file %s: %v", filePath, err))
 			continue
 		}
 
@@ -105,6 +121,15 @@ func UploadImages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"urls": urls,
 	})
+}
+
+// isRequestBodyTooLarge 判断错误是否为请求体超限（http.MaxBytesReader 触发）
+func isRequestBodyTooLarge(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "request body too large") || strings.Contains(msg, "MaxBytesError")
 }
 
 func getUploadBaseURL(c *gin.Context) string {
@@ -162,6 +187,8 @@ func extFromMime(mime string) string {
 // Accepts multipart form with "videos" field (multiple files)
 // Returns URLs for the uploaded files
 func UploadVideos(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
+
 	videoDir := filepath.Join(uploadDir, "videos")
 	if err := os.MkdirAll(videoDir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -172,6 +199,13 @@ func UploadVideos(c *gin.Context) {
 
 	form, err := c.MultipartForm()
 	if err != nil {
+		common.SysLog(fmt.Sprintf("UploadVideos multipart parse failed: %v", err))
+		if isRequestBodyTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error": fmt.Sprintf("upload request too large, max %d bytes", maxUploadRequestBytes),
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("failed to parse multipart form: %v", err),
 		})
@@ -242,11 +276,20 @@ func UploadVideos(c *gin.Context) {
 // Accepts JSON body: {"images": ["data:image/png;base64,xxxxx", ...], "permanent": true}
 // Returns: {"urls": ["https://host/uploads/uuid.png", ...]}
 func UploadImagesJSON(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
+
 	var body struct {
 		Images    []string `json:"images"`
 		Permanent bool     `json:"permanent"`
 	}
 	if err := c.BindJSON(&body); err != nil {
+		common.SysLog(fmt.Sprintf("UploadImagesJSON bind failed: %v", err))
+		if isRequestBodyTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error": fmt.Sprintf("upload request too large, max %d bytes", maxUploadRequestBytes),
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON body: " + err.Error()})
 		return
 	}
@@ -295,7 +338,6 @@ func UploadImagesJSON(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"urls": urls})
 }
-
 
 // Upload handles POST /api/v1/upload
 // Unified file upload endpoint: supports image/video/audio/file/material
@@ -392,5 +434,5 @@ func parseDataURL(dataURL string) ([]byte, string, error) {
 		// Try URL-safe base64
 		decoded, err = base64.URLEncoding.DecodeString(b64data)
 	}
-	return decoded, extFromMime("image/"+mime), err
+	return decoded, extFromMime("image/" + mime), err
 }
