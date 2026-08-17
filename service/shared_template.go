@@ -543,6 +543,35 @@ func RecordSharedTemplateUse(templateId string, userId int) error {
 
 // ========== 管理员接口 ==========
 
+// AdminDeleteSharedTemplate 管理员删除模板（软删除 + 记录审计日志）。
+// 与作者删除（DeleteSharedTemplate）不同：管理员可删除任意状态的模板。
+func AdminDeleteSharedTemplate(templateId string, adminId int, adminName string) error {
+	template, err := model.GetSharedTemplateByTemplateId(templateId)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("template not found")
+		}
+		return err
+	}
+
+	if err := template.SoftDelete(); err != nil {
+		return fmt.Errorf("failed to delete template: %v", err)
+	}
+
+	// 记录审计日志，失败不阻塞主流程
+	auditLog := &model.SharedTemplateAuditLog{
+		TemplateId: templateId,
+		AdminId:    adminId,
+		AdminName:  adminName,
+		Action:     "delete",
+		Reason:     "",
+	}
+	if err := auditLog.Insert(); err != nil {
+		common.SysLog(fmt.Sprintf("failed to write audit log for template %s: %v", templateId, err))
+	}
+	return nil
+}
+
 // GetPendingSharedTemplates 获取待审核列表
 func GetPendingSharedTemplates(page, pageSize int) (*dto.SharedTemplateListResponse, error) {
 	if page < 1 {

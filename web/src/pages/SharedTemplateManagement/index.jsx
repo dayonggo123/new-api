@@ -94,6 +94,29 @@ export default function SharedTemplateManagement() {
     }
   };
 
+  const handleDelete = (record) => {
+    Modal.confirm({
+      title: t('删除模板'),
+      content: t('确定删除模板「{name}」吗？删除后将从模板市场移除，且不可恢复。', { name: record.name || record.id }),
+      type: 'warning',
+      okText: t('删除'),
+      cancelText: t('取消'),
+      onOk: async () => {
+        try {
+          const res = await API.delete(`/api/admin/shared-templates/${record.id}`);
+          if (res.data.success) {
+            showSuccess(t('已删除'));
+            loadData();
+          } else {
+            showError(res.data.message);
+          }
+        } catch (err) {
+          showError(err.message);
+        }
+      },
+    });
+  };
+
   const handleAudit = async (record, action) => {
     let reason = '';
     if (action === 'reject') {
@@ -214,7 +237,7 @@ export default function SharedTemplateManagement() {
     {
       title: t('操作'),
       key: 'action',
-      width: 240,
+      width: 280,
       fixed: 'right',
       render: (_, record) => (
         <Space>
@@ -241,6 +264,9 @@ export default function SharedTemplateManagement() {
               </Button>
             </>
           )}
+          <Button type='danger' theme='borderless' size='small' onClick={() => handleDelete(record)}>
+            {t('删除')}
+          </Button>
         </Space>
       ),
     },
@@ -359,24 +385,34 @@ export default function SharedTemplateManagement() {
               })()}
             </pre>
             <div style={{ marginTop: 16, textAlign: 'right' }}>
-              {detailItem.status === 'pending' && (
-                <Space>
-                  <Button
-                    type='primary'
-                    loading={auditing}
-                    onClick={() => { handleAudit(detailItem, 'approve'); setDetailVisible(false); }}
-                  >
-                    {t('通过')}
-                  </Button>
-                  <Button
-                    type='danger'
-                    loading={auditing}
-                    onClick={() => { handleAudit(detailItem, 'reject'); setDetailVisible(false); }}
-                  >
-                    {t('拒绝')}
-                  </Button>
-                </Space>
-              )}
+              <Space>
+                <Button
+                  type='danger'
+                  theme='borderless'
+                  loading={auditing}
+                  onClick={() => { handleDelete(detailItem); setDetailVisible(false); }}
+                >
+                  {t('删除')}
+                </Button>
+                {detailItem.status === 'pending' && (
+                  <>
+                    <Button
+                      type='primary'
+                      loading={auditing}
+                      onClick={() => { handleAudit(detailItem, 'approve'); setDetailVisible(false); }}
+                    >
+                      {t('通过')}
+                    </Button>
+                    <Button
+                      type='danger'
+                      loading={auditing}
+                      onClick={() => { handleAudit(detailItem, 'reject'); setDetailVisible(false); }}
+                    >
+                      {t('拒绝')}
+                    </Button>
+                  </>
+                )}
+              </Space>
             </div>
           </div>
         )}

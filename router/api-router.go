@@ -232,6 +232,7 @@ func SetApiRouter(router *gin.Engine) {
 			sharedTemplateAdminRoute.GET("/all", controller.AdminListSharedTemplates)
 			sharedTemplateAdminRoute.GET("/:id", controller.AdminGetSharedTemplateDetail)
 			sharedTemplateAdminRoute.POST("/:id/audit", controller.AdminAuditSharedTemplate)
+			sharedTemplateAdminRoute.DELETE("/:id", controller.AdminDeleteSharedTemplate)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

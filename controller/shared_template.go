@@ -220,6 +220,39 @@ func AdminAuditSharedTemplate(c *gin.Context) {
 	common.ApiSuccess(c, resp)
 }
 
+// AdminDeleteSharedTemplate 管理员删除模板（任意状态，软删除）
+func AdminDeleteSharedTemplate(c *gin.Context) {
+	adminId := c.GetInt("id")
+	if adminId == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "unauthorized",
+		})
+		return
+	}
+
+	adminName, _ := c.Get("username")
+	adminNameStr := ""
+	if adminName != nil {
+		adminNameStr, _ = adminName.(string)
+	}
+	if adminNameStr == "" {
+		adminNameStr = "admin_" + fmt.Sprintf("%d", adminId)
+	}
+
+	templateId := c.Param("id")
+	if templateId == "" {
+		common.ApiErrorMsg(c, "template id is required")
+		return
+	}
+
+	if err := service.AdminDeleteSharedTemplate(templateId, adminId, adminNameStr); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, gin.H{"deleted": true})
+}
+
 // AdminListSharedTemplates 管理员获取全部模板
 func AdminListSharedTemplates(c *gin.Context) {
 	var query dto.AdminSharedTemplateListQuery
