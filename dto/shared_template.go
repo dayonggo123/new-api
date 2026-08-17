@@ -29,6 +29,15 @@ type AuditRequest struct {
 	Reason string `json:"reason"`                    // reject 时必填
 }
 
+// SharedTemplateAdminUpdateRequest 管理员编辑模板请求（名称/分类/作者/描述/执行内容）
+type SharedTemplateAdminUpdateRequest struct {
+	Name        string `json:"name"`
+	Category    string `json:"category"`
+	AuthorName  string `json:"authorName"`
+	Description string `json:"description"`
+	PlanJson    string `json:"planJson"`
+}
+
 // SharedTemplateUseRequest 记录使用请求
 type SharedTemplateUseRequest struct {
 	// 预留，后续可加 source 等字段
@@ -64,6 +73,7 @@ type SharedTemplateListItem struct {
 	AuthorName    string                   `json:"authorName"`
 	Status        string                   `json:"status"`
 	Hidden        bool                     `json:"hidden"`
+	Featured      bool                     `json:"featured"`
 	AssetInfo     *SharedTemplateAssetInfo `json:"assetInfo,omitempty"`
 	UseCount      int                      `json:"useCount"`
 	CreatedAt     int64                    `json:"createdAt"`

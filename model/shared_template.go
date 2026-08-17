@@ -20,6 +20,8 @@ type SharedTemplate struct {
 	Status        string         `json:"status" gorm:"size:20;not null;default:'pending';index:idx_sht_status_category"`
 	// Hidden 管理员隐藏标记：hidden=true 时下游（模板市场列表/详情/使用）不展示，数据保留可恢复
 	Hidden        bool           `json:"hidden" gorm:"column:hidden;default:false"`
+	// Featured 管理员推荐标记：featured=true 时下游可优先展示（角标/置顶），不影响可见性
+	Featured      bool           `json:"featured" gorm:"column:featured;default:false"`
 	RejectReason  string         `json:"rejectReason,omitempty" gorm:"column:reject_reason;type:text"`
 	PlanJson      string         `json:"planJson" gorm:"column:plan_json;type:longtext;not null"`
 	PlanVersion   int            `json:"planVersion" gorm:"column:plan_version;default:3"`
@@ -193,6 +195,21 @@ func UpdateSharedTemplateHidden(templateId string, hidden bool) error {
 			"hidden":     hidden,
 			"updated_at": common.GetTimestamp(),
 		}).Error
+}
+
+// UpdateSharedTemplateFeatured 设置模板推荐标记
+func UpdateSharedTemplateFeatured(templateId string, featured bool) error {
+	return DB.Model(&SharedTemplate{}).Where("template_id = ?", templateId).
+		Updates(map[string]interface{}{
+			"featured":   featured,
+			"updated_at": common.GetTimestamp(),
+		}).Error
+}
+
+// UpdateSharedTemplateFields 更新模板的可编辑字段（名称/分类/作者/描述/执行内容）
+func UpdateSharedTemplateFields(templateId string, updates map[string]interface{}) error {
+	updates["updated_at"] = common.GetTimestamp()
+	return DB.Model(&SharedTemplate{}).Where("template_id = ?", templateId).Updates(updates).Error
 }
 
 // DeleteSharedTemplatePermanent 彻底删除模板（物理删除，不可恢复），

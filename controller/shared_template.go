@@ -327,6 +327,86 @@ func AdminPermanentDeleteSharedTemplate(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"deleted": true})
 }
 
+// AdminSetSharedTemplateFeatured 管理员设置模板推荐标记
+func AdminSetSharedTemplateFeatured(c *gin.Context) {
+	adminId := c.GetInt("id")
+	if adminId == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "unauthorized",
+		})
+		return
+	}
+
+	adminName, _ := c.Get("username")
+	adminNameStr := ""
+	if adminName != nil {
+		adminNameStr, _ = adminName.(string)
+	}
+	if adminNameStr == "" {
+		adminNameStr = "admin_" + fmt.Sprintf("%d", adminId)
+	}
+
+	templateId := c.Param("id")
+	if templateId == "" {
+		common.ApiErrorMsg(c, "template id is required")
+		return
+	}
+
+	var req struct {
+		Featured bool `json:"featured"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "invalid request body")
+		return
+	}
+
+	if err := service.AdminSetSharedTemplateFeatured(templateId, req.Featured, adminId, adminNameStr); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, gin.H{"featured": req.Featured})
+}
+
+// AdminUpdateSharedTemplate 管理员编辑模板（名称/分类/作者/描述/执行内容）
+func AdminUpdateSharedTemplate(c *gin.Context) {
+	adminId := c.GetInt("id")
+	if adminId == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "unauthorized",
+		})
+		return
+	}
+
+	adminName, _ := c.Get("username")
+	adminNameStr := ""
+	if adminName != nil {
+		adminNameStr, _ = adminName.(string)
+	}
+	if adminNameStr == "" {
+		adminNameStr = "admin_" + fmt.Sprintf("%d", adminId)
+	}
+
+	templateId := c.Param("id")
+	if templateId == "" {
+		common.ApiErrorMsg(c, "template id is required")
+		return
+	}
+
+	var req dto.SharedTemplateAdminUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "invalid request body")
+		return
+	}
+
+	if err := service.AdminUpdateSharedTemplate(templateId, &req, adminId, adminNameStr); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, gin.H{"updated": true})
+}
+
 // AdminListSharedTemplates 管理员获取全部模板
 func AdminListSharedTemplates(c *gin.Context) {
 	var query dto.AdminSharedTemplateListQuery

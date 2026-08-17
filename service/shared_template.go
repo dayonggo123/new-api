@@ -632,6 +632,109 @@ func AdminPermanentDeleteSharedTemplate(templateId string, adminId int, adminNam
 	return nil
 }
 
+// AdminSetSharedTemplateFeatured 管理员设置模板推荐标记。
+// 推荐不影响可见性（隐藏才影响），下游可据此优先展示/加角标。
+func AdminSetSharedTemplateFeatured(templateId string, featured bool, adminId int, adminName string) error {
+	if _, err := model.GetSharedTemplateByTemplateId(templateId); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("template not found")
+		}
+		return err
+	}
+
+	if err := model.UpdateSharedTemplateFeatured(templateId, featured); err != nil {
+		return fmt.Errorf("failed to update template: %v", err)
+	}
+
+	action := "unfeature"
+	if featured {
+		action = "feature"
+	}
+	auditLog := &model.SharedTemplateAuditLog{
+		TemplateId: templateId,
+		AdminId:    adminId,
+		AdminName:  adminName,
+		Action:     action,
+		Reason:     "",
+	}
+	if err := auditLog.Insert(); err != nil {
+		common.SysLog(fmt.Sprintf("failed to write audit log for template %s: %v", templateId, err))
+	}
+	return nil
+}
+
+// AdminUpdateSharedTemplate 管理员编辑模板：名称/分类/作者/描述/执行内容。
+// 只更新非空字段；planJson 需为合法 JSON（管理员编辑保留原始语义，不做本地路径校验）。
+func AdminUpdateSharedTemplate(templateId string, req *dto.SharedTemplateAdminUpdateRequest, adminId int, adminName string) error {
+	if _, err := model.GetSharedTemplateByTemplateId(templateId); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("template not found")
+		}
+		return err
+	}
+
+	updates := make(map[string]interface{})
+
+	if req.Name != "" {
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			return fmt.Errorf("name is required")
+		}
+		if len(name) > 200 {
+			return fmt.Errorf("name too long, max 200 characters")
+		}
+		updates["name"] = name
+	}
+	if req.Category != "" {
+		if !validateSharedTemplateCategory(req.Category) {
+			return fmt.Errorf("invalid category")
+		}
+		updates["category"] = req.Category
+	}
+	if req.AuthorName != "" {
+		authorName := strings.TrimSpace(req.AuthorName)
+		if authorName == "" {
+			return fmt.Errorf("authorName is required")
+		}
+		if len(authorName) > 100 {
+			return fmt.Errorf("authorName too long, max 100 characters")
+		}
+		updates["author_name"] = authorName
+	}
+	if req.Description != "" {
+		if len(req.Description) > 500 {
+			return fmt.Errorf("description too long, max 500 characters")
+		}
+		updates["description"] = req.Description
+	}
+	if req.PlanJson != "" {
+		if err := validatePlanJson(req.PlanJson); err != nil {
+			return err
+		}
+		updates["plan_json"] = req.PlanJson
+	}
+
+	if len(updates) == 0 {
+		return fmt.Errorf("nothing to update")
+	}
+
+	if err := model.UpdateSharedTemplateFields(templateId, updates); err != nil {
+		return fmt.Errorf("failed to update template: %v", err)
+	}
+
+	auditLog := &model.SharedTemplateAuditLog{
+		TemplateId: templateId,
+		AdminId:    adminId,
+		AdminName:  adminName,
+		Action:     "update",
+		Reason:     "",
+	}
+	if err := auditLog.Insert(); err != nil {
+		common.SysLog(fmt.Sprintf("failed to write audit log for template %s: %v", templateId, err))
+	}
+	return nil
+}
+
 // GetPendingSharedTemplates 获取待审核列表
 func GetPendingSharedTemplates(page, pageSize int) (*dto.SharedTemplateListResponse, error) {
 	if page < 1 {
@@ -783,6 +886,7 @@ func toSharedTemplateListItem(t *model.SharedTemplate) dto.SharedTemplateListIte
 		AuthorName:    t.AuthorName,
 		Status:        t.Status,
 		Hidden:        t.Hidden,
+		Featured:      t.Featured,
 		UseCount:      t.UseCount,
 		CreatedAt:     t.CreatedAt,
 		UpdatedAt:     t.UpdatedAt,

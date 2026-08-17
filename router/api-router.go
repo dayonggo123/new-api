@@ -231,8 +231,10 @@ func SetApiRouter(router *gin.Engine) {
 			sharedTemplateAdminRoute.GET("/pending", controller.AdminGetPendingSharedTemplates)
 			sharedTemplateAdminRoute.GET("/all", controller.AdminListSharedTemplates)
 			sharedTemplateAdminRoute.GET("/:id", controller.AdminGetSharedTemplateDetail)
+			sharedTemplateAdminRoute.PUT("/:id", controller.AdminUpdateSharedTemplate)
 			sharedTemplateAdminRoute.POST("/:id/audit", controller.AdminAuditSharedTemplate)
 			sharedTemplateAdminRoute.POST("/:id/hide", controller.AdminSetSharedTemplateHidden)
+			sharedTemplateAdminRoute.POST("/:id/feature", controller.AdminSetSharedTemplateFeatured)
 			sharedTemplateAdminRoute.DELETE("/:id", controller.AdminDeleteSharedTemplate)
 			sharedTemplateAdminRoute.DELETE("/:id/permanent", controller.AdminPermanentDeleteSharedTemplate)
 		}

@@ -9,12 +9,14 @@ import {
   Typography,
   Empty,
   Select,
+  Input,
 } from '@douyinfe/semi-ui';
 import { IconRefresh } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 
 const { Text, Paragraph } = Typography;
+const { TextArea } = Input;
 
 const STATUS_MAP = {
   pending: { text: '待审核', color: 'warning' },
@@ -43,6 +45,10 @@ export default function SharedTemplateManagement() {
   const [detailVisible, setDetailVisible] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
   const [auditing, setAuditing] = useState(false);
+  const [editVisible, setEditVisible] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', category: '', authorName: '', description: '', planJson: '' });
+  const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -142,6 +148,83 @@ export default function SharedTemplateManagement() {
         }
       },
     });
+  };
+
+  const handleFeature = (record, featured) => {
+    const actionText = featured ? t('推荐') : t('取消推荐');
+    Modal.confirm({
+      title: actionText,
+      content: featured
+        ? t('确定推荐模板「{name}」吗？推荐后下游将优先展示。', { name: record.name || record.id })
+        : t('确定取消推荐模板「{name}」吗？', { name: record.name || record.id }),
+      type: featured ? 'warning' : 'info',
+      okText: actionText,
+      cancelText: t('取消'),
+      onOk: async () => {
+        try {
+          const res = await API.post(`/api/admin/shared-templates/${record.id}/feature`, { featured });
+          if (res.data.success) {
+            showSuccess(actionText);
+            loadData();
+          } else {
+            showError(res.data.message);
+          }
+        } catch (err) {
+          showError(err.message);
+        }
+      },
+    });
+  };
+
+  const openEdit = async (record) => {
+    try {
+      const res = await API.get(`/api/admin/shared-templates/${record.id}`);
+      if (res.data.success) {
+        const item = res.data.data;
+        setEditItem(item);
+        setEditForm({
+          name: item.name || '',
+          category: item.category || '',
+          authorName: item.authorName || '',
+          description: item.description || '',
+          planJson: item.planJson || '',
+        });
+        setEditVisible(true);
+      } else {
+        showError(res.data.message);
+      }
+    } catch (err) {
+      showError(err.message);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editItem) return;
+    const body = {};
+    if (editForm.name.trim() !== (editItem.name || '')) body.name = editForm.name.trim();
+    if (editForm.category !== (editItem.category || '')) body.category = editForm.category;
+    if (editForm.authorName.trim() !== (editItem.authorName || '')) body.authorName = editForm.authorName.trim();
+    if (editForm.description !== (editItem.description || '')) body.description = editForm.description;
+    if (editForm.planJson !== (editItem.planJson || '')) body.planJson = editForm.planJson;
+    if (Object.keys(body).length === 0) {
+      showError(t('没有需要保存的修改'));
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await API.put(`/api/admin/shared-templates/${editItem.id}`, body);
+      if (res.data.success) {
+        showSuccess(t('已保存'));
+        setEditVisible(false);
+        loadData();
+      } else {
+        showError(res.data.message);
+      }
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAudit = async (record, action) => {
@@ -245,11 +328,12 @@ export default function SharedTemplateManagement() {
       title: t('状态'),
       dataIndex: 'status',
       key: 'status',
-      width: 130,
+      width: 160,
       render: (v, record) => (
         <Space>
           {renderStatus(v)}
           {record.hidden && <Tag color='grey'>{t('已隐藏')}</Tag>}
+          {record.featured && <Tag color='amber'>{t('推荐')}</Tag>}
         </Space>
       ),
     },
@@ -269,12 +353,15 @@ export default function SharedTemplateManagement() {
     {
       title: t('操作'),
       key: 'action',
-      width: 340,
+      width: 420,
       fixed: 'right',
       render: (_, record) => (
         <Space>
           <Button type='tertiary' size='small' onClick={() => handleViewDetail(record)}>
             {t('查看')}
+          </Button>
+          <Button type='tertiary' size='small' onClick={() => openEdit(record)}>
+            {t('编辑')}
           </Button>
           {record.status === 'pending' && (
             <>
@@ -297,14 +384,24 @@ export default function SharedTemplateManagement() {
             </>
           )}
           {record.status === 'approved' && (
-            <Button
-              type='warning'
-              theme='borderless'
-              size='small'
-              onClick={() => handleHide(record, !record.hidden)}
-            >
-              {record.hidden ? t('取消隐藏') : t('隐藏')}
-            </Button>
+            <>
+              <Button
+                type='warning'
+                theme='borderless'
+                size='small'
+                onClick={() => handleFeature(record, !record.featured)}
+              >
+                {record.featured ? t('取消推荐') : t('推荐')}
+              </Button>
+              <Button
+                type='warning'
+                theme='borderless'
+                size='small'
+                onClick={() => handleHide(record, !record.hidden)}
+              >
+                {record.hidden ? t('取消隐藏') : t('隐藏')}
+              </Button>
+            </>
           )}
           <Button type='danger' theme='borderless' size='small' onClick={() => handlePermanentDelete(record)}>
             {t('彻底删除')}
@@ -429,6 +526,13 @@ export default function SharedTemplateManagement() {
             <div style={{ marginTop: 16, textAlign: 'right' }}>
               <Space>
                 <Button
+                  type='tertiary'
+                  loading={auditing}
+                  onClick={() => { openEdit(detailItem); setDetailVisible(false); }}
+                >
+                  {t('编辑')}
+                </Button>
+                <Button
                   type='danger'
                   theme='borderless'
                   loading={auditing}
@@ -455,14 +559,93 @@ export default function SharedTemplateManagement() {
                   </>
                 )}
                 {detailItem.status === 'approved' && (
-                  <Button
-                    type='warning'
-                    loading={auditing}
-                    onClick={() => { handleHide(detailItem, !detailItem.hidden); setDetailVisible(false); }}
-                  >
-                    {detailItem.hidden ? t('取消隐藏') : t('隐藏')}
-                  </Button>
+                  <>
+                    <Button
+                      type='warning'
+                      loading={auditing}
+                      onClick={() => { handleFeature(detailItem, !detailItem.featured); setDetailVisible(false); }}
+                    >
+                      {detailItem.featured ? t('取消推荐') : t('推荐')}
+                    </Button>
+                    <Button
+                      type='warning'
+                      loading={auditing}
+                      onClick={() => { handleHide(detailItem, !detailItem.hidden); setDetailVisible(false); }}
+                    >
+                      {detailItem.hidden ? t('取消隐藏') : t('隐藏')}
+                    </Button>
+                  </>
                 )}
+              </Space>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        title={t('编辑模板')}
+        visible={editVisible}
+        onCancel={() => { setEditVisible(false); setEditItem(null); }}
+        footer={null}
+        centered
+        width={720}
+      >
+        {editItem && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 6 }}>{t('名称')}</Text>
+              <Input
+                value={editForm.name}
+                maxLength={200}
+                placeholder={t('模板名称')}
+                onChange={(v) => setEditForm({ ...editForm, name: v })}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 6 }}>{t('分类')}</Text>
+              <Select value={editForm.category} style={{ width: '100%' }} onChange={(v) => setEditForm({ ...editForm, category: v })}>
+                {Object.entries(CATEGORY_MAP).map(([value, label]) => (
+                  <Select.Option key={value} value={value}>{label}</Select.Option>
+                ))}
+              </Select>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 6 }}>{t('作者')}</Text>
+              <Input
+                value={editForm.authorName}
+                maxLength={100}
+                placeholder={t('作者名称')}
+                onChange={(v) => setEditForm({ ...editForm, authorName: v })}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 6 }}>{t('描述')}</Text>
+              <TextArea
+                value={editForm.description}
+                maxLength={500}
+                rows={3}
+                placeholder={t('模板描述（最长 500 字符）')}
+                onChange={(v) => setEditForm({ ...editForm, description: v })}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 6 }}>{t('执行内容 (planJson)')}</Text>
+              <TextArea
+                value={editForm.planJson}
+                rows={12}
+                style={{ fontFamily: 'monospace', fontSize: 12 }}
+                onChange={(v) => setEditForm({ ...editForm, planJson: v })}
+              />
+            </div>
+            <div style={{ marginTop: 16, textAlign: 'right' }}>
+              <Space>
+                <Button onClick={() => { setEditVisible(false); setEditItem(null); }}>
+                  {t('取消')}
+                </Button>
+                <Button type='primary' loading={saving} onClick={handleSaveEdit}>
+                  {t('保存')}
+                </Button>
               </Space>
             </div>
           </div>
