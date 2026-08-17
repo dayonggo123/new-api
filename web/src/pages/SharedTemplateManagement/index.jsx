@@ -10,13 +10,13 @@ import {
   Empty,
   Select,
   Input,
+  TextArea,
 } from '@douyinfe/semi-ui';
 import { IconRefresh } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 
 const { Text, Paragraph } = Typography;
-const { TextArea } = Input;
 
 const STATUS_MAP = {
   pending: { text: '待审核', color: 'warning' },
