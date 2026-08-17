@@ -94,16 +94,43 @@ export default function SharedTemplateManagement() {
     }
   };
 
-  const handleDelete = (record) => {
+  const handleHide = (record, hidden) => {
+    const actionText = hidden ? t('隐藏') : t('取消隐藏');
     Modal.confirm({
-      title: t('删除模板'),
-      content: t('确定删除模板「{name}」吗？删除后将从模板市场移除，且不可恢复。', { name: record.name || record.id }),
-      type: 'warning',
-      okText: t('删除'),
+      title: actionText,
+      content: hidden
+        ? t('确定隐藏模板「{name}」吗？隐藏后下游将不再展示，可随时恢复。', { name: record.name || record.id })
+        : t('确定恢复展示模板「{name}」吗？', { name: record.name || record.id }),
+      type: hidden ? 'warning' : 'info',
+      okText: actionText,
       cancelText: t('取消'),
       onOk: async () => {
         try {
-          const res = await API.delete(`/api/admin/shared-templates/${record.id}`);
+          const res = await API.post(`/api/admin/shared-templates/${record.id}/hide`, { hidden });
+          if (res.data.success) {
+            showSuccess(actionText);
+            loadData();
+          } else {
+            showError(res.data.message);
+          }
+        } catch (err) {
+          showError(err.message);
+        }
+      },
+    });
+  };
+
+  const handlePermanentDelete = (record) => {
+    Modal.confirm({
+      title: t('彻底删除模板'),
+      content: t('确定彻底删除模板「{name}」吗？此操作将物理删除数据，不可恢复！', { name: record.name || record.id }),
+      type: 'error',
+      okText: t('彻底删除'),
+      okType: 'danger',
+      cancelText: t('取消'),
+      onOk: async () => {
+        try {
+          const res = await API.delete(`/api/admin/shared-templates/${record.id}/permanent`);
           if (res.data.success) {
             showSuccess(t('已删除'));
             loadData();
@@ -218,8 +245,13 @@ export default function SharedTemplateManagement() {
       title: t('状态'),
       dataIndex: 'status',
       key: 'status',
-      width: 90,
-      render: (v) => renderStatus(v),
+      width: 130,
+      render: (v, record) => (
+        <Space>
+          {renderStatus(v)}
+          {record.hidden && <Tag color='grey'>{t('已隐藏')}</Tag>}
+        </Space>
+      ),
     },
     {
       title: t('使用次数'),
@@ -237,7 +269,7 @@ export default function SharedTemplateManagement() {
     {
       title: t('操作'),
       key: 'action',
-      width: 280,
+      width: 340,
       fixed: 'right',
       render: (_, record) => (
         <Space>
@@ -264,8 +296,18 @@ export default function SharedTemplateManagement() {
               </Button>
             </>
           )}
-          <Button type='danger' theme='borderless' size='small' onClick={() => handleDelete(record)}>
-            {t('删除')}
+          {record.status === 'approved' && (
+            <Button
+              type='warning'
+              theme='borderless'
+              size='small'
+              onClick={() => handleHide(record, !record.hidden)}
+            >
+              {record.hidden ? t('取消隐藏') : t('隐藏')}
+            </Button>
+          )}
+          <Button type='danger' theme='borderless' size='small' onClick={() => handlePermanentDelete(record)}>
+            {t('彻底删除')}
           </Button>
         </Space>
       ),
@@ -390,9 +432,9 @@ export default function SharedTemplateManagement() {
                   type='danger'
                   theme='borderless'
                   loading={auditing}
-                  onClick={() => { handleDelete(detailItem); setDetailVisible(false); }}
+                  onClick={() => { handlePermanentDelete(detailItem); setDetailVisible(false); }}
                 >
-                  {t('删除')}
+                  {t('彻底删除')}
                 </Button>
                 {detailItem.status === 'pending' && (
                   <>
@@ -411,6 +453,15 @@ export default function SharedTemplateManagement() {
                       {t('拒绝')}
                     </Button>
                   </>
+                )}
+                {detailItem.status === 'approved' && (
+                  <Button
+                    type='warning'
+                    loading={auditing}
+                    onClick={() => { handleHide(detailItem, !detailItem.hidden); setDetailVisible(false); }}
+                  >
+                    {detailItem.hidden ? t('取消隐藏') : t('隐藏')}
+                  </Button>
                 )}
               </Space>
             </div>

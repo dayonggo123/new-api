@@ -232,7 +232,9 @@ func SetApiRouter(router *gin.Engine) {
 			sharedTemplateAdminRoute.GET("/all", controller.AdminListSharedTemplates)
 			sharedTemplateAdminRoute.GET("/:id", controller.AdminGetSharedTemplateDetail)
 			sharedTemplateAdminRoute.POST("/:id/audit", controller.AdminAuditSharedTemplate)
+			sharedTemplateAdminRoute.POST("/:id/hide", controller.AdminSetSharedTemplateHidden)
 			sharedTemplateAdminRoute.DELETE("/:id", controller.AdminDeleteSharedTemplate)
+			sharedTemplateAdminRoute.DELETE("/:id/permanent", controller.AdminPermanentDeleteSharedTemplate)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

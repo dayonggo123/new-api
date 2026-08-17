@@ -63,6 +63,7 @@ type SharedTemplateListItem struct {
 	AuthorId      int                      `json:"authorId"`
 	AuthorName    string                   `json:"authorName"`
 	Status        string                   `json:"status"`
+	Hidden        bool                     `json:"hidden"`
 	AssetInfo     *SharedTemplateAssetInfo `json:"assetInfo,omitempty"`
 	UseCount      int                      `json:"useCount"`
 	CreatedAt     int64                    `json:"createdAt"`

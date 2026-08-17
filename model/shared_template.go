@@ -18,6 +18,8 @@ type SharedTemplate struct {
 	AuthorId      int            `json:"authorId" gorm:"column:author_id;not null;index"`
 	AuthorName    string         `json:"authorName" gorm:"column:author_name;size:100;not null"`
 	Status        string         `json:"status" gorm:"size:20;not null;default:'pending';index:idx_sht_status_category"`
+	// Hidden 管理员隐藏标记：hidden=true 时下游（模板市场列表/详情/使用）不展示，数据保留可恢复
+	Hidden        bool           `json:"hidden" gorm:"column:hidden;default:false"`
 	RejectReason  string         `json:"rejectReason,omitempty" gorm:"column:reject_reason;type:text"`
 	PlanJson      string         `json:"planJson" gorm:"column:plan_json;type:longtext;not null"`
 	PlanVersion   int            `json:"planVersion" gorm:"column:plan_version;default:3"`
@@ -83,7 +85,7 @@ func GetSharedTemplates(query *dto.SharedTemplateListQuery, page, pageSize int) 
 	var templates []*SharedTemplate
 	var total int64
 
-	db := DB.Model(&SharedTemplate{}).Where("status = ?", SharedTemplateStatusApproved)
+	db := DB.Model(&SharedTemplate{}).Where("status = ? AND hidden = ?", SharedTemplateStatusApproved, false)
 
 	if query.Category != "" {
 		db = db.Where("category = ?", query.Category)
@@ -182,6 +184,24 @@ func UpdateSharedTemplateStatus(templateId, status, rejectReason string) error {
 		updates["approved_at"] = common.GetTimestamp()
 	}
 	return DB.Model(&SharedTemplate{}).Where("template_id = ?", templateId).Updates(updates).Error
+}
+
+// UpdateSharedTemplateHidden 设置模板隐藏状态（隐藏后下游不展示，数据保留）
+func UpdateSharedTemplateHidden(templateId string, hidden bool) error {
+	return DB.Model(&SharedTemplate{}).Where("template_id = ?", templateId).
+		Updates(map[string]interface{}{
+			"hidden":     hidden,
+			"updated_at": common.GetTimestamp(),
+		}).Error
+}
+
+// DeleteSharedTemplatePermanent 彻底删除模板（物理删除，不可恢复），
+// 并同步清理其使用记录。审计日志保留以便追溯。
+func DeleteSharedTemplatePermanent(templateId string) error {
+	if err := DB.Unscoped().Where("template_id = ?", templateId).Delete(&SharedTemplate{}).Error; err != nil {
+		return err
+	}
+	return DB.Where("template_id = ?", templateId).Delete(&SharedTemplateUse{}).Error
 }
 
 func IncrementSharedTemplateUseCount(templateId string) error {

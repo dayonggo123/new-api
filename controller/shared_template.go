@@ -253,6 +253,80 @@ func AdminDeleteSharedTemplate(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"deleted": true})
 }
 
+// AdminSetSharedTemplateHidden 管理员隐藏/取消隐藏模板
+func AdminSetSharedTemplateHidden(c *gin.Context) {
+	adminId := c.GetInt("id")
+	if adminId == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "unauthorized",
+		})
+		return
+	}
+
+	adminName, _ := c.Get("username")
+	adminNameStr := ""
+	if adminName != nil {
+		adminNameStr, _ = adminName.(string)
+	}
+	if adminNameStr == "" {
+		adminNameStr = "admin_" + fmt.Sprintf("%d", adminId)
+	}
+
+	templateId := c.Param("id")
+	if templateId == "" {
+		common.ApiErrorMsg(c, "template id is required")
+		return
+	}
+
+	var req struct {
+		Hidden bool `json:"hidden"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "invalid request body")
+		return
+	}
+
+	if err := service.AdminSetSharedTemplateHidden(templateId, req.Hidden, adminId, adminNameStr); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, gin.H{"hidden": req.Hidden})
+}
+
+// AdminPermanentDeleteSharedTemplate 管理员彻底删除模板（物理删除，不可恢复）
+func AdminPermanentDeleteSharedTemplate(c *gin.Context) {
+	adminId := c.GetInt("id")
+	if adminId == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "unauthorized",
+		})
+		return
+	}
+
+	adminName, _ := c.Get("username")
+	adminNameStr := ""
+	if adminName != nil {
+		adminNameStr, _ = adminName.(string)
+	}
+	if adminNameStr == "" {
+		adminNameStr = "admin_" + fmt.Sprintf("%d", adminId)
+	}
+
+	templateId := c.Param("id")
+	if templateId == "" {
+		common.ApiErrorMsg(c, "template id is required")
+		return
+	}
+
+	if err := service.AdminPermanentDeleteSharedTemplate(templateId, adminId, adminNameStr); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, gin.H{"deleted": true})
+}
+
 // AdminListSharedTemplates 管理员获取全部模板
 func AdminListSharedTemplates(c *gin.Context) {
 	var query dto.AdminSharedTemplateListQuery

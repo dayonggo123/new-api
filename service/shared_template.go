@@ -375,7 +375,8 @@ func GetSharedTemplateDetail(templateId string) (*dto.SharedTemplateDetail, erro
 		}
 		return nil, err
 	}
-	if template.Status != model.SharedTemplateStatusApproved {
+	// 已审核通过且未被隐藏才可公开访问
+	if template.Status != model.SharedTemplateStatusApproved || template.Hidden {
 		return nil, fmt.Errorf("template not found")
 	}
 	return toSharedTemplateDetail(template), nil
@@ -528,7 +529,7 @@ func RecordSharedTemplateUse(templateId string, userId int) error {
 		}
 		return err
 	}
-	if template.Status != model.SharedTemplateStatusApproved {
+	if template.Status != model.SharedTemplateStatusApproved || template.Hidden {
 		return fmt.Errorf("template not available")
 	}
 
@@ -568,6 +569,65 @@ func AdminDeleteSharedTemplate(templateId string, adminId int, adminName string)
 	}
 	if err := auditLog.Insert(); err != nil {
 		common.SysLog(fmt.Sprintf("failed to write audit log for template %s: %v", templateId, err))
+	}
+	return nil
+}
+
+// AdminSetSharedTemplateHidden 管理员隐藏/取消隐藏模板。
+// 隐藏后下游（模板市场列表/详情/使用）不再展示，数据保留、可恢复。
+func AdminSetSharedTemplateHidden(templateId string, hidden bool, adminId int, adminName string) error {
+	if _, err := model.GetSharedTemplateByTemplateId(templateId); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("template not found")
+		}
+		return err
+	}
+
+	if err := model.UpdateSharedTemplateHidden(templateId, hidden); err != nil {
+		return fmt.Errorf("failed to update template: %v", err)
+	}
+
+	action := "unhide"
+	if hidden {
+		action = "hide"
+	}
+	auditLog := &model.SharedTemplateAuditLog{
+		TemplateId: templateId,
+		AdminId:    adminId,
+		AdminName:  adminName,
+		Action:     action,
+		Reason:     "",
+	}
+	if err := auditLog.Insert(); err != nil {
+		common.SysLog(fmt.Sprintf("failed to write audit log for template %s: %v", templateId, err))
+	}
+	return nil
+}
+
+// AdminPermanentDeleteSharedTemplate 管理员彻底删除模板（物理删除，不可恢复），
+// 同步清理使用记录，审计日志保留以便追溯。
+func AdminPermanentDeleteSharedTemplate(templateId string, adminId int, adminName string) error {
+	if _, err := model.GetSharedTemplateByTemplateId(templateId); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("template not found")
+		}
+		return err
+	}
+
+	// 先记录审计日志再物理删除（删除失败也保留痕迹）
+	auditLog := &model.SharedTemplateAuditLog{
+		TemplateId: templateId,
+		AdminId:    adminId,
+		AdminName:  adminName,
+		Action:     "purge",
+		Reason:     "",
+	}
+	if err := auditLog.Insert(); err != nil {
+		common.SysLog(fmt.Sprintf("failed to write audit log for template %s: %v", templateId, err))
+	}
+
+	if err := model.DeleteSharedTemplatePermanent(templateId); err != nil {
+		return fmt.Errorf("failed to permanently delete template: %v", err)
 	}
 	return nil
 }
@@ -722,6 +782,7 @@ func toSharedTemplateListItem(t *model.SharedTemplate) dto.SharedTemplateListIte
 		AuthorId:      t.AuthorId,
 		AuthorName:    t.AuthorName,
 		Status:        t.Status,
+		Hidden:        t.Hidden,
 		UseCount:      t.UseCount,
 		CreatedAt:     t.CreatedAt,
 		UpdatedAt:     t.UpdatedAt,
