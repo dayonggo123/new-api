@@ -55,7 +55,7 @@ type UploadResult struct {
 // defaultUploadLimits 默认大小限制（字节）
 var defaultUploadLimits = map[string]int64{
 	"image":    50 << 20,  // 50MB
-	"video":    500 << 20,  // 500MB
+	"video":    500 << 20, // 500MB
 	"audio":    100 << 20, // 100MB
 	"file":     100 << 20, // 100MB
 	"material": 100 << 20, // 100MB
@@ -166,7 +166,13 @@ func uploadBytes(ctx context.Context, c *gin.Context, data []byte, contentType, 
 
 	// 优先尝试 R2（如果启用且是图片/视频类型）
 	if storage.R2Enabled() && (cfg.Type == "image" || cfg.Type == "video") {
-		url, _, err := storage.UploadImageBytes(data, contentType)
+		var url string
+		var err error
+		if cfg.Type == "video" {
+			url, _, err = storage.UploadFileBytes(data, contentType)
+		} else {
+			url, _, err = storage.UploadImageBytes(data, contentType)
+		}
 		if err == nil {
 			return &UploadResult{
 				URL:          url,

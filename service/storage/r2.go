@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -155,7 +156,49 @@ func UploadImageBytes(data []byte, contentType string) (url string, key string, 
 	return presigned.URL, key, nil
 }
 
+// UploadFileBytes uploads arbitrary file bytes to R2 and returns a presigned GET URL plus object key.
+// It is suitable for video/audio/generic files where the caller already knows the correct MIME type.
+// If contentType is empty or application/octet-stream, it falls back to http.DetectContentType.
+func UploadFileBytes(data []byte, contentType string) (url string, key string, err error) {
+	if !r2Enabled {
+		return "", "", fmt.Errorf("R2 storage is not configured")
+	}
+	if int64(len(data)) > r2MaxSize {
+		return "", "", fmt.Errorf("file too large: %d > %d bytes", len(data), r2MaxSize)
+	}
+
+	if contentType == "" || contentType == "application/octet-stream" {
+		contentType = http.DetectContentType(data)
+	}
+
+	ext := extFromContentType(contentType)
+	key = r2Prefix + uuid.New().String() + "." + ext
+
+	_, err = r2Client.PutObject(context.Background(), &s3.PutObjectInput{
+		Bucket:        &r2Bucket,
+		Key:           &key,
+		Body:          bytes.NewReader(data),
+		ContentType:   &contentType,
+		ContentLength: aws.Int64(int64(len(data))),
+	})
+	if err != nil {
+		return "", key, fmt.Errorf("R2 PutObject failed: %w", err)
+	}
+
+	presigned, err := r2Presign.PresignGetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: &r2Bucket,
+		Key:    &key,
+	}, s3.WithPresignExpires(r2Expiry))
+	if err != nil {
+		return "", key, fmt.Errorf("R2 PresignGetObject failed: %w", err)
+	}
+
+	return presigned.URL, key, nil
+}
+
 // PresignedURL generates a new presigned URL for an existing R2 object key.
+// For .mp4 keys it also sets response-content-type=video/mp4 so browsers can
+// decode the video even if the object was originally stored as application/octet-stream.
 func PresignedURL(key string) (string, error) {
 	if !r2Enabled {
 		return "", fmt.Errorf("R2 storage is not configured")
@@ -163,10 +206,14 @@ func PresignedURL(key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("key is required")
 	}
-	presigned, err := r2Presign.PresignGetObject(context.Background(), &s3.GetObjectInput{
+	input := &s3.GetObjectInput{
 		Bucket: &r2Bucket,
 		Key:    &key,
-	}, s3.WithPresignExpires(r2Expiry))
+	}
+	if ct := contentTypeFromKey(key); ct != "" {
+		input.ResponseContentType = aws.String(ct)
+	}
+	presigned, err := r2Presign.PresignGetObject(context.Background(), input, s3.WithPresignExpires(r2Expiry))
 	if err != nil {
 		return "", fmt.Errorf("R2 PresignGetObject failed: %w", err)
 	}
@@ -190,14 +237,64 @@ func PresignBucketObject(bucket, key string) (string, error) {
 	if bucket == "" || key == "" {
 		return "", fmt.Errorf("bucket and key are required")
 	}
-	presigned, err := r2Presign.PresignGetObject(context.Background(), &s3.GetObjectInput{
+	input := &s3.GetObjectInput{
 		Bucket: &bucket,
 		Key:    &key,
-	}, s3.WithPresignExpires(r2Expiry))
+	}
+	if ct := contentTypeFromKey(key); ct != "" {
+		input.ResponseContentType = aws.String(ct)
+	}
+	presigned, err := r2Presign.PresignGetObject(context.Background(), input, s3.WithPresignExpires(r2Expiry))
 	if err != nil {
 		return "", fmt.Errorf("R2 PresignGetObject failed: %w", err)
 	}
 	return presigned.URL, nil
+}
+
+// GetObject fetches an R2 object directly and returns its body, size and content type.
+// The caller is responsible for closing the returned ReadCloser.
+func GetObject(bucket, key string) (io.ReadCloser, int64, string, error) {
+	if !r2Enabled {
+		return nil, 0, "", fmt.Errorf("R2 storage is not configured")
+	}
+	if bucket == "" || key == "" {
+		return nil, 0, "", fmt.Errorf("bucket and key are required")
+	}
+	out, err := r2Client.GetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		return nil, 0, "", fmt.Errorf("R2 GetObject failed: %w", err)
+	}
+	ct := aws.ToString(out.ContentType)
+	if ct == "" || ct == "application/octet-stream" {
+		if inferred := contentTypeFromKey(key); inferred != "" {
+			ct = inferred
+		}
+	}
+	return out.Body, aws.ToInt64(out.ContentLength), ct, nil
+}
+
+// contentTypeFromKey infists a proper Content-Type from the file extension for
+// common video formats. It is used to fix objects that were uploaded with
+// application/octet-stream.
+func contentTypeFromKey(key string) string {
+	ext := strings.ToLower(filepath.Ext(key))
+	switch ext {
+	case ".mp4":
+		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".mov":
+		return "video/quicktime"
+	case ".avi":
+		return "video/x-msvideo"
+	case ".mkv":
+		return "video/x-matroska"
+	default:
+		return ""
+	}
 }
 
 func getEnvInt(name string, defaultVal int) int {
@@ -224,6 +321,18 @@ func extFromContentType(mime string) string {
 			return "svg"
 		}
 		return sub
+	case "mp4":
+		return "mp4"
+	case "webm":
+		return "webm"
+	case "quicktime":
+		return "mov"
+	case "x-msvideo":
+		return "avi"
+	case "mpeg":
+		return "mpeg"
+	case "octet-stream":
+		return "bin"
 	default:
 		return "bin"
 	}

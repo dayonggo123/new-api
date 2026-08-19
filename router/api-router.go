@@ -221,6 +221,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		// R2 object proxy: permanent server-side URL for thumbnail/assets (public, template market resources must be reachable)
 		apiRouter.GET("/public/r2", controller.ProxyR2Object)
+		apiRouter.OPTIONS("/public/r2", controller.ProxyR2Object)
 		// User actions (require login)
 		sharedTemplateAuthGroup := apiRouter.Group("/shared-templates")
 		sharedTemplateAuthGroup.Use(middleware.TokenAuth())
