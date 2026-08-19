@@ -58,11 +58,11 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
-	if channel != nil && (channel.Type == constant.ChannelTypeVeo || channel.Type == constant.ChannelTypeGetToken || channel.Type == constant.ChannelTypeBogeiAI || channel.Type == constant.ChannelTypeZhangyuge || channel.Type == constant.ChannelTypeZAPI || channel.Type == constant.ChannelTypeHongniao || channel.Type == constant.ChannelTypeMuyu || channel.Type == constant.ChannelTypeSecureSkill) {
+	if channel != nil && (channel.Type == constant.ChannelTypeVeo || channel.Type == constant.ChannelTypeGetToken || channel.Type == constant.ChannelTypeBogeiAI || channel.Type == constant.ChannelTypeZhangyuge || channel.Type == constant.ChannelTypeZAPI || channel.Type == constant.ChannelTypeHongniao || channel.Type == constant.ChannelTypeMuyu || channel.Type == constant.ChannelTypeSecureSkill || channel.Type == constant.ChannelTypeLingchuangAI) {
 		return string(constant.EndpointTypeOpenAIVideo)
 	}
-	// LingdongAPI 根据模型区分图片/视频测试
-	if channel != nil && channel.Type == constant.ChannelTypeLingdongAPI {
+	// LingdongAPI / LingchuangAI 根据模型区分图片/视频测试
+	if channel != nil && (channel.Type == constant.ChannelTypeLingdongAPI || channel.Type == constant.ChannelTypeLingchuangAI) {
 		lowerModel := strings.ToLower(modelName)
 		if strings.Contains(lowerModel, "image") {
 			return string(constant.EndpointTypeImageGeneration)
@@ -1265,8 +1265,8 @@ func generateTestWAV() []byte {
 	_ = binary.Write(buf, binary.LittleEndian, uint32(fileSize))
 	_ = binary.Write(buf, binary.LittleEndian, []byte("WAVE"))
 	_ = binary.Write(buf, binary.LittleEndian, []byte("fmt "))
-	_ = binary.Write(buf, binary.LittleEndian, uint32(16))       // Subchunk1Size
-	_ = binary.Write(buf, binary.LittleEndian, uint16(1))        // AudioFormat PCM
+	_ = binary.Write(buf, binary.LittleEndian, uint32(16)) // Subchunk1Size
+	_ = binary.Write(buf, binary.LittleEndian, uint16(1))  // AudioFormat PCM
 	_ = binary.Write(buf, binary.LittleEndian, uint16(numChannels))
 	_ = binary.Write(buf, binary.LittleEndian, uint32(sampleRate))
 	_ = binary.Write(buf, binary.LittleEndian, uint32(byteRate))

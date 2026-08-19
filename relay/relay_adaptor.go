@@ -31,31 +31,32 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
+	"github.com/QuantumNous/new-api/relay/channel/task/apimart"
+	"github.com/QuantumNous/new-api/relay/channel/task/bogei"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
+	"github.com/QuantumNous/new-api/relay/channel/task/duoyuan"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/task/gettoken"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
+	"github.com/QuantumNous/new-api/relay/channel/task/hongniao"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
+	"github.com/QuantumNous/new-api/relay/channel/task/lingchuang"
+	"github.com/QuantumNous/new-api/relay/channel/task/lingdong"
+	"github.com/QuantumNous/new-api/relay/channel/task/muyu"
 	taskomniflash "github.com/QuantumNous/new-api/relay/channel/task/omniflash"
 	tasksecureskill "github.com/QuantumNous/new-api/relay/channel/task/secureskill"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
+	taskveo "github.com/QuantumNous/new-api/relay/channel/task/veo"
 	taskvertex "github.com/QuantumNous/new-api/relay/channel/task/vertex"
 	taskVidu "github.com/QuantumNous/new-api/relay/channel/task/vidu"
-	taskveo "github.com/QuantumNous/new-api/relay/channel/task/veo"
 	"github.com/QuantumNous/new-api/relay/channel/task/volcenginevideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/wanxiang"
-	"github.com/QuantumNous/new-api/relay/channel/task/duoyuan"
-	"github.com/QuantumNous/new-api/relay/channel/task/apimart"
-	"github.com/QuantumNous/new-api/relay/channel/task/bogei"
-	"github.com/QuantumNous/new-api/relay/channel/task/gettoken"
-	"github.com/QuantumNous/new-api/relay/channel/task/hongniao"
-	"github.com/QuantumNous/new-api/relay/channel/task/lingdong"
-	"github.com/QuantumNous/new-api/relay/channel/task/muyu"
-	"github.com/QuantumNous/new-api/relay/channel/task/zhangyuge"
 	"github.com/QuantumNous/new-api/relay/channel/task/zapi"
-	channelveo "github.com/QuantumNous/new-api/relay/channel/veo"
+	"github.com/QuantumNous/new-api/relay/channel/task/zhangyuge"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
+	channelveo "github.com/QuantumNous/new-api/relay/channel/veo"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
@@ -204,6 +205,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &muyu.TaskAdaptor{}
 		case constant.ChannelTypeSecureSkill:
 			return &tasksecureskill.TaskAdaptor{}
+		case constant.ChannelTypeLingchuangAI:
+			return &lingchuang.TaskAdaptor{}
 		}
 	}
 	return nil

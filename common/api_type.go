@@ -99,6 +99,8 @@ func ChannelType2APITypeWithModel(channelType int, modelName string) (int, bool)
 		apiType = constant.APITypeOpenAI
 	case constant.ChannelTypeSecureSkill:
 		apiType = constant.APITypeOpenAI
+	case constant.ChannelTypeLingchuangAI:
+		apiType = constant.APITypeOpenAI
 	case constant.ChannelTypeWanXiangAI:
 		// WanXiangAI media models (image/video) use APITypeVeo for task-based generation
 		if modelName != "" && (strings.Contains(modelName, "veo") || strings.Contains(modelName, "gemini")) {

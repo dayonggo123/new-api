@@ -570,93 +570,93 @@ func RelayVideo(c *gin.Context) {
 	}
 	// 透传 APIMart Grok Imagine 1.5 的扩展字段
 	if taskReq.Metadata != nil {
-	// duration
-	if rawDuration, ok := taskReq.Metadata["duration"]; ok {
-		switch d := rawDuration.(type) {
-		case float64:
-			taskReq.Duration = int(d)
-		case int:
-			taskReq.Duration = d
-		case int64:
-			taskReq.Duration = int(d)
-		}
-	}
-	// ratio / aspect_ratio
-	if rawRatio, ok := taskReq.Metadata["ratio"]; ok {
-		switch r := rawRatio.(type) {
-		case string:
-			taskReq.Ratio = r
-			if taskReq.AspectRatio == "" {
-				taskReq.AspectRatio = r
+		// duration
+		if rawDuration, ok := taskReq.Metadata["duration"]; ok {
+			switch d := rawDuration.(type) {
+			case float64:
+				taskReq.Duration = int(d)
+			case int:
+				taskReq.Duration = d
+			case int64:
+				taskReq.Duration = int(d)
 			}
 		}
-	}
-	if rawAspectRatio, ok := taskReq.Metadata["aspect_ratio"]; ok {
-		switch r := rawAspectRatio.(type) {
-		case string:
-			if taskReq.Ratio == "" {
+		// ratio / aspect_ratio
+		if rawRatio, ok := taskReq.Metadata["ratio"]; ok {
+			switch r := rawRatio.(type) {
+			case string:
 				taskReq.Ratio = r
-			}
-			if taskReq.AspectRatio == "" {
-				taskReq.AspectRatio = r
-			}
-		}
-	}
-	// HongniaoAI uses camelCase "aspectRatio"
-	if rawAspectRatio, ok := taskReq.Metadata["aspectRatio"]; ok {
-		switch r := rawAspectRatio.(type) {
-		case string:
-			if taskReq.Ratio == "" {
-				taskReq.Ratio = r
-			}
-			if taskReq.AspectRatio == "" {
-				taskReq.AspectRatio = r
+				if taskReq.AspectRatio == "" {
+					taskReq.AspectRatio = r
+				}
 			}
 		}
-	}
-	// seconds (HongniaoAI uses string seconds, prefer if duration not set)
-	if rawSeconds, ok := taskReq.Metadata["seconds"]; ok {
-		switch s := rawSeconds.(type) {
-		case string:
-			if taskReq.Seconds == "" {
-				taskReq.Seconds = s
-			}
-		case int:
-			if taskReq.Seconds == "" {
-				taskReq.Seconds = strconv.Itoa(s)
-			}
-		case float64:
-			if taskReq.Seconds == "" {
-				taskReq.Seconds = strconv.Itoa(int(s))
+		if rawAspectRatio, ok := taskReq.Metadata["aspect_ratio"]; ok {
+			switch r := rawAspectRatio.(type) {
+			case string:
+				if taskReq.Ratio == "" {
+					taskReq.Ratio = r
+				}
+				if taskReq.AspectRatio == "" {
+					taskReq.AspectRatio = r
+				}
 			}
 		}
-	}
-	// resolution
-	if rawResolution, ok := taskReq.Metadata["resolution"]; ok {
-		switch r := rawResolution.(type) {
-		case string:
-			taskReq.Resolution = r
-		}
-	}
-	// first_image / last_image
-	if rawFirstImage, ok := taskReq.Metadata["first_image"]; ok {
-		switch r := rawFirstImage.(type) {
-		case string:
-			if r != "" {
-				// Keep as metadata so the Z-api adaptor can pick it up.
-				taskReq.Metadata["first_image"] = r
+		// HongniaoAI uses camelCase "aspectRatio"
+		if rawAspectRatio, ok := taskReq.Metadata["aspectRatio"]; ok {
+			switch r := rawAspectRatio.(type) {
+			case string:
+				if taskReq.Ratio == "" {
+					taskReq.Ratio = r
+				}
+				if taskReq.AspectRatio == "" {
+					taskReq.AspectRatio = r
+				}
 			}
 		}
-	}
-	if rawLastImage, ok := taskReq.Metadata["last_image"]; ok {
-		switch r := rawLastImage.(type) {
-		case string:
-			if r != "" {
-				taskReq.Metadata["last_image"] = r
+		// seconds (HongniaoAI uses string seconds, prefer if duration not set)
+		if rawSeconds, ok := taskReq.Metadata["seconds"]; ok {
+			switch s := rawSeconds.(type) {
+			case string:
+				if taskReq.Seconds == "" {
+					taskReq.Seconds = s
+				}
+			case int:
+				if taskReq.Seconds == "" {
+					taskReq.Seconds = strconv.Itoa(s)
+				}
+			case float64:
+				if taskReq.Seconds == "" {
+					taskReq.Seconds = strconv.Itoa(int(s))
+				}
 			}
 		}
-	}
-	// image_urls / video_urls
+		// resolution
+		if rawResolution, ok := taskReq.Metadata["resolution"]; ok {
+			switch r := rawResolution.(type) {
+			case string:
+				taskReq.Resolution = r
+			}
+		}
+		// first_image / last_image
+		if rawFirstImage, ok := taskReq.Metadata["first_image"]; ok {
+			switch r := rawFirstImage.(type) {
+			case string:
+				if r != "" {
+					// Keep as metadata so the Z-api adaptor can pick it up.
+					taskReq.Metadata["first_image"] = r
+				}
+			}
+		}
+		if rawLastImage, ok := taskReq.Metadata["last_image"]; ok {
+			switch r := rawLastImage.(type) {
+			case string:
+				if r != "" {
+					taskReq.Metadata["last_image"] = r
+				}
+			}
+		}
+		// image_urls / video_urls
 		if rawImageURLs, ok := taskReq.Metadata["image_urls"]; ok {
 			var imageURLs []string
 			switch v := rawImageURLs.(type) {
@@ -752,6 +752,64 @@ func RelayVideo(c *gin.Context) {
 				taskReq.ReferenceAudio = audios
 			}
 			delete(taskReq.Metadata, "audios")
+		}
+		// LingchuangAI-style reference URL arrays.
+		if rawRefImages, ok := taskReq.Metadata["reference_image_urls"]; ok {
+			var refImages []string
+			switch v := rawRefImages.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						refImages = append(refImages, s)
+					}
+				}
+			case []string:
+				refImages = v
+			case string:
+				refImages = []string{v}
+			}
+			if len(refImages) > 0 {
+				taskReq.ReferenceImages = refImages
+			}
+			delete(taskReq.Metadata, "reference_image_urls")
+		}
+		if rawRefVideos, ok := taskReq.Metadata["reference_video_urls"]; ok {
+			var refVideos []string
+			switch v := rawRefVideos.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						refVideos = append(refVideos, s)
+					}
+				}
+			case []string:
+				refVideos = v
+			case string:
+				refVideos = []string{v}
+			}
+			if len(refVideos) > 0 {
+				taskReq.ReferenceVideo = refVideos
+			}
+			delete(taskReq.Metadata, "reference_video_urls")
+		}
+		if rawRefAudios, ok := taskReq.Metadata["reference_audio_urls"]; ok {
+			var refAudios []string
+			switch v := rawRefAudios.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						refAudios = append(refAudios, s)
+					}
+				}
+			case []string:
+				refAudios = v
+			case string:
+				refAudios = []string{v}
+			}
+			if len(refAudios) > 0 {
+				taskReq.ReferenceAudio = refAudios
+			}
+			delete(taskReq.Metadata, "reference_audio_urls")
 		}
 	}
 	c.Set("task_request", taskReq)

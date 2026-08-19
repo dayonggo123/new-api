@@ -68,6 +68,7 @@ const (
 	ChannelTypeHongniao       = 68
 	ChannelTypeMuyu           = 69
 	ChannelTypeSecureSkill    = 70
+	ChannelTypeLingchuangAI   = 71
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -142,8 +143,9 @@ var ChannelBaseURLs = []string{
 	"https://www.lingdongapi.com",               //66 LingdongAPI
 	"https://api.tmlab.store",                   //67 ZAPI
 	"https://open.hongniaoai.com",               //68 Hongniao
-	"https://api.muyu-aigc.bbroot.com",         //69 Muyu
-	"https://token.secure-skill.com",           //70 SecureSkill
+	"https://api.muyu-aigc.bbroot.com",          //69 Muyu
+	"https://token.secure-skill.com",            //70 SecureSkill
+	"https://lingchuangai.top",                  //71 LingchuangAI
 }
 
 var ChannelTypeNames = map[int]string{
@@ -214,6 +216,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeHongniao:       "Hongniao",
 	ChannelTypeMuyu:           "Muyu",
 	ChannelTypeSecureSkill:    "SecureSkill",
+	ChannelTypeLingchuangAI:   "LingchuangAI",
 }
 
 func GetChannelTypeName(channelType int) string {
