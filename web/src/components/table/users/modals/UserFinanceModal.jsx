@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Empty, Modal, Table, Tabs, Tag } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { API, renderQuota, showError } from '../../../helpers';
+import { API, renderQuota, showError } from '../../../../helpers';
 
 const PAGE_SIZE = 10;
 
