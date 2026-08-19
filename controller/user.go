@@ -367,6 +367,42 @@ func GetUser(c *gin.Context) {
 	return
 }
 
+// AdminGetUserTopUps 管理员查看指定用户的充值记录（渠道/时间/金额/状态）
+func AdminGetUserTopUps(c *gin.Context) {
+	userId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || userId <= 0 {
+		common.ApiErrorMsg(c, "invalid user id")
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	topups, total, err := model.GetTopUpsByUserId(userId, pageInfo.Page, pageInfo.PageSize)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(topups)
+	common.ApiSuccess(c, pageInfo)
+}
+
+// AdminGetUserUsageLogs 管理员查看指定用户的消费记录（时间/模型/消耗额度/渠道）
+func AdminGetUserUsageLogs(c *gin.Context) {
+	userId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || userId <= 0 {
+		common.ApiErrorMsg(c, "invalid user id")
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	logs, total, err := model.GetUserUsageLogsByAdmin(userId, pageInfo.Page, pageInfo.PageSize)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(logs)
+	common.ApiSuccess(c, pageInfo)
+}
+
 // GetUserDeviceSessions 获取用户在线设备列表
 func GetUserDeviceSessions(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))

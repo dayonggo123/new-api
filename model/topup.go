@@ -139,8 +139,7 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 }
 
 // GetAllTopUps 获取全平台的充值记录（管理员使用）
-func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
-	tx := DB.Begin()
+func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
 	}
@@ -196,6 +195,25 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 	}
 
 	if err = tx.Commit().Error; err != nil {
+		return nil, 0, err
+	}
+	return topups, total, nil
+}
+
+// GetTopUpsByUserId 获取指定用户的充值记录（管理员查看用户财务使用）
+func GetTopUpsByUserId(userId, page, pageSize int) (topups []*TopUp, total int64, err error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+
+	query := DB.Model(&TopUp{}).Where("user_id = ?", userId)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err = query.Order("create_time desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&topups).Error; err != nil {
 		return nil, 0, err
 	}
 	return topups, total, nil

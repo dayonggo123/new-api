@@ -243,6 +243,67 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
+// GetUserUsageLogsByAdmin 获取指定用户的消费记录（type=consume，管理员查看用户财务使用）
+func GetUserUsageLogsByAdmin(userId, page, pageSize int) (logs []*Log, total int64, err error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+
+	tx := LOG_DB.Where("logs.user_id = ? AND logs.type = ?", userId, LogTypeConsume)
+	if err = tx.Model(&Log{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err = tx.Order("logs.id desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&logs).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 填充渠道名称（与 GetAllLogs 一致）
+	channelIds := types.NewSet[int]()
+	for _, log := range logs {
+		if log.ChannelId != 0 {
+			channelIds.Add(log.ChannelId)
+		}
+	}
+	if channelIds.Len() > 0 {
+		var channels []struct {
+			Id   int    `gorm:"column:id"`
+			Name string `gorm:"column:name"`
+		}
+		if common.MemoryCacheEnabled {
+			for _, channelId := range channelIds.Items() {
+				if cacheChannel, err := CacheGetChannel(channelId); err == nil {
+					channels = append(channels, struct {
+						Id   int    `gorm:"column:id"`
+						Name string `gorm:"column:name"`
+					}{
+						Id:   channelId,
+						Name: cacheChannel.Name,
+					})
+				}
+			}
+		} else {
+			if err = DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
+				return logs, total, err
+			}
+		}
+		if len(channels) > 0 {
+			channelMap := make(map[int]string, len(channels))
+			for _, ch := range channels {
+				channelMap[ch.Id] = ch.Name
+			}
+			for _, log := range logs {
+				if name, ok := channelMap[log.ChannelId]; ok {
+					log.ChannelName = name
+				}
+			}
+		}
+	}
+	return logs, total, nil
+}
+
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {

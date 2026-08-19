@@ -219,6 +219,7 @@ const renderOperations = (
     showResetPasskeyModal,
     showResetTwoFAModal,
     showUserSubscriptionsModal,
+    showUserFinanceModal,
     t,
   },
 ) => {
@@ -227,6 +228,11 @@ const renderOperations = (
   }
 
   const moreMenu = [
+    {
+      node: 'item',
+      name: t('财务记录'),
+      onClick: () => showUserFinanceModal(record),
+    },
     {
       node: 'item',
       name: t('订阅管理'),
@@ -319,6 +325,7 @@ export const getUsersColumns = ({
   showResetPasskeyModal,
   showResetTwoFAModal,
   showUserSubscriptionsModal,
+  showUserFinanceModal,
 }) => {
   return [
     {
@@ -428,6 +435,7 @@ export const getUsersColumns = ({
           showResetPasskeyModal,
           showResetTwoFAModal,
           showUserSubscriptionsModal,
+          showUserFinanceModal,
           t,
         }),
     },
