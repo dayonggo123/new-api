@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Empty, Modal, Table, Tabs, Tag } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { API, renderQuota, showError } from '../../../../helpers';
@@ -37,51 +37,73 @@ const UserFinanceModal = ({ visible, onCancel, user }) => {
   const [logTotal, setLogTotal] = useState(0);
   const [logPage, setLogPage] = useState(1);
 
+  const mountedRef = useRef(false);
+  const fetchedRef = useRef(false);
+
+  const safeSetState = (setter) => (value) => {
+    if (mountedRef.current) {
+      setter(value);
+    }
+  };
+
   const loadTopups = async (page = 1) => {
-    setLoading(true);
+    if (!user?.id) return;
+    safeSetState(setLoading)(true);
     try {
       const res = await API.get(`/api/admin/users/${user.id}/topups`, {
         params: { page, page_size: PAGE_SIZE },
       });
-      if (res.data.success) {
-        setTopups(res.data.data?.items || []);
-        setTopupTotal(res.data.data?.total || 0);
-        setTopupPage(page);
+      if (res.data?.success) {
+        safeSetState(setTopups)(res.data.data?.items || []);
+        safeSetState(setTopupTotal)(res.data.data?.total || 0);
+        safeSetState(setTopupPage)(page);
       } else {
-        showError(res.data.message);
+        showError(res.data?.message || t('请求失败'));
       }
     } catch (e) {
-      showError(e.message);
+      showError(e?.message || t('请求失败'));
     } finally {
-      setLoading(false);
+      safeSetState(setLoading)(false);
     }
   };
 
   const loadLogs = async (page = 1) => {
-    setLoading(true);
+    if (!user?.id) return;
+    safeSetState(setLoading)(true);
     try {
       const res = await API.get(`/api/admin/users/${user.id}/usage-logs`, {
         params: { page, page_size: PAGE_SIZE },
       });
-      if (res.data.success) {
-        setLogs(res.data.data?.items || []);
-        setLogTotal(res.data.data?.total || 0);
-        setLogPage(page);
+      if (res.data?.success) {
+        safeSetState(setLogs)(res.data.data?.items || []);
+        safeSetState(setLogTotal)(res.data.data?.total || 0);
+        safeSetState(setLogPage)(page);
       } else {
-        showError(res.data.message);
+        showError(res.data?.message || t('请求失败'));
       }
     } catch (e) {
-      showError(e.message);
+      showError(e?.message || t('请求失败'));
     } finally {
-      setLoading(false);
+      safeSetState(setLoading)(false);
     }
   };
 
   useEffect(() => {
-    if (visible && user?.id) {
-      loadTopups(1);
-      loadLogs(1);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !user?.id) {
+      fetchedRef.current = false;
+      return;
     }
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    loadTopups(1);
+    loadLogs(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, user?.id]);
 
