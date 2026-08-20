@@ -101,6 +101,11 @@ export function updateAPI() {
 API.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 防御：某些异常场景下 axios 可能传入 undefined 错误对象
+    if (!error) {
+      console.warn('[API] response interceptor received undefined error');
+      return Promise.reject(new Error('请求失败'));
+    }
     // 如果请求配置中显式要求跳过全局错误处理，则不弹出默认错误提示
     if (error.config && error.config.skipErrorHandler) {
       return Promise.reject(error);

@@ -122,6 +122,7 @@ if (isMobileScreen) {
 export function showError(error) {
   console.error(error);
   if (!error) {
+    console.warn('[showError] received falsy error, fallback to 未知错误');
     Toast.error('错误：未知错误');
     return;
   }

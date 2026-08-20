@@ -58,10 +58,13 @@ const UserFinanceModal = ({ visible, onCancel, user }) => {
         safeSetState(setTopupTotal)(res.data.data?.total || 0);
         safeSetState(setTopupPage)(page);
       } else {
-        showError(res.data?.message || t('请求失败'));
+        const msg = res.data?.message || t('请求失败') || '请求失败';
+        showError(msg);
       }
     } catch (e) {
-      showError(e?.message || t('请求失败'));
+      console.error('[UserFinanceModal] loadTopups error:', e);
+      const msg = e?.message || e?.toString?.() || t('请求失败') || '请求失败';
+      showError(msg);
     } finally {
       safeSetState(setLoading)(false);
     }
@@ -79,10 +82,13 @@ const UserFinanceModal = ({ visible, onCancel, user }) => {
         safeSetState(setLogTotal)(res.data.data?.total || 0);
         safeSetState(setLogPage)(page);
       } else {
-        showError(res.data?.message || t('请求失败'));
+        const msg = res.data?.message || t('请求失败') || '请求失败';
+        showError(msg);
       }
     } catch (e) {
-      showError(e?.message || t('请求失败'));
+      console.error('[UserFinanceModal] loadLogs error:', e);
+      const msg = e?.message || e?.toString?.() || t('请求失败') || '请求失败';
+      showError(msg);
     } finally {
       safeSetState(setLoading)(false);
     }
