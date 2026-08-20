@@ -74,8 +74,8 @@ func GetOptions(c *gin.Context) {
 			strings.HasSuffix(k, "api_key") ||
 			strings.HasSuffix(k, "service_account_json")
 		if isSensitive {
-			// 对 seo_setting / translate_setting 的敏感字段保留 key，用占位符表示已设置
-			if strings.HasPrefix(k, "seo_setting.") || strings.HasPrefix(k, "translate_setting.") {
+			// 对 seo_setting / translate_setting / alipay_setting 的敏感字段保留 key，用占位符表示已设置
+			if strings.HasPrefix(k, "seo_setting.") || strings.HasPrefix(k, "translate_setting.") || strings.HasPrefix(k, "alipay_setting.") {
 				displayValue := ""
 				if v != "" {
 					displayValue = "******"
