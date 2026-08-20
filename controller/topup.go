@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -101,20 +102,20 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
 		"enable_alipay_topup": operation_setting.GetAlipaySetting().Configured(),
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
-		"enable_waffo_topup": enableWaffo,
+		"enable_waffo_topup":  enableWaffo,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
 			}
 			return nil
 		}(),
-		"creem_products": setting.CreemProducts,
-		"pay_methods":         payMethods,
-		"min_topup":           operation_setting.MinTopUp,
-		"stripe_min_topup":    setting.StripeMinTopUp,
-		"waffo_min_topup":     setting.WaffoMinTopUp,
-		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":            operation_setting.GetPaymentSetting().AmountDiscount,
+		"creem_products":   setting.CreemProducts,
+		"pay_methods":      payMethods,
+		"min_topup":        operation_setting.MinTopUp,
+		"stripe_min_topup": setting.StripeMinTopUp,
+		"waffo_min_topup":  setting.WaffoMinTopUp,
+		"amount_options":   operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":         operation_setting.GetPaymentSetting().AmountDiscount,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -213,13 +214,16 @@ func RequestEpay(c *gin.Context) {
 
 	callBackAddress := service.GetCallbackAddress()
 	serverAddress := service.GetServerAddress()
+	// 兜底：从请求 Host 推断地址
 	if serverAddress == "" {
-		// 兜底：从请求 Host 推断
 		scheme := "https"
 		if c.Request.TLS == nil {
 			scheme = "http"
 		}
 		serverAddress = scheme + "://" + c.Request.Host
+	}
+	if callBackAddress == "" {
+		callBackAddress = serverAddress
 	}
 	returnUrl, _ := url.Parse(serverAddress + "/console/log")
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
@@ -230,6 +234,8 @@ func RequestEpay(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "error", "data": "当前管理员未配置支付信息"})
 		return
 	}
+	common.SysLog(fmt.Sprintf("[RequestEpay] user=%d trade_no=%s notify_url=%s", id, tradeNo, notifyUrl.String()))
+
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
@@ -335,6 +341,19 @@ func EpayNotify(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
+
+	// 记录收到的回调参数（密钥脱敏）便于排查
+	logableParams := make(map[string]string, len(params))
+	for k, v := range params {
+		lowerK := strings.ToLower(k)
+		if strings.Contains(lowerK, "key") || strings.Contains(lowerK, "sign") {
+			logableParams[k] = "***"
+		} else {
+			logableParams[k] = v
+		}
+	}
+	common.SysLog(fmt.Sprintf("[EpayNotify] received %s params: %v", c.Request.Method, logableParams))
+
 	client := GetEpayClient()
 	if client == nil {
 		log.Println("易支付回调失败 未找到配置信息")
@@ -345,12 +364,8 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 	verifyInfo, err := client.Verify(params)
-	if err == nil && verifyInfo.VerifyStatus {
-		_, err := c.Writer.Write([]byte("success"))
-		if err != nil {
-			log.Println("易支付回调写入失败")
-		}
-	} else {
+	if err != nil || !verifyInfo.VerifyStatus {
+		common.SysLog(fmt.Sprintf("[EpayNotify] verify failed: err=%v, status=%v, params=%v", err, verifyInfo, logableParams))
 		_, err := c.Writer.Write([]byte("fail"))
 		if err != nil {
 			log.Println("易支付回调写入失败")
@@ -359,37 +374,46 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 
-	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
-		log.Println(verifyInfo)
-		LockOrder(verifyInfo.ServiceTradeNo)
-		defer UnlockOrder(verifyInfo.ServiceTradeNo)
-		topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
-		if topUp == nil {
-			log.Printf("易支付回调未找到订单: %v", verifyInfo)
+	// 先返回 success 再异步处理，避免支付网关超时重试导致重复通知
+	_, err = c.Writer.Write([]byte("success"))
+	if err != nil {
+		log.Println("易支付回调写入失败")
+	}
+
+	common.SysLog(fmt.Sprintf("[EpayNotify] verify success: trade_status=%s, trade_no=%s", verifyInfo.TradeStatus, verifyInfo.ServiceTradeNo))
+
+	if verifyInfo.TradeStatus != epay.StatusTradeSuccess {
+		log.Printf("易支付异常回调: trade_status=%s, info=%v", verifyInfo.TradeStatus, verifyInfo)
+		return
+	}
+
+	log.Println(verifyInfo)
+	LockOrder(verifyInfo.ServiceTradeNo)
+	defer UnlockOrder(verifyInfo.ServiceTradeNo)
+	topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
+	if topUp == nil {
+		log.Printf("易支付回调未找到订单: %v", verifyInfo)
+		return
+	}
+	if topUp.Status == "pending" {
+		topUp.Status = "success"
+		err := topUp.Update()
+		if err != nil {
+			log.Printf("易支付回调更新订单失败: %v", topUp)
 			return
 		}
-		if topUp.Status == "pending" {
-			topUp.Status = "success"
-			err := topUp.Update()
-			if err != nil {
-				log.Printf("易支付回调更新订单失败: %v", topUp)
-				return
-			}
-			//user, _ := model.GetUserById(topUp.UserId, false)
-			//user.Quota += topUp.Amount * 500000
-			dAmount := decimal.NewFromInt(int64(topUp.Amount))
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
-			err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
-			if err != nil {
-				log.Printf("易支付回调更新用户失败: %v", topUp)
-				return
-			}
-			log.Printf("易支付回调更新用户成功 %v", topUp)
-			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
+		//user, _ := model.GetUserById(topUp.UserId, false)
+		//user.Quota += topUp.Amount * 500000
+		dAmount := decimal.NewFromInt(int64(topUp.Amount))
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
+		if err != nil {
+			log.Printf("易支付回调更新用户失败: %v", topUp)
+			return
 		}
-	} else {
-		log.Printf("易支付异常回调: %v", verifyInfo)
+		log.Printf("易支付回调更新用户成功 %v", topUp)
+		model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
 	}
 }
 
@@ -491,4 +515,3 @@ func AdminCompleteTopUp(c *gin.Context) {
 	}
 	common.ApiSuccess(c, nil)
 }
-
