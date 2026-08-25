@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/QuantumNous/new-api/constant"
 
@@ -245,8 +246,8 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, _ := model.GetUserIdByAffCode(affCode)
+	// Try legacy aff code first, then referral code from header/body.
+	inviterId := resolveRegisterInviterId(c, user.AffCode)
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
@@ -276,6 +277,16 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
+
+	// 记录 referral 邀请关系（仅在通过 referral code 注册时）
+	if refCode := getUsedReferralCode(c, user.AffCode); refCode != "" && inviterId > 0 && inviterId != insertedUser.Id {
+		deviceFp := service.GetDeviceIDFromRequest(c)
+		if deviceFp == "" {
+			deviceFp = service.GenerateDeviceID()
+		}
+		_ = service.RecordReferralRelationship(refCode, insertedUser.Id, user.RegisterSource, "", c.ClientIP(), deviceFp)
+	}
+
 	// 生成默认令牌
 	if constant.GenerateDefaultToken {
 		key, err := common.GenerateKey()
@@ -548,6 +559,132 @@ func GetAffCode(c *gin.Context) {
 		"data":    user.AffCode,
 	})
 	return
+}
+
+// resolveRegisterInviterId tries to resolve an inviter id from legacy aff code,
+// request header X-Referral-Code, and session ref_code.
+func getUsedReferralCode(c *gin.Context, affCode string) string {
+	if affCode != "" {
+		return ""
+	}
+	if refCode := c.GetHeader("X-Referral-Code"); refCode != "" {
+		return refCode
+	}
+	session := sessions.Default(c)
+	if refCode := session.Get("ref_code"); refCode != nil {
+		if code, ok := refCode.(string); ok {
+			return code
+		}
+	}
+	return ""
+}
+
+func resolveRegisterInviterId(c *gin.Context, affCode string) int {
+	if affCode != "" {
+		if inviterId, err := model.GetUserIdByAffCode(affCode); err == nil && inviterId > 0 {
+			return inviterId
+		}
+	}
+	if refCode := c.GetHeader("X-Referral-Code"); refCode != "" {
+		if inviterId, err := service.ResolveInviterIdByCode(refCode); err == nil && inviterId > 0 {
+			return inviterId
+		}
+	}
+	session := sessions.Default(c)
+	if refCode := session.Get("ref_code"); refCode != nil {
+		if code, ok := refCode.(string); ok && code != "" {
+			if inviterId, err := service.ResolveInviterIdByCode(code); err == nil && inviterId > 0 {
+				return inviterId
+			}
+		}
+	}
+	return 0
+}
+
+// RedirectReferralCode handles short referral links like /r/A1B2C3.
+// It stores the code in session and redirects to the landing/register page.
+func RedirectReferralCode(c *gin.Context) {
+	code := c.Param("code")
+	if code == "" {
+		common.ApiErrorMsg(c, "code is required")
+		return
+	}
+	result, err := service.ValidateReferralCode(code)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if valid, ok := result["valid"].(bool); !ok || !valid {
+		common.ApiErrorMsg(c, "invalid referral code")
+		return
+	}
+
+	session := sessions.Default(c)
+	session.Set("ref_code", code)
+	_ = session.Save()
+
+	landingUrl := system_setting.ServerAddress
+	if landingUrl == "" {
+		landingUrl = "/register"
+	}
+	c.Redirect(http.StatusTemporaryRedirect, landingUrl+"?ref="+code)
+}
+
+func GetReferralMyCode(c *gin.Context) {
+	id := c.GetInt("id")
+	code, err := service.GetOrCreateUserReferralCode(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    code,
+	})
+}
+
+func GenerateReferralCode(c *gin.Context) {
+	type request struct {
+		Source    string `json:"source"`
+		ContentId string `json:"content_id"`
+	}
+	var req request
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	id := c.GetInt("id")
+	code, err := service.GetOrCreateUserReferralCode(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    code,
+	})
+}
+
+func ValidateReferralCode(c *gin.Context) {
+	code := c.Query("code")
+	if code == "" {
+		common.ApiErrorMsg(c, "code is required")
+		return
+	}
+	result, err := service.ValidateReferralCode(code)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    result,
+	})
 }
 
 func GetSelf(c *gin.Context) {

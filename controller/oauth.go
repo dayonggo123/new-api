@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -20,6 +21,26 @@ func providerParams(name string) map[string]any {
 	return map[string]any{"Provider": name}
 }
 
+// resolveInviterIdFromSession tries to get an inviter id from session.
+// It first checks the legacy "aff" code, then the new "ref_code".
+func resolveInviterIdFromSession(session sessions.Session) int {
+	if affCode := session.Get("aff"); affCode != nil {
+		if code, ok := affCode.(string); ok && code != "" {
+			if inviterId, err := model.GetUserIdByAffCode(code); err == nil && inviterId > 0 {
+				return inviterId
+			}
+		}
+	}
+	if refCode := session.Get("ref_code"); refCode != nil {
+		if code, ok := refCode.(string); ok && code != "" {
+			if inviterId, err := service.ResolveInviterIdByCode(code); err == nil && inviterId > 0 {
+				return inviterId
+			}
+		}
+	}
+	return 0
+}
+
 // GenerateOAuthCode generates a state code for OAuth CSRF protection
 func GenerateOAuthCode(c *gin.Context) {
 	session := sessions.Default(c)
@@ -27,6 +48,10 @@ func GenerateOAuthCode(c *gin.Context) {
 	affCode := c.Query("aff")
 	if affCode != "" {
 		session.Set("aff", affCode)
+	}
+	refCode := c.Query("ref")
+	if refCode != "" {
+		session.Set("ref_code", refCode)
 	}
 	registerSource := c.Query("register_source")
 	if registerSource != "" {
@@ -271,12 +296,8 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		user.RegisterSource = rs.(string)
 	}
 
-	// Handle affiliate code
-	affCode := session.Get("aff")
-	inviterId := 0
-	if affCode != nil {
-		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
-	}
+	// Handle affiliate code / referral code
+	inviterId := resolveInviterIdFromSession(session)
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {

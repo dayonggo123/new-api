@@ -324,6 +324,8 @@ func migrateDB() error {
 		&SharedTemplateUse{},
 		&SharedTemplateAuditLog{},
 		&TikHubPriceConfig{},
+		&ReferralCode{},
+		&ReferralRelationship{},
 	)
 	if err != nil {
 		return err
