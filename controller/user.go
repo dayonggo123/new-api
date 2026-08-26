@@ -252,6 +252,8 @@ func Register(c *gin.Context) {
 	}
 	// Try legacy aff code first, then referral code from body/header/session.
 	inviterId := resolveRegisterInviterId(c, user.AffCode, req.ReferralCode)
+	common.SysLog(fmt.Sprintf("[Referral] register: username=%s aff_code=%q referral_code=%q header_ref=%q inviter_id=%d",
+		user.Username, user.AffCode, req.ReferralCode, c.GetHeader("X-Referral-Code"), inviterId))
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
