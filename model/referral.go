@@ -17,7 +17,7 @@ const (
 // ReferralCode represents a user's social sharing referral code.
 type ReferralCode struct {
 	Id            int    `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserId        int    `json:"user_id" gorm:"index;uniqueIndex;not null"`
+	UserId        int    `json:"user_id" gorm:"uniqueIndex;not null"`
 	Code          string `json:"code" gorm:"type:varchar(16);uniqueIndex;not null"`
 	ShortLink     string `json:"short_link" gorm:"type:varchar(255);column:short_link"`
 	QrUrl         string `json:"qr_url" gorm:"type:varchar(255);column:qr_url"`
