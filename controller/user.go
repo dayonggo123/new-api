@@ -283,7 +283,7 @@ func Register(c *gin.Context) {
 	}
 
 	// 记录 referral 邀请关系（仅在通过 referral code 注册时）
-	if refCode := getUsedReferralCode(c, user.AffCode); refCode != "" && inviterId > 0 && inviterId != insertedUser.Id {
+	if refCode := getUsedReferralCode(c, user.AffCode, req.ReferralCode); refCode != "" && inviterId > 0 && inviterId != insertedUser.Id {
 		deviceFp := service.GetDeviceIDFromRequest(c)
 		if deviceFp == "" {
 			deviceFp = service.GenerateDeviceID()
