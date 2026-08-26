@@ -593,6 +593,12 @@ func resolveRegisterInviterId(c *gin.Context, affCode, referralCode string) int 
 		if inviterId, err := model.GetUserIdByAffCode(affCode); err == nil && inviterId > 0 {
 			return inviterId
 		}
+		// Legacy aff code lookup failed; if it looks like a 6-char referral code, try that too.
+		if len(affCode) >= 6 {
+			if inviterId, err := service.ResolveInviterIdByCode(affCode); err == nil && inviterId > 0 {
+				return inviterId
+			}
+		}
 	}
 	if referralCode != "" {
 		if inviterId, err := service.ResolveInviterIdByCode(referralCode); err == nil && inviterId > 0 {

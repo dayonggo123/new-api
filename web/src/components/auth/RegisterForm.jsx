@@ -116,7 +116,12 @@ const RegisterForm = () => {
 
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
-    localStorage.setItem('aff', affCode);
+    // Legacy aff codes are 4 chars; 6-char codes are new referral codes.
+    if (affCode.length >= 6) {
+      localStorage.setItem('ref_code', affCode);
+    } else {
+      localStorage.setItem('aff', affCode);
+    }
   }
 
   let refCode = new URLSearchParams(window.location.search).get('ref');
