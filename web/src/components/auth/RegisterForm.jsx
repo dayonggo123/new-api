@@ -250,6 +250,7 @@ const RegisterForm = () => {
           refCode = localStorage.getItem('ref_code');
         }
         inputs.aff_code = affCode;
+        inputs.referral_code = refCode || '';
         inputs.register_source = registerSource;
         const res = await API.post(
           `/api/user/register?turnstile=${turnstileToken}`,

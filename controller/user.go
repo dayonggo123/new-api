@@ -216,8 +216,12 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	var req struct {
+		model.User
+		ReferralCode string `json:"referral_code"`
+	}
+	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	user := req.User
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -246,8 +250,8 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	// Try legacy aff code first, then referral code from header/body.
-	inviterId := resolveRegisterInviterId(c, user.AffCode)
+	// Try legacy aff code first, then referral code from body/header/session.
+	inviterId := resolveRegisterInviterId(c, user.AffCode, req.ReferralCode)
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
@@ -562,10 +566,13 @@ func GetAffCode(c *gin.Context) {
 }
 
 // resolveRegisterInviterId tries to resolve an inviter id from legacy aff code,
-// request header X-Referral-Code, and session ref_code.
-func getUsedReferralCode(c *gin.Context, affCode string) string {
+// request body referral_code, request header X-Referral-Code, and session ref_code.
+func getUsedReferralCode(c *gin.Context, affCode, referralCode string) string {
 	if affCode != "" {
 		return ""
+	}
+	if referralCode != "" {
+		return referralCode
 	}
 	if refCode := c.GetHeader("X-Referral-Code"); refCode != "" {
 		return refCode
@@ -579,9 +586,14 @@ func getUsedReferralCode(c *gin.Context, affCode string) string {
 	return ""
 }
 
-func resolveRegisterInviterId(c *gin.Context, affCode string) int {
+func resolveRegisterInviterId(c *gin.Context, affCode, referralCode string) int {
 	if affCode != "" {
 		if inviterId, err := model.GetUserIdByAffCode(affCode); err == nil && inviterId > 0 {
+			return inviterId
+		}
+	}
+	if referralCode != "" {
+		if inviterId, err := service.ResolveInviterIdByCode(referralCode); err == nil && inviterId > 0 {
 			return inviterId
 		}
 	}
