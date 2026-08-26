@@ -256,6 +256,10 @@ export async function getOAuthState() {
   if (affCode && affCode.length > 0) {
     params.append('aff', affCode);
   }
+  let refCode = localStorage.getItem('ref_code');
+  if (refCode && refCode.length > 0) {
+    params.append('ref', refCode);
+  }
   let registerSource = localStorage.getItem('register_source');
   if (registerSource && registerSource.length > 0) {
     params.append('register_source', registerSource);

@@ -119,6 +119,11 @@ const RegisterForm = () => {
     localStorage.setItem('aff', affCode);
   }
 
+  let refCode = new URLSearchParams(window.location.search).get('ref');
+  if (refCode) {
+    localStorage.setItem('ref_code', refCode);
+  }
+
   let registerSource = new URLSearchParams(window.location.search).get('source');
   if (!registerSource) {
     registerSource = localStorage.getItem('register_source') || '';
@@ -241,11 +246,19 @@ const RegisterForm = () => {
         if (!affCode) {
           affCode = localStorage.getItem('aff');
         }
+        if (!refCode) {
+          refCode = localStorage.getItem('ref_code');
+        }
         inputs.aff_code = affCode;
         inputs.register_source = registerSource;
         const res = await API.post(
           `/api/user/register?turnstile=${turnstileToken}`,
           inputs,
+          {
+            headers: {
+              'X-Referral-Code': refCode || '',
+            },
+          },
         );
         const { success, message } = res.data;
         if (success) {
