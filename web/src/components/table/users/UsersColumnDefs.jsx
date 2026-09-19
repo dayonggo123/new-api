@@ -321,6 +321,19 @@ export const getUsersColumns = ({
       render: (text, record) => renderUsername(text, record),
     },
     {
+      title: t('邮箱'),
+      dataIndex: 'email',
+      width: 180,
+      render: (text) => {
+        if (!text) return <span className='text-gray-400'>-</span>;
+        return (
+          <span className='text-xs block truncate' title={text}>
+            {text}
+          </span>
+        );
+      },
+    },
+    {
       title: t('状态'),
       dataIndex: 'info',
       render: (text, record, index) =>
