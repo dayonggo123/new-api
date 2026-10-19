@@ -326,6 +326,8 @@ func migrateDB() error {
 		&TikHubPriceConfig{},
 		&ReferralCode{},
 		&ReferralRelationship{},
+		&CollectLink{},
+		&CollectDevice{},
 	)
 	if err != nil {
 		return err

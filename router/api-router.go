@@ -714,6 +714,23 @@ func SetApiRouter(router *gin.Engine) {
 		// TikHub 价格公开接口
 		apiRouter.GET("/public/tikhub/prices", controller.GetTikHubPrices)
 
+		// 采集队列（Storyboard-Copilot 桌面端 + iOS 快捷指令）
+		// link/ack：设备令牌放 body；pending：X-Collect-Token header
+		// device 三接口：网页端登录态（UserAuth）
+		collectRoute := apiRouter.Group("/collect")
+		{
+			collectRoute.POST("/link", controller.CollectSubmitLink)
+			collectRoute.GET("/pending", controller.CollectGetPending)
+			collectRoute.POST("/ack", controller.CollectAck)
+			collectDeviceRoute := collectRoute.Group("/")
+			collectDeviceRoute.Use(middleware.UserAuth())
+			{
+				collectDeviceRoute.POST("/device", controller.CollectCreateDevice)
+				collectDeviceRoute.GET("/devices", controller.CollectListDevices)
+				collectDeviceRoute.DELETE("/device/:id", controller.CollectRevokeDevice)
+			}
+		}
+
 		apiRouter.GET("/admin/tikhub/status", middleware.AdminAuth(), controller.TikHubSettingStatus)
 		apiRouter.GET("/admin/tikhub/prices", middleware.AdminAuth(), controller.GetTikHubPriceConfigs)
 		apiRouter.POST("/admin/tikhub/prices", middleware.AdminAuth(), controller.CreateTikHubPriceConfig)

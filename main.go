@@ -117,6 +117,9 @@ func main() {
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
 	service.StartCodexCredentialAutoRefreshTask()
 
+	// Collect queue janitor: zombie reclaim (5min) + 90-day TTL cleanup (24h)
+	service.StartCollectJanitor()
+
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
