@@ -164,8 +164,10 @@ func uploadBytes(ctx context.Context, c *gin.Context, data []byte, contentType, 
 		return nil, fmt.Errorf("create directory failed: %w", err)
 	}
 
-	// 优先尝试 R2（如果启用且是图片/视频类型）
-	if storage.R2Enabled() && (cfg.Type == "image" || cfg.Type == "video") {
+	// 优先尝试 R2（如果启用且是图片/视频类型）。
+	// permanent 文件必须落本地磁盘（uploads/permanent，cleanup 会跳过）：
+	// R2 tmp/ 前缀对象会被上游 lifecycle 定时清除，永久资源不能依赖它
+	if !cfg.Permanent && storage.R2Enabled() && (cfg.Type == "image" || cfg.Type == "video") {
 		var url string
 		var err error
 		if cfg.Type == "video" {
@@ -213,6 +215,10 @@ func BuildUploadURL(c *gin.Context, relativePath string) string {
 		return fmt.Sprintf("%s/uploads/%s", publicURL, relativePath)
 	}
 	scheme := "https"
+	// 无请求上下文（服务层内部转存等场景）时无法取 Host，返回相对路径兜底
+	if c == nil || c.Request == nil {
+		return fmt.Sprintf("/uploads/%s", relativePath)
+	}
 	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
 		scheme = proto
 	}

@@ -1,13 +1,17 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -301,6 +305,257 @@ func resolveTemplateThumbnailUrl(storeUrl string) string {
 	return storeUrl
 }
 
+// ========== 封面转存兜底 ==========
+
+const (
+	// thumbnailMirrorTimeout 封面回源下载超时（分享接口同步执行，避免长时间阻塞客户端）
+	thumbnailMirrorTimeout = 25 * time.Second
+	// thumbnailMirrorMaxBytes 封面转存大小上限（模板封面为缩略图/短视频，100MB 足够）
+	thumbnailMirrorMaxBytes = 100 << 20
+)
+
+// thumbnailMirrorHTTPClient 用于封面 HTTPS 回源下载。
+// 禁止跟随重定向，防止白名单主机校验被 302 绕过（SSRF 防护）
+var thumbnailMirrorHTTPClient = &http.Client{
+	Timeout: thumbnailMirrorTimeout,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
+
+// mirrorTemplateThumbnail 分享模板时把封面兜底转存到本地 uploads/permanent：
+// R2（tmp/ 前缀）对象会被上游 lifecycle 定时清除、presigned URL 也会过期，
+// 若不转存，封面在对象被清理后永久裂图。转存后 DB 落 permanent 公网 URL，
+// 不再依赖 R2 凭据与上游存储策略（历史上 R2 未配置时 /api/public/r2 返回 404 的根因）。
+// 任何失败都不阻塞分享，保留原始 URL 走 resolveTemplateThumbnailUrl 原有解析逻辑。
+func mirrorTemplateThumbnail(thumbnailUrl, thumbnailType string) (string, string) {
+	raw := strings.TrimSpace(thumbnailUrl)
+	if raw == "" {
+		return raw, thumbnailType
+	}
+	isVideo := strings.EqualFold(strings.TrimSpace(thumbnailType), "video")
+
+	bucket, key, source, ok := detectMirrorSource(raw)
+	if !ok {
+		return raw, thumbnailType
+	}
+
+	var data []byte
+	var contentType string
+
+	switch source {
+	case "r2-short":
+		// 短路径只能在 R2 已配置时通过 S3 直读解析
+		if !storage.R2Enabled() {
+			return raw, thumbnailType
+		}
+		data, contentType = fetchThumbnailFromR2(bucket, key)
+	case "r2":
+		if storage.R2Enabled() {
+			data, contentType = fetchThumbnailFromR2(bucket, key)
+		}
+		// R2 直读失败（对象被清理/无权限）时，回落用客户端给的完整 URL 走 HTTPS
+		if data == nil {
+			data, contentType = fetchThumbnailHTTPS(raw)
+		}
+	case "self":
+		data, contentType = fetchThumbnailHTTPS(raw)
+	}
+
+	if len(data) == 0 {
+		return raw, thumbnailType
+	}
+
+	finalCT := normalizeMirrorContentType(contentType, data)
+	if !validThumbnailContentType(finalCT, isVideo) {
+		common.SysLog(fmt.Sprintf("shared-template thumbnail mirror skipped: content-type %q is not a valid %s cover", finalCT, thumbnailKindLabel(isVideo)))
+		return raw, thumbnailType
+	}
+
+	mirrored, err := saveMirroredThumbnail(data, finalCT, isVideo)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("shared-template thumbnail mirror save failed: %v", err))
+		return raw, thumbnailType
+	}
+	common.SysLog(fmt.Sprintf("shared-template thumbnail mirrored (source=%s): %d bytes -> %s", source, len(data), mirrored))
+	return mirrored, thumbnailKindLabel(isVideo)
+}
+
+// detectMirrorSource 解析封面 URL 的转存来源：
+//   - r2-short：r2://<bucket>/<key>（仅 R2 已配置时可解析）
+//   - r2：完整 R2 presigned URL（优先 S3 直读，失败回落 HTTPS 原 URL）
+//   - self：本站 uploads 资源（HTTPS 回源转存，统一收敛到 permanent 路径；
+//     已是 /uploads/permanent/ 的 URL 不再重复转存）
+//
+// 其他公网 URL（外部 CDN 等）不转存，原样保留
+func detectMirrorSource(raw string) (bucket, key, source string, ok bool) {
+	if strings.HasPrefix(raw, r2ShortPrefix) {
+		path := strings.TrimPrefix(raw, r2ShortPrefix)
+		b, k, found := strings.Cut(path, "/")
+		if !found || b == "" || k == "" {
+			return "", "", "", false
+		}
+		return b, k, "r2-short", true
+	}
+	if m := r2SignedURLRe.FindStringSubmatch(raw); len(m) == 3 {
+		k := m[2]
+		if idx := strings.IndexAny(k, "?#"); idx >= 0 {
+			k = k[:idx]
+		}
+		if k == "" {
+			return "", "", "", false
+		}
+		return m[1], k, "r2", true
+	}
+	if u, err := url.Parse(raw); err == nil && isAllowedMirrorHost(u.Hostname()) {
+		if strings.Contains(u.Path, "/uploads/permanent/") {
+			return "", "", "", false
+		}
+		return "", "", "self", true
+	}
+	return "", "", "", false
+}
+
+// mirrorAllowedHostSuffixes 允许 HTTPS 回源的主机后缀白名单（SSRF 防护）：
+// R2 公网端点（r2.cloudflarestorage.com 及其子域）+
+// 本地上传服务的公网域名（UPLOADS_PUBLIC_URL 的主机部分，含其子域）。
+// 每次调用时读取，便于测试与运行期环境变更生效
+func mirrorAllowedHostSuffixes() []string {
+	suffixes := []string{"r2.cloudflarestorage.com"}
+	if root := os.Getenv("UPLOADS_PUBLIC_URL"); root != "" {
+		if u, err := url.Parse(root); err == nil && u.Hostname() != "" {
+			suffixes = append(suffixes, strings.ToLower(u.Hostname()))
+		}
+	}
+	return suffixes
+}
+
+// isAllowedMirrorHost 校验主机是否在回源白名单内（裸域名或其任意子域命中）
+func isAllowedMirrorHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if host == "" {
+		return false
+	}
+	for _, suffix := range mirrorAllowedHostSuffixes() {
+		if host == suffix || strings.HasSuffix(host, "."+suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// fetchThumbnailFromR2 通过 S3 GetObject 直读 R2 对象（带大小上限）
+func fetchThumbnailFromR2(bucket, key string) ([]byte, string) {
+	body, size, ct, err := storage.GetObject(bucket, key)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("shared-template thumbnail mirror R2 get failed bucket=%s key=%s: %v", bucket, key, err))
+		return nil, ""
+	}
+	defer body.Close()
+	data, err := readThumbnailBody(body, size)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("shared-template thumbnail mirror R2 read failed bucket=%s key=%s: %v", bucket, key, err))
+		return nil, ""
+	}
+	return data, ct
+}
+
+// fetchThumbnailHTTPS 通过 HTTPS 回源下载封面（白名单主机 + 禁止重定向）
+func fetchThumbnailHTTPS(rawURL string) ([]byte, string) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return nil, ""
+	}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return nil, ""
+	}
+	if !isAllowedMirrorHost(u.Hostname()) {
+		common.SysLog(fmt.Sprintf("shared-template thumbnail mirror rejected host: %s", u.Hostname()))
+		return nil, ""
+	}
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, ""
+	}
+	resp, err := thumbnailMirrorHTTPClient.Do(req)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("shared-template thumbnail mirror fetch failed: %v", err))
+		return nil, ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		common.SysLog(fmt.Sprintf("shared-template thumbnail mirror fetch status %d: %s", resp.StatusCode, rawURL))
+		return nil, ""
+	}
+	data, err := readThumbnailBody(resp.Body, resp.ContentLength)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("shared-template thumbnail mirror read failed: %v", err))
+		return nil, ""
+	}
+	return data, resp.Header.Get("Content-Type")
+}
+
+// readThumbnailBody 读取封面对象内容，带大小上限防护
+func readThumbnailBody(body io.Reader, declaredSize int64) ([]byte, error) {
+	if declaredSize > thumbnailMirrorMaxBytes {
+		return nil, fmt.Errorf("object too large: %d bytes", declaredSize)
+	}
+	data, err := io.ReadAll(io.LimitReader(body, thumbnailMirrorMaxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > thumbnailMirrorMaxBytes {
+		return nil, fmt.Errorf("object exceeds %d bytes limit", thumbnailMirrorMaxBytes)
+	}
+	return data, nil
+}
+
+// normalizeMirrorContentType 清洗下载内容的 Content-Type：
+// 去掉参数并小写化；空值或 application/octet-stream（R2 历史对象常见）回退到按内容嗅探
+func normalizeMirrorContentType(ct string, data []byte) string {
+	ct = strings.ToLower(strings.TrimSpace(strings.Split(ct, ";")[0]))
+	if ct == "" || ct == "application/octet-stream" {
+		if len(data) > 0 {
+			ct = strings.ToLower(http.DetectContentType(data))
+		}
+	}
+	return ct
+}
+
+// validThumbnailContentType 校验内容类型与封面类型一致（视频封面额外允许 application/mp4）
+func validThumbnailContentType(ct string, isVideo bool) bool {
+	if isVideo {
+		return strings.HasPrefix(ct, "video/") || ct == "application/mp4"
+	}
+	return strings.HasPrefix(ct, "image/")
+}
+
+// thumbnailKindLabel 封面类型标签（image/video）
+func thumbnailKindLabel(isVideo bool) string {
+	if isVideo {
+		return "video"
+	}
+	return "image"
+}
+
+// saveMirroredThumbnail 将下载的封面写入 uploads/permanent（本地磁盘，cleanup 跳过），
+// 返回公网 URL。permanent 路径强制走本地，不经过 R2 中转
+func saveMirroredThumbnail(data []byte, contentType string, isVideo bool) (string, error) {
+	uploadType := "image"
+	if isVideo {
+		uploadType = "video"
+	}
+	res, err := uploadBytes(context.Background(), nil, data, contentType, "", UploadConfig{
+		Type:      uploadType,
+		Permanent: true,
+		Prefix:    "tpl",
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.URL, nil
+}
+
 // isLocalOrPrivateURL 判断 URL 是否指向本机或内网（localhost、127.x、10.x、192.168.x、172.16-31.x）
 func isLocalOrPrivateURL(url string) bool {
 	lower := strings.ToLower(url)
@@ -434,6 +689,11 @@ func ShareTemplate(userId int, userName string, req *dto.SharedTemplateShareRequ
 	//    避免超长（513+ 字符）触发 MySQL Error 1406 Data too long
 	req.ThumbnailUrl = normalizeTemplateThumbnailUrl(req.ThumbnailUrl)
 	req.ThumbnailUrl = normalizeR2SignedURL(req.ThumbnailUrl)
+
+	// 5.1 封面转存兜底：R2/本站 uploads 的封面下载后落 uploads/permanent（本地磁盘），
+	//     避免 R2 对象被上游 lifecycle 清除或签名过期后封面永久裂图；
+	//     任何失败都不阻塞分享，保留原始 URL
+	req.ThumbnailUrl, req.ThumbnailType = mirrorTemplateThumbnail(req.ThumbnailUrl, req.ThumbnailType)
 
 	// 6. 保存到数据库
 	template := &model.SharedTemplate{

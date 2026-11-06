@@ -209,3 +209,167 @@ func TestDetectLocalAssetPaths(t *testing.T) {
 		}
 	})
 }
+
+// ========== 封面转存兜底（mirrorTemplateThumbnail） ==========
+
+func TestDetectMirrorSource(t *testing.T) {
+	os.Setenv("UPLOADS_PUBLIC_URL", "https://heharse.cloud/uploads/")
+	defer os.Unsetenv("UPLOADS_PUBLIC_URL")
+
+	cases := []struct {
+		name       string
+		in         string
+		wantOK     bool
+		wantSource string
+		wantBucket string
+		wantKey    string
+	}{
+		{"r2 short", "r2://geminigen-prd-upload-bucket/tmp/a.png", true, "r2-short", "geminigen-prd-upload-bucket", "tmp/a.png"},
+		{"r2 short missing key", "r2://bucket-only", false, "", "", ""},
+		{"r2 short empty bucket", "r2:///key.png", false, "", "", ""},
+		{"r2 presigned url strips query", sampleR2SignedURL, true, "r2", "geminigen-prd-upload-bucket", "496972/generated_result/video/7d921388-8ca7-11f1-aac3-262631b5d4f2/20260731_061733_0_UTC_0.mp4"},
+		{"r2 url without query", "https://abc.r2.cloudflarestorage.com/b/k.jpg", true, "r2", "b", "k.jpg"},
+		{"self uploads url", "https://heharse.cloud/uploads/image/20261106/a.png", true, "self", "", ""},
+		{"self already permanent skipped", "https://heharse.cloud/uploads/permanent/image/tpl/a.png", false, "", "", ""},
+		{"external cdn not mirrored", "https://cdn.example.com/a.png", false, "", "", ""},
+		{"garbage not mirrored", "not a url", false, "", "", ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			bucket, key, source, ok := detectMirrorSource(c.in)
+			if ok != c.wantOK {
+				t.Fatalf("detectMirrorSource(%q) ok = %v, want %v", c.in, ok, c.wantOK)
+			}
+			if !c.wantOK {
+				return
+			}
+			if source != c.wantSource || bucket != c.wantBucket || key != c.wantKey {
+				t.Errorf("detectMirrorSource(%q) = (%q, %q, %q), want (%q, %q, %q)",
+					c.in, bucket, key, source, c.wantBucket, c.wantKey, c.wantSource)
+			}
+		})
+	}
+}
+
+func TestIsAllowedMirrorHost(t *testing.T) {
+	os.Setenv("UPLOADS_PUBLIC_URL", "https://heharse.cloud/uploads/")
+	defer os.Unsetenv("UPLOADS_PUBLIC_URL")
+
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"87c129bea46e5e69d2d92f9b9ef83ca8.r2.cloudflarestorage.com", true},
+		{"ABC.R2.CLOUDFLARESTORAGE.COM.", true},
+		{"heharse.cloud", true},
+		{"www.heharse.cloud", true},
+		{"evil-r2.cloudflarestorage.com.attacker.com", false},
+		{"heharse.cloud.evil.com", false},
+		{"cdn.example.com", false},
+		{"", false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.in, func(t *testing.T) {
+			if got := isAllowedMirrorHost(c.in); got != c.want {
+				t.Errorf("isAllowedMirrorHost(%q) = %v, want %v", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+var (
+	pngMagic  = []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+	jpegMagic = []byte{0xFF, 0xD8, 0xFF, 0xE0}
+)
+
+func TestNormalizeMirrorContentType(t *testing.T) {
+	cases := []struct {
+		name string
+		ct   string
+		data []byte
+		want string
+	}{
+		{"strip params", "image/png; charset=binary", nil, "image/png"},
+		{"lowercase video", "VIDEO/MP4", nil, "video/mp4"},
+		{"octet-stream detect png", "application/octet-stream", pngMagic, "image/png"},
+		{"empty detect jpeg", "", jpegMagic, "image/jpeg"},
+		{"html unchanged", "text/html", nil, "text/html"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := normalizeMirrorContentType(c.ct, c.data); got != c.want {
+				t.Errorf("normalizeMirrorContentType(%q) = %q, want %q", c.ct, got, c.want)
+			}
+		})
+	}
+}
+
+func TestValidThumbnailContentType(t *testing.T) {
+	imageCases := map[string]bool{
+		"image/png":     true,
+		"image/svg+xml": true,
+		"application/mp4": false,
+		"video/mp4":       false,
+		"":                false,
+	}
+	for ct, want := range imageCases {
+		if got := validThumbnailContentType(ct, false); got != want {
+			t.Errorf("validThumbnailContentType(%q, image) = %v, want %v", ct, got, want)
+		}
+	}
+	videoCases := map[string]bool{
+		"video/mp4":       true,
+		"application/mp4": true,
+		"image/png":       false,
+		"":                false,
+	}
+	for ct, want := range videoCases {
+		if got := validThumbnailContentType(ct, true); got != want {
+			t.Errorf("validThumbnailContentType(%q, video) = %v, want %v", ct, got, want)
+		}
+	}
+}
+
+func TestReadThumbnailBody(t *testing.T) {
+	t.Run("within limit", func(t *testing.T) {
+		data, err := readThumbnailBody(strings.NewReader("abc"), 3)
+		if err != nil || string(data) != "abc" {
+			t.Errorf("got (%q, %v), want (abc, nil)", data, err)
+		}
+	})
+	t.Run("declared size exceeds limit", func(t *testing.T) {
+		if _, err := readThumbnailBody(strings.NewReader("abc"), thumbnailMirrorMaxBytes+1); err == nil {
+			t.Error("expected error for oversized declared size")
+		}
+	})
+	t.Run("actual size exceeds limit", func(t *testing.T) {
+		big := strings.Repeat("a", int(thumbnailMirrorMaxBytes)+2)
+		if _, err := readThumbnailBody(strings.NewReader(big), 0); err == nil {
+			t.Error("expected error for oversized body")
+		}
+	})
+}
+
+// 单测环境 R2 未配置（R2Enabled()=false）且无网络：验证不可转存时优雅回退、原样保留
+func TestMirrorTemplateThumbnailFallback(t *testing.T) {
+	cases := []struct {
+		name string
+		url  string
+		typ  string
+	}{
+		{"empty", "", ""},
+		{"external cdn untouched", "https://cdn.example.com/x.jpg", "image"},
+		{"r2 short disabled keeps raw", "r2://geminigen-prd-upload-bucket/tmp/a.png", "image"},
+		{"relative path untouched", "/uploads/image/20261106/a.png", "image"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotURL, gotType := mirrorTemplateThumbnail(c.url, c.typ)
+			if gotURL != c.url || gotType != c.typ {
+				t.Errorf("mirrorTemplateThumbnail(%q, %q) = (%q, %q), want unchanged", c.url, c.typ, gotURL, gotType)
+			}
+		})
+	}
+}
